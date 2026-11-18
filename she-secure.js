@@ -5,7 +5,7 @@
 (() => {
   'use strict';
   if (window.SHESEC) return;
-  const URL = 'https://ahmqthuympannqrszvv.supabase.co';
+  const URL = 'https://ahmqthuympannqsrszvv.supabase.co';
   const KEY = 'sb_publishable_K7UKB4Kn2wiijlqPBXZL0Q_NOt3frvV';
   const SESSION_KEYS = ['hy_super_admin_verified_v15','hy_admin_verified_session_v15',
     'hy_logged_user_session_v15','hy_health_manager_verified'];
