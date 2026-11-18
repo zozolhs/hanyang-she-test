@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>한양이엔지 SHE | ROSTER 근로자 연명부 관리</title>
+    <!-- 공개키 기반 접속: 로그인 상태는 sessionStorage만 사용 -->
+    <script>document.documentElement.classList.add("roster-locked");</script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./she-secure.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --primary: #0052cc;
+            --primary-hover: #0747a6;
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --text-main: #0f172a;
+            --text-sub: #475569;
+            --border: #cbd5e1;
+            --danger: #ef4444;
+            --danger-hover: #dc2626;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Pretendard', sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text-main); padding: 20px; font-size: 14px; }
+
+        .container { max-width: 100%; margin: 0 auto; background: var(--card-bg); padding: 24px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); border: 1px solid var(--border); }
+
+        .top-header-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .page-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .control-panel {
+            display: grid;
+            grid-template-columns: minmax(240px, 2fr) repeat(5, minmax(145px, 1fr));
+            gap: 12px;
+            margin-bottom: 15px;
+            background: #f1f5f9;
+            padding: 18px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            align-items: center;
+        }
+
+        .control-group { display: flex; flex-direction: column; gap: 6px; }
+        .control-group label { font-weight: 600; font-size: 13px; color: var(--text-sub); }
+
+        input, select {
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 14px;
+            background: #fff;
+            outline: none;
+        }
+        input:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(0,82,204,0.15); }
+
+        .quick-tool-box {
+            background: #e6f0fa;
+            border: 1px solid #b3d4fc;
+            padding: 14px 18px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .quick-tool-box span.title { font-weight: 700; color: #004080; margin-right: 5px; }
+        
+        .hour-radio-group {
+            display: inline-flex;
+            gap: 8px;
+            background: #fff;
+            padding: 4px 8px;
+            border-radius: 6px;
+            border: 1px solid #b3d4fc;
+            margin-right: 10px;
+            align-items: center;
+        }
+        .hour-radio-group label { font-size: 12px; font-weight: 700; color: #004080; cursor: pointer; display: flex; align-items: center; gap: 3px; }
+
+        .status-filter-box {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            padding: 14px 18px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            align-items: center;
+        }
+        .status-filter-box .filter-box-title { font-weight: 700; font-size: 13px; color: #166534; margin-right: 5px; }
+        .checkbox-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #14532d;
+            cursor: pointer;
+            background: #fff;
+            padding: 4px 10px;
+            border-radius: 4px;
+            border: 1px solid #86efac;
+        }
+        .checkbox-label input { cursor: pointer; width: 16px; height: 16px; }
+
+        .btn {
+            padding: 9px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: background 0.2s;
+        }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: var(--primary-hover); }
+        .btn-success { background: #16a34a; color: white; }
+        .btn-success:hover { background: #15803d; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-danger:hover { background: var(--danger-hover); }
+        
+        .btn-action-blue { 
+            background: var(--primary); 
+            color: white; 
+            font-size: 12px; 
+            padding: 6px 10px; 
+            font-weight: 600;
+        }
+        .btn-action-blue:hover { background: var(--primary-hover); }
+
+        .action-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .bottom-action-bar {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 15px;
+        }
+
+        .table-container {
+            width: 100%;
+            overflow-x: auto;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            max-height: 650px;
+            background: #fff;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: center;
+            font-size: 13px;
+            white-space: nowrap;
+            min-width: 3500px;
+        }
+
+        th, td {
+            padding: 12px 12px;
+            border: 1px solid var(--border);
+            vertical-align: middle;
+        }
+
+        th {
+            background: #e6f0fa;
+            color: #003366;
+            font-weight: 700;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        th.highlight-col { background: #d0e1fd; color: #002244; }
+
+        td input[type="text"], td input[type="date"] {
+            width: 100%;
+            padding: 8px 10px;
+            font-size: 13px;
+            text-align: center;
+            border: 1px solid var(--border);
+            background: #fff;
+            border-radius: 4px;
+        }
+        td input[type="text"]:focus, td input[type="date"]:focus {
+            border-color: var(--primary);
+            background: #fff;
+        }
+
+        /* 교육 이수 상태별 박스 색상 스타일 */
+        .edu-input.status-completed { background-color: #dcfce7 !important; border-color: #4ade80 !important; color: #166534; font-weight: 600; }
+        .edu-input.status-under { background-color: #ffedd5 !important; border-color: #fb923c !important; color: #9a3412; font-weight: 600; }
+        .edu-input.status-expired { background-color: #fee2e2 !important; border-color: #f87171 !important; color: #991b1b; font-weight: 600; }
+
+        tr:hover { background: #f8fafc; }
+
+        :root { --primary:#16286e; --primary-hover:#1d6ce0; }
+        .roster-locked body > .container { visibility:hidden !important; }
+        #rosterAccessOverlay[hidden] { display:none !important; }
+        #rosterAccessOverlay { position:fixed; inset:0; z-index:99999; padding:20px;
+          display:flex; align-items:center; justify-content:center; background:#0f172ae8; }
+        .roster-lock-card { max-width:480px; width:100%; background:#fff; padding:28px;
+          border-radius:18px; box-shadow:0 25px 70px #0004; text-align:center; }
+        .roster-lock-card h2 { font-size:21px; color:#0f172a; margin:0 0 12px; }
+        .roster-lock-card p { color:#475569; font-size:14px; line-height:1.65; margin-bottom:18px; }
+        .roster-header-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+        .roster-nav { border:1px solid #cbd5e1; color:#16286e; background:#fff; }
+        .roster-info-line { display:flex; align-items:center; flex-wrap:wrap; gap:10px;
+          margin-top:8px; font-size:12px; color:#64748b; }
+        .roster-auth-badge { background:#e8efff; color:#16286e; font-weight:700;
+          border:1px solid #d3e2ff; padding:5px 9px; border-radius:99px; }
+        #rosterSaveStatus { font-size:12px; font-weight:700; color:#475569; }
+        #rosterSaveStatus[data-kind="pending"] { color:#a16207; }
+        #rosterSaveStatus[data-kind="error"] { color:#b91c1c; }
+        #rosterSaveStatus[data-kind="success"] { color:#15803d; }
+        .roster-invalid { border:2px solid #dc2626 !important; background:#fef2f2 !important; }
+        .btn:disabled { opacity:.52; cursor:not-allowed; }
+        .roster-helper { font-size:12px; color:#64748b; margin-top:12px; line-height:1.6; }
+        .roster-total { font-weight:600; color:#64748b; font-size:12px; }
+        @media (max-width:1200px) { .control-panel { grid-template-columns:repeat(3, minmax(0,1fr)); } }
+        @media (max-width:720px) {
+          body { padding:10px; }
+          .container { padding:14px; }
+          .control-panel { grid-template-columns:repeat(2,minmax(0,1fr)); }
+          .top-header-bar, .action-bar { align-items:flex-start; }
+          .page-title { font-size:18px; }
+          .btn { padding:8px 10px; font-size:12px; }
+        }
+        @media (max-width:440px) { .control-panel {grid-template-columns:1fr;} }
+    </style>
+</head>
+<body>
+
+<div id="rosterAccessOverlay" role="alertdialog" aria-modal="true" aria-labelledby="rosterAccessTitle">
+    <div class="roster-lock-card">
+        <h2 id="rosterAccessTitle">🔐 연명부 권한 확인 중</h2>
+        <p id="rosterAccessText">서버 회원 마스터의 승인 상태 및 접속 권한을 확인합니다.</p>
+        <a href="index.html" class="btn btn-primary" style="display:inline-block;text-decoration:none;">🏠 SHE 메인 포털로</a>
+    </div>
+</div>
+
+<div class="container">
+    <div class="top-header-bar">
+        <div>
+            <div class="page-title">📋 한양이엔지 SHE | 근로자 연명부</div>
+            <div class="roster-info-line">
+                <span>P5-FAB1 Ph1(FAB)</span>
+                <span id="rosterAuthBadge" class="roster-auth-badge">🔐 권한 확인 중</span>
+                <span id="rosterSaveStatus" aria-live="polite">서버 연결 준비 중…</span>
+            </div>
+        </div>
+        <div class="roster-header-actions">
+            <button type="button" class="btn roster-nav" onclick="location.href='index.html'">🏠 SHE 메인 포털로</button>
+            <button type="button" class="btn roster-nav" onclick="reloadRoster()">↻ 서버 새로고침</button>
+            <button type="button" class="btn btn-primary" onclick="saveRoster(true)">💾 서버 저장</button>
+            <button type="button" class="btn btn-success" onclick="document.getElementById('excelUpload').click()">📤 엑셀 업로드</button>
+            <input type="file" id="excelUpload" style="display:none;" accept=".xlsx,.xls,.csv">
+        </div>
+    </div>
+
+    <!-- 자동 연동 필터 영역 -->
+    <div class="control-panel">
+        <div class="control-group">
+            <label>통합 검색 (이름, 연락처, 근로번호 등)</label>
+            <input type="text" id="searchInput" placeholder="검색어를 입력하세요..." onkeyup="filterTable()">
+        </div>
+        <div class="control-group">
+            <label>업체 필터</label>
+            <select id="filterCompany" onchange="filterTable()">
+                <option value="">전체 업체</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label>직종 필터</label>
+            <select id="filterJob" onchange="filterTable()">
+                <option value="">전체 직종</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label>공종 필터</label>
+            <select id="filterProcess" onchange="filterTable()">
+                <option value="">전체 공종</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label for="filterResign">퇴사 여부 필터</label>
+            <select id="filterResign" onchange="filterTable()">
+                <option value="">전체 인원</option>
+                <option value="active">재직자</option>
+                <option value="resigned">퇴사자</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label for="filterDueDate">교육 도래일 필터 (2개월 기준)</label>
+            <select id="filterDueDate" onchange="filterTable()">
+                <option value="">전체 인원보기</option>
+                <option value="expired">2개월 경과 만료자만 보기 (빠른순)</option>
+                <option value="soon">7일 이내 도래 예정자만 보기</option>
+                <option value="active">만료 교육이 없는 인원</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- ⚡ 퀵 일괄 입력 툴바 -->
+    <div class="quick-tool-box">
+        <span class="title">⚡ 퀵 일괄 입력 툴바:</span>
+        <div class="hour-radio-group">
+            <label><input type="radio" name="quickHour" value="2h"> 2h</label>
+            <label><input type="radio" name="quickHour" value="4h"> 4h</label>
+            <label><input type="radio" name="quickHour" value="8h" checked> 8h</label>
+        </div>
+        <button class="btn btn-action-blue" onclick="applyDateToSelected('col-common')">⚡ 공통교육</button>
+        <button class="btn btn-action-blue" onclick="applyDateToSelected('col-13ho')">⚡ 13호(운반)</button>
+        <button class="btn btn-action-blue" onclick="applyDateToSelected('col-38ho')">⚡ 38호(화재)</button>
+        <button class="btn btn-action-blue" onclick="applyDateToSelected('col-4ho')">⚡ 4호(인화)</button>
+        <button class="btn btn-action-blue" onclick="applyDateToSelected('col-35ho')">⚡ 35호(허가)</button>
+        <button class="btn btn-action-blue" onclick="applyDateToSelected('col-msds')">⚡ MSDS</button>
+        <button class="btn btn-action-blue" onclick="applyDateToSelected('col-crane')">⚡ 크레인</button>
+        <button class="btn btn-action-blue" onclick="applyDateToSelected('col-2ho')">⚡ 2호(용접)</button>
+        <span style="font-size: 11px; color: #004080; margin-left: auto;">* 체크된 인원에게 선택 시간으로 날짜가 일괄 적용됩니다.</span>
+    </div>
+
+    <!-- 🔍 이수자 복수 필터 -->
+    <div class="status-filter-box">
+        <span class="filter-box-title">🔍 이수자 복수 필터:</span>
+        <label class="checkbox-label"><input type="checkbox" class="edu-filter" value="col-common" onchange="filterTable()"> 공통교육</label>
+        <label class="checkbox-label"><input type="checkbox" class="edu-filter" value="col-13ho" onchange="filterTable()"> 13호(운반)</label>
+        <label class="checkbox-label"><input type="checkbox" class="edu-filter" value="col-38ho" onchange="filterTable()"> 38호(화재)</label>
+        <label class="checkbox-label"><input type="checkbox" class="edu-filter" value="col-4ho" onchange="filterTable()"> 4호(인화)</label>
+        <label class="checkbox-label"><input type="checkbox" class="edu-filter" value="col-35ho" onchange="filterTable()"> 35호(허가)</label>
+        <label class="checkbox-label"><input type="checkbox" class="edu-filter" value="col-msds" onchange="filterTable()"> MSDS</label>
+        <label class="checkbox-label"><input type="checkbox" class="edu-filter" value="col-crane" onchange="filterTable()"> 크레인</label>
+        <label class="checkbox-label"><input type="checkbox" class="edu-filter" value="col-2ho" onchange="filterTable()"> 2호(용접)</label>
+    </div>
+
+    <div class="action-bar">
+        <div style="font-weight: 600; color: var(--text-sub);">
+            조회 결과: <span id="rowCount" style="color: var(--primary);">0</span>명 <span class="roster-total">/ 전체 <span id="rosterTotalCount">0</span>명</span>
+        </div>
+        <div style="display: flex; gap: 8px;">
+            <button class="btn btn-primary" onclick="addNewRow()">+ 신규 행 추가</button>
+            <button class="btn btn-danger" onclick="deleteSelectedRows()">🗑️ 선택 삭제</button>
+        </div>
+    </div>
+
+    <!-- 데이터 테이블 (입력 칸 너비를 1단계씩 넉넉하게 확장) -->
+    <div class="table-container">
+        <table id="dataTable">
+            <thead>
+                <tr>
+                    <th width="50"><input type="checkbox" id="selectAll" onclick="toggleSelectAll(this)"></th>
+                    <th width="60">NO</th>
+                    <th width="160">근로번호 (8자리)</th>
+                    <th width="130">성명</th>
+                    <th width="80">성별</th>
+                    <th width="130">생년월일</th>
+                    <th width="90">혈액형</th>
+                    <th width="130">직종</th>
+                    <th width="200">공종 (최대 6단어)</th>
+                    <th width="200">업체 (최대 6단어)</th>
+                    <th width="190">연락처 (11자리)</th>
+                    <th width="110">교육구분</th>
+                    <th width="140">퇴사일자</th>
+                    <th class="highlight-col" width="150">공통교육</th>
+                    <th class="highlight-col" width="150">13호(운반)</th>
+                    <th class="highlight-col" width="150">38호(화재)</th>
+                    <th class="highlight-col" width="150">4호(인화)</th>
+                    <th class="highlight-col" width="150">35호(허가)</th>
+                    <th class="highlight-col" width="150">MSDS</th>
+                    <th class="highlight-col" width="140">크레인</th>
+                    <th class="highlight-col" width="150">2호(용접)</th>
+                    <th width="140">정기교육</th>
+                    <th width="140">물산입사일</th>
+                    <th width="120">직번</th>
+                    <th width="200">비고</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+
+    <div class="bottom-action-bar">
+        <button type="button" class="btn btn-success" onclick="exportRosterExcel()">📥 엑셀 다운로드</button>
+    </div>
+    <div class="roster-helper">
+        ※ 교육입력 예: <b>2026-11-18 8h</b>. 8h 이상은 이수 완료(초록), 8h 미만이며 교육일 + 2개월 경과 시 만료(빨강)로 표시됩니다.
+        데이터는 변경 후 자동 저장을 시도하며, 서버 저장 상태를 반드시 확인해 주세요. 서버 저장 실패 시 엑셀로 백업하세요.
+    </div>
+</div>
+
+<script>
+'use strict';
+
+/*
+ * HANYANG SHE - ROSTER 통합 운영 코드
+ * 저장 규격: hanyang_safety_store.id = main_v1_roster_master
+ *            items = [{ workerNo, name, ..., eduCommon, ... }]
+ *            documents = [{ __schema: 'hanyang_roster_v1', ... }]
+ * 브라우저 세션은 UI 이동용이며 인증 토큰이 아니다.
+ * 운영 보안은 반드시 Supabase Auth 및 사용자별 RLS/서버 검증으로 강제해야 한다.
+ */
+const ROSTER_CONFIG = Object.freeze({
+  url: 'https://ahmqthuympannqrszvv.supabase.co',
+  key: 'sb_publishable_K7UKB4Kn2wiijlqPBXZL0Q_NOt3frvV',
+  table: 'hanyang_safety_store',
+  usersRow: 'main_v12_users_master',
+  rosterRow: 'main_v1_roster_master',
+  sessionUser: 'hy_logged_user_session_v15',
+  sessionAdmin: 'hy_admin_verified_session_v15',
+  sessionSuper: 'hy_super_admin_verified_v15'
+});
+
+const FIELD_DEFS = [
+  { key:'workerNo', label:'근로번호 (8자리)', placeholder:'근로번호 8자리' },
+  { key:'name', label:'성명', placeholder:'성명' },
+  { key:'gender', label:'성별', placeholder:'남/여' },
+  { key:'birth', label:'생년월일', placeholder:'생년월일' },
+  { key:'blood', label:'혈액형', placeholder:'혈액형' },
+  { key:'job', label:'직종', placeholder:'직종' },
+  { key:'process', label:'공종 (최대 6단어)', placeholder:'공종 입력' },
+  { key:'company', label:'업체 (최대 6단어)', placeholder:'업체 입력' },
+  { key:'phone', label:'연락처 (11자리)', placeholder:'010-0000-0000' },
+  { key:'educationType', label:'교육구분', placeholder:'교육구분' },
+  { key:'resignDate', label:'퇴사일자', placeholder:'YYYY-MM-DD', css:'col-resign' },
+  { key:'eduCommon', label:'공통교육', placeholder:'YYYY-MM-DD 8h', css:'col-common edu-input' },
+  { key:'edu13ho', label:'13호(운반)', placeholder:'YYYY-MM-DD 8h', css:'col-13ho edu-input' },
+  { key:'edu38ho', label:'38호(화재)', placeholder:'YYYY-MM-DD 8h', css:'col-38ho edu-input' },
+  { key:'edu4ho', label:'4호(인화)', placeholder:'YYYY-MM-DD 8h', css:'col-4ho edu-input' },
+  { key:'edu35ho', label:'35호(허가)', placeholder:'YYYY-MM-DD 8h', css:'col-35ho edu-input' },
+  { key:'eduMsds', label:'MSDS', placeholder:'YYYY-MM-DD 8h', css:'col-msds edu-input' },
+  { key:'eduCrane', label:'크레인', placeholder:'YYYY-MM-DD 8h', css:'col-crane edu-input' },
+  { key:'edu2ho', label:'2호(용접)', placeholder:'YYYY-MM-DD 8h', css:'col-2ho edu-input' },
+  { key:'eduRegular', label:'정기교육', placeholder:'YYYY-MM-DD', css:'col-regular' },
+  { key:'samsungStartDate', label:'물산입사일', placeholder:'YYYY-MM-DD' },
+  { key:'employeeId', label:'직번', placeholder:'직번' },
+  { key:'notes', label:'비고', placeholder:'비고' }
+];
+const EDU_KEYS = [ 'eduCommon', 'edu13ho', 'edu38ho', 'edu4ho', 'edu35ho', 'eduMsds', 'eduCrane', 'edu2ho' ];
+const CLASS_TO_EDU = Object.freeze({
+  'col-common':'eduCommon', 'col-13ho':'edu13ho', 'col-38ho':'edu38ho',
+  'col-4ho':'edu4ho', 'col-35ho':'edu35ho', 'col-msds':'eduMsds',
+  'col-crane':'eduCrane', 'col-2ho':'edu2ho'
+});
+
+const rosterState = {
+  client: null,
+  authorized: false,
+  isSuper: false,
+  user: null,
+  verifyPromise: null,
+  lastVerifiedAt: 0,
+  ready: false,
+  hasServerRow: false,
+  serverTimestamp: null,
+  originalDocuments: [],
+  dirty: false,
+  revision: 0,
+  saving: false,
+  saveQueued: false,
+  autosavePaused: false,
+  debounceTimer: null,
+  serverDataLoaded: false
+};
+const $ = (id) => document.getElementById(id);
+
+function displayAccess(title, detail, isMaintenance = false) {
+  rosterState.authorized = false;
+  document.documentElement.classList.add('roster-locked');
+  $('rosterAccessTitle').textContent = title;
+  $('rosterAccessText').textContent = detail;
+  $('rosterAccessOverlay').hidden = false;
+  $('rosterAccessOverlay').dataset.maintenance = String(isMaintenance);
+}
+
+function unlockAccess() {
+  $('rosterAccessOverlay').hidden = true;
+  document.documentElement.classList.remove('roster-locked');
+}
+
+function normalizeBirth6(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  return digits.length >= 8 && /^(19|20)/.test(digits) ? digits.slice(2,8) : digits.slice(0,6);
+}
+
+function sessionUser() {
+  try { return JSON.parse(sessionStorage.getItem(ROSTER_CONFIG.sessionUser) || 'null'); }
+  catch (_) { return null; }
+}
+
+function serverUserMatches(users, candidate) {
+  if (!candidate || !candidate.name) return null;
+  const clean = text => String(text || '').replace(/\s/g, '').trim();
+  const sessionId = String(candidate.id ?? '').trim();
+  const birth = normalizeBirth6(candidate.birth || candidate.dob || candidate.birthDate);
+  return users.find(u => {
+    if (!u || clean(u.name) !== clean(candidate.name)) return false;
+    const id = String(u.id ?? '').trim();
+    const serverBirth = normalizeBirth6(u.birth || u.dob || u.birthDate);
+    if (sessionId && id && sessionId !== id) return false;
+    if (birth && serverBirth && birth !== serverBirth) return false;
+    return Boolean((sessionId && id && sessionId === id) || (birth && serverBirth && birth === serverBirth));
+  }) || null;
+}
+
+function isApproved(user) {
+  return Boolean(user && user.status === 'approved' &&
+    user.allowed !== false && user.blocked !== true && user.isBlocked !== true);
+}
+
+async function verifyRosterAccess(force = false) {
+  if (rosterState.verifyPromise) return rosterState.verifyPromise;
+  if (!force && rosterState.authorized && Date.now()-rosterState.lastVerifiedAt < 10000) return true;
+  rosterState.verifyPromise = (async () => {
+    try {
+      const result = await window.SHESEC.guard('roster', true);
+      if (!result.ok) {
+        rosterState.authorized = false;
+        displayAccess(result.reason === 'maintenance' ? '🔧 서버 점검 중' : '🔒 ROSTER 접근 제한',
+          '승인된 ROSTER 권한 관리자만 접속할 수 있습니다. 메인 SHE 포털에서 로그인하세요.',
+          result.reason === 'maintenance');
+        return false;
+      }
+      rosterState.user = result.profile;
+      rosterState.authorized = true;
+      rosterState.isSuper = result.profile.role === 'super_admin';
+      rosterState.lastVerifiedAt = Date.now();
+      $('rosterAuthBadge').textContent = rosterState.isSuper ? '🛡️ 최고관리자' :
+        `📋 ROSTER 관리자 · ${result.profile.name}`;
+      unlockAccess(); return true;
+    } catch (error) {
+      rosterState.authorized = false;
+      console.error('ROSTER 권한 확인 오류',error);
+      displayAccess('⚠️ 서버 인증 실패','Supabase 인증 또는 RLS 설정을 확인하세요.');
+      return false;
+    }
+  })();
+  try { return await rosterState.verifyPromise; }
+  finally { rosterState.verifyPromise = null; }
+}
+
+function requireAccess() {
+  if (!rosterState.authorized || !rosterState.ready) {
+    alert('🔒 연명부 접근 권한이 없거나 데이터 로딩 중입니다.');
+    return false;
+  }
+  return true;
+}
+
+function setSaveStatus(text, kind = 'neutral') {
+  const node = $('rosterSaveStatus');
+  node.textContent = text;
+  node.dataset.kind = kind;
+}
+
+function getTodayDate() {
+  const now = new Date();
+  return [now.getFullYear(), String(now.getMonth()+1).padStart(2,'0'), String(now.getDate()).padStart(2,'0')].join('-');
+}
+
+function strictDate(s) {
+  const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const y = Number(m[1]), mo = Number(m[2]), day = Number(m[3]);
+  const dt = new Date(y, mo - 1, day);
+  return dt.getFullYear() === y && dt.getMonth() === mo-1 && dt.getDate() === day ? dt : null;
+}
+
+function addCalendarMonths(date, monthCount) {
+  const start = new Date(date.getFullYear(), date.getMonth() + monthCount, 1);
+  const maxDay = new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate();
+  start.setDate(Math.min(date.getDate(), maxDay));
+  return start;
+}
+
+function parseEducation(raw) {
+  const value = String(raw || '').trim();
+  const dateMatch = value.match(/\b(\d{4}-\d{2}-\d{2})\b/);
+  const hourMatch = value.match(/(?:^|\s)(\d+(?:\.\d+)?)\s*h\b/i);
+  const date = dateMatch ? strictDate(dateMatch[1]) : null;
+  const hours = hourMatch ? Number(hourMatch[1]) : 0;
+  const completed = hours >= 8;
+  const dueDate = date ? addCalendarMonths(date, 2) : null;
+  const today = strictDate(getTodayDate());
+  const expired = !completed && Boolean(dueDate && today && dueDate <= today);
+  const soon = !completed && Boolean(dueDate && today && dueDate > today && (dueDate.getTime() - today.getTime()) <= 7*86400000);
+  return { date, hours, completed, dueDate, expired, soon };
+}
+
+function updateInputColor(input) {
+  if (!input || !input.classList.contains('edu-input')) return;
+  const parsed = parseEducation(input.value);
+  input.classList.remove('status-completed','status-under','status-expired');
+  if (!input.value.trim()) return;
+  input.classList.add(parsed.completed ? 'status-completed' : parsed.expired ? 'status-expired' : 'status-under');
+}
+
+function validateEduInput(input) {
+  if (!input) return;
+  const before = input.value;
+  let value = String(before).trim();
+  if (value) {
+    if (/^\d{1,2}\s*h?$/i.test(value)) {
+      value = getTodayDate() + ' ' + value.replace(/h/i,'').trim() + 'h';
+    } else if (/^\d{4}-\d{2}-\d{2}\s+\d{1,2}\s*h?$/i.test(value)) {
+      const parts = value.match(/^(\d{4}-\d{2}-\d{2})\s+(\d{1,2})\s*h?$/i);
+      value = `${parts[1]} ${parts[2]}h`;
+    }
+    const exact = value.match(/^(\d{4}-\d{2}-\d{2})\s+(\d+(?:\.\d+)?)h$/i);
+    if (!exact || !strictDate(exact[1]) || Number(exact[2]) > 8 || Number(exact[2]) < 0) {
+      alert('교육 입력값을 확인해 주세요. 예: 2026-11-18 8h (시간 0~8h)');
+      input.value = before;
+      input.classList.add('roster-invalid');
+      updateInputColor(input);
+      return false;
+    }
+  }
+  input.value = value;
+  input.classList.remove('roster-invalid');
+  updateInputColor(input);
+  if (before !== value) markDirty();
+  return true;
+}
+
+function initAllEduInputs() {
+  document.querySelectorAll('#tableBody .edu-input').forEach(updateInputColor);
+}
+
+function normalizeRecord(record) {
+  const source = record && typeof record === 'object' ? record : {};
+  const output = {};
+  for (const field of FIELD_DEFS) {
+    const val = source[field.key];
+    output[field.key] = typeof val === 'string' ? val : (val == null ? '' : String(val));
+  }
+  const id = source.uid || source._uid || source.id;
+  output.uid = typeof id === 'string' && id.length < 100 ? id : makeUid();
+  return output;
+}
+
+function makeUid() {
+  if (window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID();
+  return `r-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,12)}`;
+}
+
+function readServerRecords(row) {
+  const candidates = [row && row.items, row && row.documents && row.documents[0] && row.documents[0].roster,
+    row && row.documents && row.documents[0] && row.documents[0].workers];
+  const records = candidates.find(v => Array.isArray(v) && v.length) ||
+    candidates.find(v => Array.isArray(v));
+  if (!records) return [];
+  return records.filter(r => r && typeof r === 'object').map(normalizeRecord);
+}
+
+function createRow(record) {
+  const data = normalizeRecord(record);
+  const row = document.createElement('tr');
+  row.dataset.uid = data.uid;
+  const checkCell = row.insertCell();
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.className = 'row-checkbox';
+  checkCell.appendChild(checkbox);
+  row.insertCell().textContent = '';
+  for (const f of FIELD_DEFS) {
+    const td = row.insertCell();
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.dataset.field = f.key;
+    input.className = f.css || '';
+    input.placeholder = f.placeholder || '';
+    input.value = data[f.key];
+    input.autocomplete = 'off';
+    if (f.key === 'workerNo') input.maxLength = 32;
+    if (f.key === 'notes') input.title = '특이사항 기록';
+    td.appendChild(input);
+    if (EDU_KEYS.includes(f.key)) updateInputColor(input);
+  }
+  return row;
+}
+
+function collectRows() {
+  return Array.from($('tableBody').rows).map(row => {
+    const rec = { uid: row.dataset.uid || makeUid() };
+    for (const f of FIELD_DEFS) rec[f.key] = row.querySelector(`[data-field="${f.key}"]`)?.value.trim() || '';
+    return rec;
+  });
+}
+
+function renderRows(records) {
+  const tbody = $('tableBody');
+  const fragment = document.createDocumentFragment();
+  records.forEach(record => fragment.appendChild(createRow(record)));
+  tbody.replaceChildren(fragment);
+  updateRowNumbers();
+  updateFilterDropdowns();
+  initAllEduInputs();
+  filterTable();
+}
+
+function markDirty() {
+  if (!rosterState.ready || !rosterState.authorized) return;
+  rosterState.dirty = true;
+  rosterState.revision++;
+  setSaveStatus('● 변경사항 저장 대기', 'pending');
+  if (rosterState.autosavePaused) return;
+  clearTimeout(rosterState.debounceTimer);
+  rosterState.debounceTimer = setTimeout(() => saveRoster(false), 1700);
+}
+
+function validateRecordsForSave(items) {
+  for (let index=0; index<items.length; index++) {
+    const row = items[index];
+    for (const key of EDU_KEYS) {
+      const val = String(row[key] || '').trim();
+      if (!val) continue;
+      const match = val.match(/^(\d{4}-\d{2}-\d{2})\s+(\d+(?:\.\d+)?)h$/i);
+      if (!match || !strictDate(match[1]) || Number(match[2]) > 8 || Number(match[2]) < 0) {
+        throw new Error(`${index+1}번째 행의 교육 입력 형식이 올바르지 않습니다: ${val}`);
+      }
+    }
+    for (const key of ['resignDate', 'samsungStartDate']) {
+      const val = String(row[key] || '').trim();
+      if (val && !strictDate(val)) {
+        throw new Error(`${index+1}번째 행의 날짜를 확인해 주세요: ${val}`);
+      }
+    }
+  }
+}
+
+function showSaveError(error) {
+  console.error('ROSTER 저장 실패:', error);
+  setSaveStatus('⚠ 저장 실패 · 변경사항 미저장', 'error');
+}
+
+async function loadRoster() {
+  if (!(await verifyRosterAccess(true))) return false;
+  setSaveStatus('서버 연명부 불러오는 중…');
+  const { data, error } = await rosterState.client.from(ROSTER_CONFIG.table)
+    .select('id,items,documents,updated_at').eq('id', ROSTER_CONFIG.rosterRow).maybeSingle();
+  if (error) throw error;
+  rosterState.hasServerRow = Boolean(data);
+  rosterState.serverTimestamp = data?.updated_at ?? null;
+  rosterState.originalDocuments = Array.isArray(data?.documents) ? data.documents : [];
+  rosterState.ready = true;
+  rosterState.serverDataLoaded = true;
+  rosterState.dirty = false;
+  rosterState.autosavePaused = false;
+  renderRows(data ? readServerRecords(data) : []);
+  setSaveStatus(data ? `✓ 서버 동기화 완료 · ${new Date().toLocaleTimeString('ko-KR')}` : '서버에 저장된 연명부 없음 · 새로 등록 가능', 'success');
+  return true;
+}
+
+async function saveRoster(manual = true) {
+  if (!requireAccess()) return false;
+  clearTimeout(rosterState.debounceTimer);
+  if (rosterState.saving) { rosterState.saveQueued = true; return false; }
+  if (!rosterState.dirty) {
+    if (manual) setSaveStatus('✓ 저장할 변경사항이 없습니다.', 'success');
+    return true;
+  }
+  rosterState.saving = true;
+  const revision = rosterState.revision;
+  try {
+    if (!(await verifyRosterAccess(true))) throw new Error('서버 권한 재검증에 실패했습니다.');
+    const items = collectRows();
+    validateRecordsForSave(items);
+    const nowIso = new Date().toISOString();
+    const meta = {
+      ...(rosterState.originalDocuments[0] || {}),
+      __schema: 'hanyang_roster_v1',
+      updatedBy: rosterState.user?.name || '',
+      updatedAt: nowIso,
+      itemCount: items.length,
+      educationKeys: EDU_KEYS.slice(),
+      expiryRule: 'incomplete_and_education_date_plus_2_calendar_months',
+      completeRule: 'at_least_8h'
+    };
+    const documents = [meta, ...rosterState.originalDocuments.slice(1)];
+    const payload = {items, documents, updated_at:nowIso};
+    setSaveStatus('↻ 서버에 저장 중…');
+    let saved;
+    if (rosterState.hasServerRow) {
+      let query = rosterState.client.from(ROSTER_CONFIG.table)
+        .update(payload).eq('id',ROSTER_CONFIG.rosterRow);
+      query = rosterState.serverTimestamp === null
+        ? query.is('updated_at',null)
+        : query.eq('updated_at',rosterState.serverTimestamp);
+      const response = await query.select('updated_at,documents');
+      if (response.error) throw response.error;
+      if (!Array.isArray(response.data) || response.data.length !== 1) {
+        rosterState.autosavePaused = true;
+        throw new Error('다른 사용자가 연명부를 먼저 변경했거나 서버 쓰기 권한이 없습니다. 새로고침 전 현재 작업내용을 엑셀로 백업하세요.');
+      }
+      saved = response.data[0];
+    } else {
+      const response = await rosterState.client.from(ROSTER_CONFIG.table).insert({
+        id:ROSTER_CONFIG.rosterRow, documents, items, users:[], updated_at:nowIso
+      }).select('updated_at,documents').single();
+      if (response.error) {
+        rosterState.autosavePaused = true;
+        throw response.error;
+      }
+      saved = response.data;
+      rosterState.hasServerRow = true;
+    }
+    rosterState.serverTimestamp = saved.updated_at;
+    rosterState.originalDocuments = Array.isArray(saved.documents) ? saved.documents : documents;
+    if (rosterState.revision === revision) {
+      rosterState.dirty = false;
+      setSaveStatus(`✓ 서버 저장 완료 · ${new Date().toLocaleTimeString('ko-KR')}`, 'success');
+    } else {
+      rosterState.saveQueued = true;
+    }
+    return true;
+  } catch (error) {
+    showSaveError(error);
+    if (manual) alert(`연명부 저장에 실패했습니다.\n${error.message || String(error)}\n저장되지 않은 데이터는 화면에 남아 있습니다.`);
+    return false;
+  } finally {
+    rosterState.saving = false;
+    if (rosterState.saveQueued && !rosterState.autosavePaused && rosterState.authorized) {
+      rosterState.saveQueued = false;
+      if (rosterState.dirty) {
+        clearTimeout(rosterState.debounceTimer);
+        rosterState.debounceTimer = setTimeout(() => saveRoster(false), 400);
+      }
+    }
+  }
+}
+
+async function reloadRoster() {
+  if (rosterState.dirty && !confirm('저장되지 않은 변경사항이 있습니다. 서버 데이터를 다시 불러오면 해당 변경사항이 사라집니다. 계속할까요?')) return;
+  try { await loadRoster(); }
+  catch (error) { showSaveError(error); alert('서버 새로고침 실패: ' + (error.message || String(error))); }
+}
+
+function applyDateToSelected(className) {
+  if (!requireAccess()) return;
+  const key = CLASS_TO_EDU[className];
+  if (!key) return;
+  const rows = Array.from(document.querySelectorAll('#tableBody .row-checkbox:checked'));
+  if (!rows.length) { alert('교육을 일괄 입력할 작업자를 먼저 선택해 주세요.'); return; }
+  const hour = document.querySelector('input[name="quickHour"]:checked')?.value || '8h';
+  const value = `${getTodayDate()} ${hour}`;
+  for (const cb of rows) {
+    const input = cb.closest('tr')?.querySelector(`[data-field="${key}"]`);
+    if (input) { input.value = value; updateInputColor(input); }
+  }
+  markDirty();
+  filterTable();
+  alert(`${rows.length}명에게 [${value}] 값을 입력했습니다. 저장 상태를 확인해 주세요.`);
+}
+
+function toggleSelectAll(source) {
+  document.querySelectorAll('#tableBody tr').forEach(row => {
+    if (row.style.display !== 'none') row.querySelector('.row-checkbox').checked = source.checked;
+  });
+}
+
+function deleteSelectedRows() {
+  if (!requireAccess()) return;
+  const selected = Array.from(document.querySelectorAll('#tableBody .row-checkbox:checked'));
+  if (!selected.length) return alert('삭제할 인원을 선택해 주세요.');
+  if (!confirm(`선택한 ${selected.length}명의 근로자 정보를 삭제하시겠습니까?`)) return;
+  selected.forEach(cb => cb.closest('tr').remove());
+  $('selectAll').checked = false;
+  updateRowNumbers();
+  updateFilterDropdowns();
+  filterTable();
+  markDirty();
+}
+
+function updateRowNumbers() {
+  Array.from($('tableBody').rows).forEach((tr,i) => { tr.cells[1].textContent = String(i+1); });
+}
+
+function populateSelect(selectId, values) {
+  const select = $(selectId);
+  const previous = select.value;
+  const title = select.options[0]?.textContent || '전체';
+  select.replaceChildren(new Option(title, ''));
+  [...values].sort((a,b)=>a.localeCompare(b,'ko')).forEach(item => select.add(new Option(item,item)));
+  if ([...select.options].some(o => o.value === previous)) select.value = previous;
+}
+
+function updateFilterDropdowns() {
+  const company = new Set(), job = new Set(), process = new Set();
+  Array.from($('tableBody').rows).forEach(row => {
+    for (const [key,set] of [['company',company],['job',job],['process',process]]) {
+      const value = row.querySelector(`[data-field="${key}"]`)?.value.trim();
+      if (value) set.add(value);
+    }
+  });
+  populateSelect('filterCompany', company);
+  populateSelect('filterJob', job);
+  populateSelect('filterProcess', process);
+}
+
+function getRowEducationState(row) {
+  const states = EDU_KEYS.map(key => parseEducation(row.querySelector(`[data-field="${key}"]`)?.value));
+  const expired = states.filter(s => s.expired);
+  const soon = states.filter(s => s.soon);
+  const earliestDue = expired.length
+    ? Math.min(...expired.map(s => s.dueDate.getTime()))
+    : soon.length ? Math.min(...soon.map(s=>s.dueDate.getTime())) : Number.MAX_SAFE_INTEGER;
+  return {expired:expired.length > 0, soon:soon.length > 0, earliestDue};
+}
+
+function filterTable() {
+  const q = $('searchInput').value.toLowerCase().trim();
+  const company = $('filterCompany').value;
+  const job = $('filterJob').value;
+  const process = $('filterProcess').value;
+  const resign = $('filterResign').value;
+  const due = $('filterDueDate').value;
+  const eduFilters = Array.from(document.querySelectorAll('.edu-filter:checked')).map(el => CLASS_TO_EDU[el.value]).filter(Boolean);
+  const body = $('tableBody');
+  const rows = Array.from(body.rows);
+  const computed = new Map();
+  for (const row of rows) {
+    const fieldValue = key => row.querySelector(`[data-field="${key}"]`)?.value.trim() || '';
+    const resigned = fieldValue('resignDate') !== '';
+    const matchResign = resign === 'active' ? !resigned : resign === 'resigned' ? resigned : true;
+    const result = getRowEducationState(row);
+    const matchDue = due === 'expired' ? result.expired : due === 'soon' ? result.soon : due === 'active' ? !result.expired : true;
+    const matchText = !q || FIELD_DEFS.some(field => fieldValue(field.key).toLowerCase().includes(q));
+    const matchEdu = eduFilters.every(key => fieldValue(key).length > 0);
+    const match = matchText && (!company || fieldValue('company') === company) &&
+      (!job || fieldValue('job') === job) && (!process || fieldValue('process') === process) &&
+      matchResign && matchDue && matchEdu;
+    computed.set(row, {match, earliest:result.earliestDue});
+  }
+  if (due === 'expired' || due === 'soon') {
+    rows.sort((a,b)=>computed.get(a).earliest - computed.get(b).earliest);
+    body.append(...rows);
+  }
+  let visible = 0;
+  rows.forEach(row => {
+    const matched = computed.get(row).match;
+    row.hidden = !matched;
+    row.style.display = matched ? '' : 'none';
+    if (matched) visible++;
+  });
+  updateRowNumbers();
+  $('rowCount').textContent = String(visible);
+  $('rosterTotalCount').textContent = String(rows.length);
+}
+
+function addNewRow() {
+  if (!requireAccess()) return;
+  const rec = normalizeRecord({uid:makeUid()});
+  const row = createRow(rec);
+  $('tableBody').appendChild(row);
+  updateRowNumbers();
+  updateFilterDropdowns();
+  filterTable();
+  markDirty();
+  row.querySelector('[data-field="workerNo"]').focus();
+}
+
+function buildExcelFilename() { return `한양이엔지_연명부_${getTodayDate()}.xlsx`; }
+
+function exportRosterExcel() {
+  if (!requireAccess()) return;
+  if (!window.XLSX) return alert('엑셀 라이브러리를 불러오지 못했습니다. 연결 상태를 확인해 주세요.');
+  const rows = collectRows();
+  const matrix = [ ['NO', ...FIELD_DEFS.map(f => f.label)] ];
+  rows.forEach((r,i) => matrix.push([i+1, ...FIELD_DEFS.map(f=>r[f.key] || '')]));
+  const sheet = XLSX.utils.aoa_to_sheet(matrix);
+  sheet['!cols'] = [ {wch:6}, ...FIELD_DEFS.map(f => ({wch: ['notes','process','company'].includes(f.key) ? 32 : 18})) ];
+  sheet['!autofilter'] = {ref:sheet['!ref']};
+  const book = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(book,sheet,'연명부');
+  XLSX.writeFile(book,buildExcelFilename());
+}
+
+function cleanedHeader(value) {
+  return String(value ?? '').replace(/[\s\(\)\[\]·\-_/]/g,'').toLowerCase();
+}
+
+function findHeaderIndex(headers, field) {
+  const aliases = {
+    workerNo:['근로번호','근로자번호','근로자id'],
+    name:['성명','이름','근로자명'], gender:['성별'], birth:['생년월일','생일'], blood:['혈액형'],
+    job:['직종'], process:['공종'], company:['업체','소속업체','회사'], phone:['연락처','전화번호','핸드폰'],
+    educationType:['교육구분'], resignDate:['퇴사일자','퇴사일'],
+    eduCommon:['공통교육'], edu13ho:['13호','13호운반'], edu38ho:['38호','38호화재'],
+    edu4ho:['4호','4호인화'], edu35ho:['35호','35호허가'], eduMsds:['msds'],
+    eduCrane:['크레인'], edu2ho:['2호','2호용접'], eduRegular:['정기교육'],
+    samsungStartDate:['물산입사일'],employeeId:['직번'],notes:['비고','특이사항']
+  }[field.key] || [field.label];
+  const normalized = aliases.map(cleanedHeader);
+  return headers.findIndex(header => normalized.some(alias => header === alias ||
+    (alias.length >= 3 && header.startsWith(alias))));
+}
+
+function parseExcelRows(matrix) {
+  const nonempty = matrix.filter(row => Array.isArray(row) && row.some(v => String(v ?? '').trim() !== ''));
+  if (!nonempty.length) return [];
+  let headerRowIndex = nonempty.findIndex(row => {
+    const normalized = row.map(cleanedHeader);
+    return normalized.includes('성명') || normalized.includes('근로번호') || normalized.includes('근로번호8자리');
+  });
+  const hasHeader = headerRowIndex >= 0;
+  const start = hasHeader ? headerRowIndex + 1 : 0;
+  const headers = hasHeader ? nonempty[headerRowIndex].map(cleanedHeader) : [];
+  const mapped = FIELD_DEFS.map(f => findHeaderIndex(headers,f));
+  const hasMappedFields = mapped.filter(i=>i >= 0).length >= 6;
+  const results = [];
+  for (let index = start; index < nonempty.length; index++) {
+    const source = nonempty[index];
+    const obj = {uid:makeUid()};
+    for (let i=0; i<FIELD_DEFS.length; i++) {
+      const col = hasMappedFields ? mapped[i] : (source.length >= 24 ? i + 1 : i);
+      obj[FIELD_DEFS[i].key] = col >= 0 ? String(source[col] ?? '').trim() : '';
+    }
+    if (!obj.name && !obj.workerNo) continue;
+    results.push(normalizeRecord(obj));
+  }
+  return results;
+}
+
+async function importRosterExcel(file) {
+  if (!file || !requireAccess()) return;
+  if (!window.XLSX) return alert('엑셀 라이브러리를 불러오지 못했습니다.');
+  try {
+    const array = await file.arrayBuffer();
+    const book = XLSX.read(array,{type:'array',cellDates:false});
+    if (!book.SheetNames.length) throw new Error('시트가 없는 파일입니다.');
+    const sheet = book.Sheets[book.SheetNames[0]];
+    const matrix = XLSX.utils.sheet_to_json(sheet,{header:1,defval:'',raw:false});
+    const imported = parseExcelRows(matrix);
+    if (!imported.length) throw new Error('인식 가능한 근로자 데이터가 없습니다. 엑셀 열 제목/순서를 확인해 주세요.');
+    const current = collectRows();
+    const replace = current.length > 0 && confirm(
+      `${imported.length}명의 근로자를 읽었습니다.\n[확인] 기존 ${current.length}명 전체 교체\n[취소] 기존 명부에 추가\n※ 잘못된 데이터일 경우 엑셀 백업 후 진행해 주세요.`
+    );
+    const combined = replace ? imported : current.concat(imported);
+    renderRows(combined);
+    markDirty();
+    alert(`${imported.length}명 불러오기 완료 (${replace ? '전체 교체' : '추가'}). 서버 저장 상태를 확인해 주세요.`);
+  } catch (error) {
+    console.error('엑셀 업로드 실패:',error);
+    alert(`엑셀 파일을 읽지 못했습니다.\n${error.message || String(error)}`);
+  } finally {
+    $('excelUpload').value = '';
+  }
+}
+
+function bindTableEvents() {
+  const tbody = $('tableBody');
+  tbody.addEventListener('input',event => {
+    const target = event.target;
+    if (!target.matches('input[data-field]')) return;
+    if (target.classList.contains('edu-input')) updateInputColor(target);
+    markDirty();
+  });
+  tbody.addEventListener('change',event => {
+    const target = event.target;
+    if (!target.matches('input[data-field]')) return;
+    if (['company','process','job'].includes(target.dataset.field)) updateFilterDropdowns();
+    filterTable();
+  });
+  tbody.addEventListener('focusout',event => {
+    const input = event.target;
+    if (!input.matches('input[data-field]')) return;
+    if (input.classList.contains('edu-input')) validateEduInput(input);
+    if (input.dataset.field === 'resignDate' || input.dataset.field === 'samsungStartDate') {
+      const value = input.value.trim();
+      if (value && !strictDate(value)) { input.classList.add('roster-invalid'); }
+      else input.classList.remove('roster-invalid');
+    }
+  });
+  $('excelUpload').addEventListener('change',event => importRosterExcel(event.target.files?.[0]));
+  $('searchInput').addEventListener('input',filterTable);
+  const params = new URLSearchParams(window.location.search);
+  const filter = params.get('filter');
+  if (filter === 'expired' || filter === 'active' || filter === 'soon') $('filterDueDate').value = filter;
+  if (params.get('resign') === 'resigned') $('filterResign').value = 'resigned';
+}
+
+async function initializeRoster() {
+  try {
+    if (!window.supabase || !window.supabase.createClient) throw new Error('Supabase 스크립트를 읽지 못했습니다.');
+    rosterState.client = window.SHESEC.client;
+    bindTableEvents();
+    const accepted = await verifyRosterAccess(true);
+    if (!accepted) return;
+    await loadRoster();
+  } catch (error) {
+    console.error('ROSTER 초기화 실패:',error);
+    displayAccess('⚠️ 연명부 불러오기 실패', `데이터를 불러오지 못했습니다. ${error.message || String(error)}`);
+    setSaveStatus('⚠ 서버 조회 실패', 'error');
+  }
+}
+
+window.addEventListener('DOMContentLoaded',initializeRoster);
+document.addEventListener('visibilitychange',() => {
+  if (!document.hidden && rosterState.ready) verifyRosterAccess(true);
+});
+window.addEventListener('pageshow', e => {
+  if (e.persisted && rosterState.ready) verifyRosterAccess(true);
+});
+setInterval(() => {
+  if (!document.hidden && rosterState.ready) verifyRosterAccess(true);
+}, 45000);
+window.addEventListener('beforeunload',event => {
+  if (rosterState.dirty) { event.preventDefault(); event.returnValue = ''; }
+});
+
+</script>
+
+</body>
+</html>

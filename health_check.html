@@ -1,0 +1,1200 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>한양이엔지㈜ 근로자 건강검진 자동화 시스템</title>
+
+  <!-- 클라이언트 선차단: 실제 권한은 아래 서버 재검증 결과로만 결정 -->
+  <script>document.documentElement.classList.add("hc-locked");</script>
+
+  <!-- PDF.js · ExcelJS · Supabase (브라우저 공개키 사용) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./she-secure.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Pretendard", "Malgun Gothic", sans-serif;
+    }
+    body {
+      background-color: #f1f5f9;
+      color: #0f172a;
+      padding-bottom: 60px;
+    }
+
+    .hc-header {
+      background: #0f172a;
+      color: #ffffff;
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      box-shadow: 0 2px 10px rgba(15, 23, 42, 0.15);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .hc-header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .hc-logo-badge {
+      background: #1d4ed8;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 800;
+      padding: 4px 10px;
+      border-radius: 8px;
+      letter-spacing: 0.3px;
+    }
+    .hc-title {
+      font-size: 17px;
+      font-weight: 800;
+      letter-spacing: -0.3px;
+    }
+    .hc-header-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .hc-admin-pill {
+      background: rgba(34, 197, 94, 0.16);
+      color: #86efac;
+      border: 1px solid rgba(34, 197, 94, 0.4);
+      padding: 6px 12px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .hc-nav-btn {
+      background: #1e293b;
+      color: #e2e8f0;
+      border: 1px solid #334155;
+      padding: 7px 14px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .hc-nav-btn:hover {
+      background: #334155;
+      color: #ffffff;
+    }
+
+    .hc-container {
+      max-width: 1320px;
+      margin: 24px auto;
+      padding: 0 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .hc-info-banner {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 14px;
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+      font-size: 13px;
+      color: #1e40af;
+    }
+    .hc-template-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      padding: 6px 12px;
+      border-radius: 10px;
+      font-size: 12.5px;
+      font-weight: 700;
+      color: #059669;
+    }
+
+    .hc-dropzone {
+      background: #ffffff;
+      border: 2px dashed #93c5fd;
+      border-radius: 18px;
+      padding: 36px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+    }
+    .hc-dropzone:hover,
+    .hc-dropzone.dragover {
+      border-color: #1d4ed8;
+      background: #f8fafc;
+      transform: translateY(-1px);
+    }
+    .hc-dropzone-icon {
+      font-size: 38px;
+      margin-bottom: 10px;
+    }
+    .hc-dropzone-title {
+      font-size: 16.5px;
+      font-weight: 800;
+      color: #0f172a;
+      margin-bottom: 6px;
+    }
+    .hc-dropzone-desc {
+      font-size: 13px;
+      color: #64748b;
+      margin-bottom: 14px;
+    }
+    .hc-select-btn {
+      background: #1d4ed8;
+      color: #ffffff;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(29, 78, 216, 0.25);
+    }
+    .hc-select-btn:hover {
+      background: #1e40af;
+    }
+
+    .hc-stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 12px;
+    }
+    .hc-stat-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 16px 18px;
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.03);
+    }
+    .hc-stat-label {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: #64748b;
+      margin-bottom: 6px;
+    }
+    .hc-stat-value {
+      font-size: 24px;
+      font-weight: 800;
+      color: #0f172a;
+    }
+    .hc-stat-card.danger .hc-stat-value { color: #dc2626; }
+    .hc-stat-card.warn .hc-stat-value { color: #d97706; }
+    .hc-stat-card.safe .hc-stat-value { color: #16a34a; }
+
+    .hc-result-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 18px;
+      padding: 20px;
+      box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05);
+      display: none;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .hc-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .hc-filter-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .hc-filter-btn {
+      padding: 7px 13px;
+      border-radius: 9999px;
+      border: 1px solid #cbd5e1;
+      background: #ffffff;
+      color: #475569;
+      font-size: 12.5px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .hc-filter-btn.active {
+      background: #0f172a;
+      color: #ffffff;
+      border-color: #0f172a;
+    }
+    .hc-action-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .hc-search-input {
+      padding: 8px 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      font-size: 13px;
+      outline: none;
+      width: 200px;
+    }
+    .hc-search-input:focus {
+      border-color: #2563eb;
+    }
+    .hc-reset-btn {
+      background: #fef2f2;
+      color: #dc2626;
+      border: 1px solid #fecaca;
+      padding: 9px 14px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .hc-download-btn {
+      background: #059669;
+      color: #ffffff;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 10px;
+      font-size: 13.5px;
+      font-weight: 800;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 2px 8px rgba(5, 150, 105, 0.25);
+    }
+    .hc-download-btn:hover {
+      background: #047857;
+    }
+
+    .hc-table-wrap {
+      width: 100%;
+      overflow-x: auto;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      max-height: 560px;
+    }
+    table.hc-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12.5px;
+      white-space: nowrap;
+    }
+    table.hc-table th {
+      background: #f8fafc;
+      color: #334155;
+      font-weight: 800;
+      padding: 11px 10px;
+      border-bottom: 1.5px solid #cbd5e1;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      text-align: center;
+    }
+    table.hc-table td {
+      padding: 10px;
+      border-bottom: 1px solid #f1f5f9;
+      text-align: center;
+      color: #1e293b;
+    }
+    table.hc-table tr.row-disease {
+      background-color: #fef2f2;
+    }
+    table.hc-table tr.row-observe {
+      background-color: #fffbeb;
+    }
+    table.hc-table tr:hover {
+      filter: brightness(0.97);
+    }
+    td.col-note {
+      text-align: left;
+      max-width: 340px;
+      white-space: normal;
+      line-height: 1.35;
+      font-size: 12px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 11.5px;
+      font-weight: 800;
+    }
+    .badge-d { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
+    .badge-c { background: #fef3c7; color: #b45309; border: 1px solid #fcd34d; }
+    .badge-a { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+    .badge-y { background: #dbeafe; color: #1d4ed8; font-weight: 800; }
+
+    /* 통합 SHE 로그인·권한 검증 완료 전 화면 선차단 */
+    html.hc-locked body > header,
+    html.hc-locked body > main { visibility: hidden; }
+    #hcAccessOverlay {
+      position: fixed; inset: 0; z-index: 5000; display: flex;
+      align-items: center; justify-content: center; padding: 24px;
+      background: rgba(10, 23, 52, .96); color: #13264a;
+    }
+    #hcAccessOverlay[hidden] { display: none !important; }
+    .hc-lock-card { background: #fff; max-width: 460px; width: 100%;
+      border-radius: 18px; padding: 30px; text-align: center;
+      box-shadow: 0 18px 48px rgba(0,0,0,.25); }
+    .hc-lock-card h2 { margin: 0 0 10px; font-size: 21px; color: #16286e; }
+    .hc-lock-card p { line-height: 1.7; color: #475569; margin: 0 0 20px; white-space: pre-line; }
+    .hc-lock-card a { display: inline-block; padding: 11px 18px;
+      background: #1d6ce0; border-radius: 10px; color: #fff; font-weight: 800;
+      text-decoration: none; }
+    .hc-progress-wrap { background: #fff; border: 1px solid #bfdbfe;
+      padding: 14px 18px; border-radius: 12px; display: none; }
+    .hc-progress-label { font-size: 12px; color: #1e40af; font-weight: 700; overflow-wrap: anywhere; }
+    .hc-progress-track { width: 100%; height: 9px; background: #e2e8f0;
+      border-radius: 999px; margin-top: 10px; overflow: hidden; }
+    .hc-progress-fill { height: 100%; width: 0%; background: #1d6ce0;
+      border-radius: inherit; transition: width .15s ease; }
+    .hc-errors { background: #fef2f2; color: #991b1b;
+      border: 1px solid #fecaca; border-radius: 10px; padding: 12px 16px;
+      font-size: 12px; line-height: 1.65; display: none; white-space: pre-wrap; }
+    .hc-select-btn:disabled { opacity: .7; cursor: not-allowed; }
+    @media (max-width: 640px) {
+      .hc-header { padding: 13px; }
+      .hc-title { font-size: 15px; }
+      .hc-container { padding: 0 12px; }
+      .hc-search-input { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <section id="hcAccessOverlay" role="status" aria-live="polite">
+    <div class="hc-lock-card">
+      <h2 id="hcLockTitle">🔐 SHE 접속 권한 확인 중</h2>
+      <p id="hcLockMessage">서버 승인 상태, HEALTH 권한 및 서버 점검 여부를 확인하고 있습니다.</p>
+      <a href="index.html">🏠 SHE 메인 포털로</a>
+    </div>
+  </section>
+
+  <header class="hc-header">
+    <div class="hc-header-left">
+      <a href="index.html" class="hc-logo-badge" style="text-decoration:none;" title="SHE 메인 포털로">한양이엔지㈜ SHE</a>
+      <h1 class="hc-title">🏥 근로자 건강검진 결과지 일괄 변환기</h1>
+    </div>
+    <div class="hc-header-right">
+      <span class="hc-admin-pill" id="hcAdminRoleText">🛡️ 권한 인증됨</span>
+      <button type="button" class="hc-nav-btn" onclick="window.location.href='index.html'">
+        🏠 SHE 메인 포털로
+      </button>
+    </div>
+  </header>
+
+  <main class="hc-container">
+    <div class="hc-info-banner">
+      <div>
+        🔒 <b>개인정보 보호 모드 작동 중:</b> 업로드된 건강검진 PDF는 서버에 전송·저장되지 않고 <b>현재 PC 브라우저 메모리 내에서만 변환</b>된 후 즉시 소멸됩니다.
+      </div>
+      <div class="hc-template-status">
+        ✅ 사내 표준 엑셀 양식 규격(무오류 클린 엔진) 내장됨
+      </div>
+    </div>
+
+    <div class="hc-dropzone" id="hcDropzone">
+      <div class="hc-dropzone-icon">📄</div>
+      <div class="hc-dropzone-title">건강검진 결과지 PDF 파일들을 이곳에 끌어다 놓으세요</div>
+      <div class="hc-dropzone-desc">평택성모병원 · 굿모닝병원 일반/특수 검진 결과지 다중 선택 가능 (한 번에 수십 개 일괄 처리)</div>
+      <button type="button" class="hc-select-btn" id="hcSelectPdfBtn">📁 검진 PDF 파일 선택하기</button>
+      <input type="file" id="hcPdfInput" accept=".pdf" multiple style="display:none;" />
+    </div>
+
+    <div class="hc-progress-wrap" id="hcProgressWrap" role="status" aria-live="polite">
+      <div class="hc-progress-label" id="hcProgressLabel">변환 준비 중</div>
+      <div class="hc-progress-track"><div class="hc-progress-fill" id="hcProgressFill"></div></div>
+    </div>
+    <div class="hc-errors" id="hcErrorBox" role="alert"></div>
+
+    <div class="hc-stats-grid" id="hcStatsGrid" style="display:none;">
+      <div class="hc-stat-card">
+        <div class="hc-stat-label">총 변환 인원 <span id="hcReviewCount" style="color:#b45309;"></span></div>
+        <div class="hc-stat-value" id="statTotal">0명</div>
+      </div>
+      <div class="hc-stat-card danger">
+        <div class="hc-stat-label">유소견자 (질환 D1 · D2)</div>
+        <div class="hc-stat-value" id="statDisease">0명</div>
+      </div>
+      <div class="hc-stat-card warn">
+        <div class="hc-stat-label">요관찰자 (정상 C1 · C2)</div>
+        <div class="hc-stat-value" id="statObserve">0명</div>
+      </div>
+      <div class="hc-stat-card safe">
+        <div class="hc-stat-label">정상 판정 (정상 A · B)</div>
+        <div class="hc-stat-value" id="statNormal">0명</div>
+      </div>
+    </div>
+
+    <div class="hc-result-card" id="hcResultCard">
+      <div class="hc-toolbar">
+        <div class="hc-filter-group">
+          <button type="button" class="hc-filter-btn active" data-filter="ALL">전체 보기</button>
+          <button type="button" class="hc-filter-btn" data-filter="DISEASE">🚨 질환(D1·D2)만 보기</button>
+          <button type="button" class="hc-filter-btn" data-filter="OBSERVE">⚠️ 관리(C1·C2)만 보기</button>
+          <button type="button" class="hc-filter-btn" data-filter="NORMAL">✅ 정상(A·B)만 보기</button>
+        </div>
+        <div class="hc-action-group">
+          <input type="text" id="hcSearchInput" class="hc-search-input" placeholder="🔎 성명·병원·비고 검색..." />
+          <button type="button" class="hc-reset-btn" id="hcResetBtn">🗑️ 목록 초기화</button>
+          <button type="button" class="hc-download-btn" id="hcDownloadExcelBtn">📥 사내 업로드용 엑셀 다운로드</button>
+        </div>
+      </div>
+
+      <div class="hc-table-wrap">
+        <table class="hc-table">
+          <thead>
+            <tr>
+              <th>No</th>
+              <th>근로자명</th>
+              <th>생년월일</th>
+              <th>검진일자</th>
+              <th>검진결과</th>
+              <th>위험도</th>
+              <th>질병소견</th>
+              <th>고혈압</th>
+              <th>당뇨</th>
+              <th>고지혈</th>
+              <th>이상지질</th>
+              <th>간장</th>
+              <th>심전도</th>
+              <th>흉부</th>
+              <th>신장</th>
+              <th>소견서</th>
+              <th>혈압(최고/최저)</th>
+              <th>혈당</th>
+              <th>병원명</th>
+              <th>비고사항 (AC열)</th>
+            </tr>
+          </thead>
+          <tbody id="hcTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+    let parsedRecords = [];
+    let currentFilter = "ALL";
+    let currentSearch = "";
+
+    /*
+     * 접속 결정은 반드시 서버 master 행의 승인 상태·역할·permissions.health를 기준으로 함.
+     * sessionStorage 값은 브라우저 내비게이션 상태이며 신뢰 가능한 서버 인증 토큰이 아님.
+     * 운영 배포 시 Supabase Auth + RLS/서버 측 검증을 추가로 반드시 적용할 것.
+     */
+    const SHE_URL = "https://ahmqthuympannqrszvv.supabase.co";
+    const SHE_KEY = "sb_publishable_K7UKB4Kn2wiijlqPBXZL0Q_NOt3frvV";
+    const SHE_MASTER_ID = "main_v12_users_master";
+    const SHE_USER_SESSION = "hy_logged_user_session_v15";
+    const SHE_SUPER_SESSION = "hy_super_admin_verified_v15";
+    const SHE_ADMIN_SESSION = "hy_admin_verified_session_v15";
+    const SHE_HEALTH_SESSION = "hy_health_manager_verified";
+    const hcAccess = { allowed: false, super: false, checking: false, lastChecked: 0 };
+    const hcSupabase = window.SHESEC.client;
+
+    function hcSessionUser() {
+      try {
+        const raw = sessionStorage.getItem(SHE_USER_SESSION);
+        return raw ? JSON.parse(raw) : null;
+      } catch (_) { return null; }
+    }
+
+    function hcBirth6(value) {
+      const digits = String(value || "").replace(/\D/g, "");
+      if (digits.length >= 8 && /^(19|20)/.test(digits)) return digits.slice(2, 8);
+      return digits.slice(0, 6);
+    }
+
+    function hcIsApproved(user) {
+      return Boolean(user && user.status === "approved" &&
+        user.blocked !== true && user.isBlocked !== true && user.allowed !== false);
+    }
+
+    function hcMatchServerUser(users, sessionUser) {
+      if (!sessionUser || !sessionUser.name) return null;
+      const name = String(sessionUser.name).replace(/\s/g, "");
+      const sessionId = String(sessionUser.id ?? "").trim();
+      const birth = hcBirth6(sessionUser.birth || sessionUser.dob || sessionUser.birthDate);
+      return users.find((u) => {
+        if (!u || String(u.name || "").replace(/\s/g, "") !== name) return false;
+        const serverId = String(u.id ?? "").trim();
+        const serverBirth = hcBirth6(u.birth || u.dob || u.birthDate);
+        if (sessionId && serverId && sessionId !== serverId) return false;
+        if (birth && serverBirth && birth !== serverBirth) return false;
+        return (sessionId && serverId && sessionId === serverId) ||
+               (birth && serverBirth && birth === serverBirth);
+      }) || null;
+    }
+
+    function hcShowBlock(title, message, isMaintenance = false) {
+      hcAccess.allowed = false;
+      document.documentElement.classList.add("hc-locked");
+      const box = document.getElementById("hcAccessOverlay");
+      document.getElementById("hcLockTitle").textContent = title;
+      document.getElementById("hcLockMessage").textContent = message;
+      box.hidden = false;
+      sessionStorage.removeItem(SHE_HEALTH_SESSION);
+      if (!isMaintenance) console.warn("HEALTH 접속 차단:", title);
+    }
+
+    async function hcVerifyAccess(silent = false) {
+      if (hcAccess.checking) return hcAccess.allowed;
+      hcAccess.checking = true;
+      try {
+        const result = await window.SHESEC.guard('health', true);
+        if (!result.ok) {
+          hcShowBlock(result.reason === 'maintenance' ? '🔧 서버 점검 중' : '🔒 HEALTH 접속 제한',
+            result.reason === 'maintenance' ? '현재 서버 점검 중입니다.' :
+            'Supabase Auth 로그인 및 HEALTH 승인 권한을 확인해 주세요. 메인 포털에서 로그인하세요.');
+          return false;
+        }
+        const p = result.profile;
+        hcAccess.allowed = true;
+        hcAccess.super = p.role === 'super_admin';
+        hcAccess.lastChecked = Date.now();
+        document.getElementById('hcAdminRoleText').textContent = hcAccess.super ?
+          `🛡️ 최고관리자(${p.name}) 접속 중` : `🏥 HEALTH 관리자(${p.name}) 접속 중`;
+        document.getElementById('hcAccessOverlay').hidden = true;
+        document.documentElement.classList.remove('hc-locked');
+        return true;
+      } catch (err) {
+        if (!silent) console.error('HEALTH 서버 검증 실패', err);
+        hcShowBlock('⚠️ 인증 실패','로그인 정보를 확인한 뒤 다시 시도해 주세요.');
+        return false;
+      } finally { hcAccess.checking = false; }
+    }
+
+    function hcRequireAccess() {
+      if (!hcAccess.allowed) {
+        alert("🔒 HEALTH 모듈 접속 권한을 확인할 수 없습니다.");
+        return false;
+      }
+      return true;
+    }
+
+    // 점검 모드·권한 회수에 대응. 비활성 탭에서는 불필요한 폴링을 하지 않음.
+    hcVerifyAccess();
+    setInterval(() => {
+      if (!document.hidden && !hcAccess.checking) hcVerifyAccess(true);
+    }, 45000);
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden && Date.now() - hcAccess.lastChecked > 12000) hcVerifyAccess(true);
+    });
+    window.addEventListener("pageshow", (e) => {
+      if (e.persisted) hcVerifyAccess(true);
+    });
+
+    async function extractPagesTextFromPdf(arrayBuffer, onProgress) {
+      let pdf = null;
+      let loadingTask = null;
+      const pagesText = [];
+      try {
+        // PDF는 브라우저 내에서만 처리하며 서버에 업로드하지 않는다.
+        loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) });
+        pdf = await loadingTask.promise;
+        for (let pNum = 1; pNum <= pdf.numPages; pNum++) {
+          if (!hcAccess.allowed) throw new Error("처리 중 HEALTH 접근 권한이 회수되었습니다.");
+          const page = await pdf.getPage(pNum);
+          try {
+            const textContent = await page.getTextContent();
+            const items = textContent.items || [];
+            const lines = [];
+            for (const item of items) {
+              const str = item.str;
+              if (!str || !str.trim()) continue;
+              const x = item.transform[4];
+              const y = item.transform[5];
+              let matchedLine = lines.find(ln => Math.abs(ln.y - y) < 4.5);
+              if (!matchedLine) {
+                matchedLine = { y, chunks: [] };
+                lines.push(matchedLine);
+              }
+              matchedLine.chunks.push({ x, str });
+            }
+            lines.sort((a, b) => b.y - a.y);
+            const pageStr = lines.map(ln => {
+              ln.chunks.sort((a, b) => a.x - b.x);
+              return ln.chunks.map(c => c.str).join(" ");
+            }).join("\n");
+            pagesText.push(pageStr);
+          } finally {
+            // 각 페이지 변환 직후 PDF.js 페이지 리소스 반환
+            page.cleanup();
+          }
+          if (onProgress) onProgress(pNum, pdf.numPages);
+          // UI 업데이트 기회 제공. 대용량 다중 PDF 처리시 화면 멈춤 최소화
+          await new Promise(resolve => setTimeout(resolve, 0));
+        }
+        return pagesText;
+      } finally {
+        // 성공·파싱 실패와 무관하게 PDF 문서/워커 메모리를 매 파일 반환
+        if (pdf) await pdf.destroy();
+        else if (loadingTask) await loadingTask.destroy();
+      }
+    }
+
+    function extractBirthDate(rrnStr) {
+      const cleanRrn = String(rrnStr || "").replace(/[^0-9]/g, "");
+      if (cleanRrn.length < 7) return "";
+      const yy = cleanRrn.slice(0, 2);
+      const mm = cleanRrn.slice(2, 4);
+      const dd = cleanRrn.slice(4, 6);
+      const genderDigit = cleanRrn[6];
+
+      let yyyy = "19" + yy;
+      if (["3", "4", "7", "8"].includes(genderDigit)) {
+        yyyy = "20" + yy;
+      }
+      return `${yyyy}-${mm}-${dd}`;
+    }
+
+    function parseHealthGrades(page1Text) {
+      const mSec = page1Text.match(/(?:심\s*전\s*도|기\s*타\s*검\s*사)([\s\S]*?)(?=소견\s*및\s*조치|검\s*진\s*기\s*관|$)/);
+      let targetText = mSec ? mSec[1] : page1Text;
+      targetText = targetText.replace(/건\s*강\s*구\s*분/g, "");
+
+      const regex = /(?<![A-Za-z0-9])(D2|D1|C2|C1|C|B|A)[ \t]+([가-힣]+(?:[ \t]+[가-힣]+)*)/g;
+      const matches = [];
+      let m;
+      while ((m = regex.exec(targetText)) !== null) {
+        matches.push([m[1], m[2].trim()]);
+      }
+      return matches;
+    }
+
+    function parseEcgStatus(fullText, page1Text) {
+      let ecgVal = "";
+      const mP2 = fullText.match(/심\s*전\s*도\s*검\s*사[ \t]*([^\n]*)/);
+      if (mP2) {
+        let cand = mP2[1].trim();
+        cand = cand.replace(/^(?:선택|임상|검사|안저검사|\/|\s)+/, "").trim();
+        ecgVal = cand;
+      }
+
+      if (!ecgVal) {
+        const mP1 = page1Text.match(/(?<!\S)심\s*전\s*도(?!\s*검\s*사)[ \t]*([^\n]*)/);
+        if (mP1) {
+          const cand = mP1[1].trim();
+          if (!["검사결과", "검 사 결 과", "검사항목", "검 사 항 목"].includes(cand)) {
+            ecgVal = cand;
+          }
+        }
+      }
+
+      if (ecgVal === "정상" || ecgVal === "정 상") {
+        return "심전도 검사 정상";
+      } else if (ecgVal === "" || ecgVal === "/") {
+        return "심전도 검사 대상";
+      } else {
+        return ecgVal;
+      }
+    }
+
+    function parseHealthDataFromPages(pagesText, fileName) {
+      const fullText = pagesText.join("\n");
+      const page1Text = pagesText.length > 0 ? pagesText[0] : fullText;
+      const data = { fileName: fileName };
+
+      const nameM = fullText.match(/수검자성명\s*([가-힣]+)/) || fullText.match(/성\s*명\s*([가-힣]+)/);
+      data.근로자명 = nameM ? nameM[1].trim() : "";
+
+      const rrnM = fullText.match(/주민등록번호\s*(\d{6}-\d[*\d]*)/) || fullText.match(/주민번호\s*(\d{6}-\d[*\d]*)/);
+      if (rrnM) {
+        data.생년월일 = extractBirthDate(rrnM[1]);
+      } else {
+        const rrnSimple = fullText.match(/(\d{6})-\s*(\d)/);
+        data.생년월일 = rrnSimple ? extractBirthDate(rrnSimple[1] + "-" + rrnSimple[2]) : "";
+      }
+
+      const dateM1 = fullText.match(/검진일(?:자)?\s*(\d{4}[\.\-\/]\d{2}[\.\-\/]\d{2})/);
+      const dateM2 = fullText.match(/검\s*진\s*일\s*자\s*(\d{4})년\s*(\d{2})월\s*(\d{2})일/);
+      if (dateM2) {
+        data.건강검진일자 = `${dateM2[1]}-${dateM2[2]}-${dateM2[3]}`;
+      } else if (dateM1) {
+        data.건강검진일자 = dateM1[1].replace(/\./g, "-").replace(/\//g, "-");
+      } else {
+        data.건강검진일자 = "";
+      }
+
+      if (fullText.includes("성모병원")) {
+        data.병원명 = "평택성모병원";
+      } else if (fullText.includes("굿모닝병원")) {
+        data.병원명 = "굿모닝병원";
+      } else {
+        const hospM = fullText.match(/평가기관:\s*([^\n]+)/);
+        data.병원명 = hospM ? hospM[1].trim() : "확인필요";
+      }
+
+      const bpM = fullText.match(/(\d{2,3})\s*\/\s*(\d{2,3})\s*mmHg/) ||
+                  fullText.match(/혈\s*압\(수축기\/이완기\)\s*(\d{2,3})\s*\/\s*(\d{2,3})/);
+      if (bpM) {
+        data.최고혈압수치 = parseInt(bpM[1], 10);
+        data.최저혈압수치 = parseInt(bpM[2], 10);
+      } else {
+        data.최고혈압수치 = "";
+        data.최저혈압수치 = "";
+      }
+
+      const fbgM = fullText.match(/공복혈당(?:\(mg\/dL\))?\s*(\d{2,3})/) ||
+                   fullText.match(/혈당\(식전\)\s*\d+\s*(?:미만|이하)\s*(\d{2,3})/);
+      data.혈당수치 = fbgM ? parseInt(fbgM[1], 10) : "";
+
+      const riskM = fullText.match(/(저위험|중등도위험|고위험|최고위험)군?\s*으로\s*평가/) ||
+                    fullText.match(/발병위험\s*수준은[\s\S]{0,150}?(저위험|중등도위험|고위험|최고위험)군/);
+      if (riskM) {
+        const rVal = riskM[1].replace("군", "").trim();
+        data.위험도 = rVal === "중등도위험" ? "중위험" : rVal;
+      } else {
+        data.위험도 = "확인필요";
+      }
+
+      const grades = parseHealthGrades(page1Text);
+      const priority = { D2: 6, D1: 5, C2: 4, C: 4, C1: 3, B: 2, A: 1 };
+      let maxP = 0;
+      let lowestGradeCode = "A";
+
+      for (const [g] of grades) {
+        const gUpper = g.toUpperCase();
+        if ((priority[gUpper] || 0) > maxP) {
+          maxP = priority[gUpper];
+          lowestGradeCode = gUpper;
+        }
+      }
+
+      const gradeMap = {
+        A: "정상A",
+        B: "정상B",
+        C1: "정상C1",
+        C: "정상C2",
+        C2: "정상C2",
+        D1: "질환D1",
+        D2: "질환D2",
+        R: "2차검진대상"
+      };
+      data.__gradeUncertain = grades.length === 0;
+      data.검진결과 = data.__gradeUncertain ? "판정확인필요" : (gradeMap[lowestGradeCode] || "판정확인필요");
+
+      const isDiseaseGroup = ["D1", "D2"].includes(lowestGradeCode);
+      data.질병소견자여부 = isDiseaseGroup ? "Y" : "";
+
+      if (isDiseaseGroup) {
+        const hasOpinionSheet = fullText.includes("소견서") && fullText.includes("발급");
+        data.소견서여부 = hasOpinionSheet ? "Y" : "N";
+      } else {
+        data.소견서여부 = "";
+      }
+
+      const dGradeItems = grades.filter(([g]) => ["D1", "D2"].includes(g.toUpperCase())).map(([, desc]) => desc);
+      const dDiseaseStr = dGradeItems.join(" ");
+
+      data.고혈압 = (dDiseaseStr.includes("고혈압") || dDiseaseStr.includes("혈압")) ? "Y" : "";
+      data.당뇨 = (dDiseaseStr.includes("당뇨") || dDiseaseStr.includes("혈당")) ? "Y" : "";
+      data.고지혈증 = dDiseaseStr.includes("고지혈") ? "Y" : "";
+      data.이상지질 = (dDiseaseStr.includes("이상지질") || dDiseaseStr.includes("콜레스테롤") || dDiseaseStr.includes("중성지방")) ? "Y" : "";
+      data.간장질환 = (dDiseaseStr.includes("간장") || dDiseaseStr.includes("간기능") || dDiseaseStr.includes("간질환")) ? "Y" : "";
+      data.심전도 = (dDiseaseStr.includes("심전도") || dDiseaseStr.includes("부정맥")) ? "Y" : "";
+      data.흉부질환 = (dDiseaseStr.includes("폐결핵") || dDiseaseStr.includes("흉부") || dDiseaseStr.includes("결핵")) ? "Y" : "";
+      data.신장질환 = (dDiseaseStr.includes("신장") || dDiseaseStr.includes("단백뇨")) ? "Y" : "";
+      data.기타 = "";
+
+      const ecgStatus = parseEcgStatus(fullText, page1Text);
+      const healthDivStr = grades.map(([g, desc]) => `${g} ${desc}`).join(", ");
+      data.비고사항 = healthDivStr ? `${ecgStatus}, ${healthDivStr}` : ecgStatus;
+
+      return data;
+    }
+
+    let hcBatchBusy = false;
+    function hcSetProgress(label, percent) {
+      const wrap = document.getElementById("hcProgressWrap");
+      wrap.style.display = "block";
+      document.getElementById("hcProgressLabel").textContent = label;
+      document.getElementById("hcProgressFill").style.width = `${Math.max(0, Math.min(100, percent))}%`;
+      document.getElementById("hcSelectPdfBtn").textContent = `⏳ ${label}`;
+    }
+
+    async function handlePdfFiles(fileList) {
+      if (!hcRequireAccess()) return;
+      if (hcBatchBusy) return;
+      const files = Array.from(fileList).filter(f => /\.pdf$/i.test(f.name));
+      if (files.length === 0) {
+        alert("⚠️ PDF 파일(.pdf)만 업로드할 수 있습니다.");
+        return;
+      }
+      files.sort((a, b) => a.name.localeCompare(b.name, "ko"));
+      hcBatchBusy = true;
+      const selectBtn = document.getElementById("hcSelectPdfBtn");
+      const errorBox = document.getElementById("hcErrorBox");
+      errorBox.style.display = "none";
+      errorBox.textContent = "";
+      selectBtn.disabled = true;
+      const failed = [];
+      let success = 0;
+      try {
+        for (let i = 0; i < files.length; i++) {
+          if (!hcAccess.allowed) throw new Error("HEALTH 권한이 회수되어 변환을 중지했습니다.");
+          const file = files[i];
+          hcSetProgress(`[${i + 1}/${files.length}] ${file.name} · 읽는 중`, (i / files.length) * 100);
+          try {
+            const buffer = await file.arrayBuffer();
+            const pagesText = await extractPagesTextFromPdf(buffer, (done, total) => {
+              const pct = Math.round((done / total) * 100);
+              hcSetProgress(`[${i + 1}/${files.length}] ${file.name} · ${done}/${total}페이지 (${pct}%)`,
+                ((i + done / total) / files.length) * 100);
+            });
+            if (!pagesText.some(txt => txt.trim())) {
+              throw new Error("텍스트가 없는 이미지형 PDF입니다. OCR 처리가 필요합니다.");
+            }
+            const record = parseHealthDataFromPages(pagesText, file.name);
+            // 검사 결과를 무조건 정상으로 가정하지 않음: 추출 실패 시 확인 대상 처리
+            if (!record.근로자명) throw new Error("근로자 성명을 추출하지 못했습니다.");
+            if (record.__gradeUncertain) record.비고사항 =
+              `[결과 판정 확인 필요] ${record.비고사항 || ""}`;
+            parsedRecords.push(record);
+            success++;
+          } catch (err) {
+            failed.push(`${file.name}: ${err.message || String(err)}`);
+            console.error("PDF 처리 실패:", file.name, err);
+          }
+          updateStatsAndTable();
+        }
+        hcSetProgress(`완료 · 성공 ${success}개 / 실패 ${failed.length}개`, 100);
+      } catch (err) {
+        failed.push(`일괄 작업 중지: ${err.message || String(err)}`);
+      } finally {
+        selectBtn.disabled = false;
+        selectBtn.textContent = "📁 검진 PDF 파일 선택하기";
+        hcBatchBusy = false;
+        if (failed.length) {
+          errorBox.style.display = "block";
+          errorBox.textContent = `⚠️ 변환 실패 ${failed.length}건\n${failed.join("\n")}`;
+        }
+        if (!hcAccess.allowed) parsedRecords = [];
+        updateStatsAndTable();
+      }
+    }
+
+    function hcEscapeHtml(v) {
+      return String(v ?? "").replace(/[&<>"']/g, ch => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      })[ch]);
+    }
+
+    function updateStatsAndTable() {
+      const statsGrid = document.getElementById("hcStatsGrid");
+      const resultCard = document.getElementById("hcResultCard");
+
+      if (parsedRecords.length === 0) {
+        statsGrid.style.display = "none";
+        resultCard.style.display = "none";
+        return;
+      }
+
+      statsGrid.style.display = "grid";
+      resultCard.style.display = "flex";
+
+      const total = parsedRecords.length;
+      const diseaseCnt = parsedRecords.filter((r) => ["질환D1", "질환D2"].includes(r.검진결과)).length;
+      const observeCnt = parsedRecords.filter((r) => ["정상C1", "정상C2"].includes(r.검진결과)).length;
+      const normalCnt = parsedRecords.filter((r) => ["정상A", "정상B"].includes(r.검진결과)).length;
+
+      document.getElementById("statTotal").textContent = `${total}명`;
+      document.getElementById("statDisease").textContent = `${diseaseCnt}명`;
+      document.getElementById("statObserve").textContent = `${observeCnt}명`;
+      document.getElementById("statNormal").textContent = `${normalCnt}명`;
+      const needsReview = parsedRecords.filter(r => r.__gradeUncertain).length;
+      document.getElementById("hcReviewCount").textContent = needsReview ? ` · 판정 확인 필요 ${needsReview}건` : "";
+
+      const kw = currentSearch.trim().toLowerCase();
+      const filtered = parsedRecords.filter((r) => {
+        if (currentFilter === "DISEASE" && !["질환D1", "질환D2"].includes(r.검진결과)) return false;
+        if (currentFilter === "OBSERVE" && !["정상C1", "정상C2"].includes(r.검진결과)) return false;
+        if (currentFilter === "NORMAL" && !["정상A", "정상B"].includes(r.검진결과)) return false;
+        if (kw) {
+          const hay = `${r.근로자명} ${r.생년월일} ${r.검진결과} ${r.병원명} ${r.비고사항}`.toLowerCase();
+          if (!hay.includes(kw)) return false;
+        }
+        return true;
+      });
+
+      const tbody = document.getElementById("hcTableBody");
+      tbody.innerHTML = filtered
+        .map((r, idx) => {
+          const isD = ["질환D1", "질환D2"].includes(r.검진결과);
+          const isC = ["정상C1", "정상C2"].includes(r.검진결과);
+          const rowClass = isD ? "row-disease" : isC ? "row-observe" : "";
+          const badgeClass = isD ? "badge-d" : isC ? "badge-c" : "badge-a";
+          const yBadge = (val) => (val === "Y" ? `<span class="badge badge-y">Y</span>` : "");
+
+          return `
+            <tr class="${rowClass}">
+              <td>${idx + 1}</td>
+              <td><b>${hcEscapeHtml(r.근로자명 || "-")}</b></td>
+              <td>${r.생년월일 || "-"}</td>
+              <td>${r.건강검진일자 || "-"}</td>
+              <td><span class="badge ${badgeClass}">${hcEscapeHtml(r.검진결과)}</span></td>
+              <td>${hcEscapeHtml(r.위험도)}</td>
+              <td>${yBadge(r.질병소견자여부)}</td>
+              <td>${yBadge(r.고혈압)}</td>
+              <td>${yBadge(r.당뇨)}</td>
+              <td>${yBadge(r.고지혈증)}</td>
+              <td>${yBadge(r.이상지질)}</td>
+              <td>${yBadge(r.간장질환)}</td>
+              <td>${yBadge(r.심전도)}</td>
+              <td>${yBadge(r.흉부질환)}</td>
+              <td>${yBadge(r.신장질환)}</td>
+              <td><b>${hcEscapeHtml(r.소견서여부)}</b></td>
+              <td>${hcEscapeHtml(r.최고혈압수치 !== "" ? `${r.최고혈압수치}/${r.최저혈압수치}` : "-")}</td>
+              <td>${hcEscapeHtml(r.혈당수치 !== "" ? r.혈당수치 : "-")}</td>
+              <td>${hcEscapeHtml(r.병원명)}</td>
+              <td class="col-note">${hcEscapeHtml(r.비고사항)}</td>
+            </tr>
+          `;
+        })
+        .join("");
+    }
+
+    async function downloadCompletedExcel() {
+      if (!hcRequireAccess()) return;
+      if (hcBatchBusy) {
+        alert("PDF 변환 완료 후 엑셀을 다운로드해 주세요.");
+        return;
+      }
+      if (parsedRecords.length === 0) {
+        alert("변환된 데이터가 없습니다. 먼저 PDF 파일을 업로드해 주세요.");
+        return;
+      }
+
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet("Chkup");
+
+      const headers = [
+        "프로젝트코드", "근로자번호", "근로자명", "생년월일", "협력업체명", "업체구분", "취업일자",
+        "입력여부", "건강검진구분 *", "건강검진차수 *", "건강검진일자 *", "검진결과 *", "위험도",
+        "질병소견자여부", "고혈압", "당뇨", "고지혈증", "이상지질", "간장질환",
+        "심전도", "흉부질환", "신장질환", "기타", "소견서여부", "최고혈압수치",
+        "최저혈압수치", "혈당수치", "병원명", "비고사항"
+      ];
+
+      const colWidths = [
+        14, 14, 14, 15, 16, 22, 14,
+        12, 16, 16, 16, 14, 14,
+        16, 12, 12, 12, 12, 12,
+        12, 12, 12, 12, 13, 15,
+        15, 13, 16, 52
+      ];
+
+      ws.columns = colWidths.map((w) => ({ width: w }));
+
+      const thinBorder = {
+        top: { style: "thin", color: { argb: "FF000000" } },
+        left: { style: "thin", color: { argb: "FF000000" } },
+        bottom: { style: "thin", color: { argb: "FF000000" } },
+        right: { style: "thin", color: { argb: "FF000000" } }
+      };
+
+      const purpleFill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FFCCCCFF" }
+      };
+
+      const yellowFill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FFFFFF00" }
+      };
+
+      ws.getCell(1, 1).value = "검진결과";
+      ws.mergeCells(1, 1, 1, 8);
+
+      const topLabels = ["", "정상A", "정상B", "정상C1", "정상C2", "질환D1", "질환D2", "2차검진대상"];
+      const topCodes = ["검진결과", "ML04901", "ML04902", "ML04903", "ML04904", "ML04905", "ML04906", "ML04907"];
+
+      for (let c = 1; c <= 8; c++) {
+        ws.getCell(2, c).value = topLabels[c - 1];
+        ws.getCell(3, c).value = topCodes[c - 1];
+      }
+
+      for (let r = 1; r <= 3; r++) {
+        ws.getRow(r).height = 16.5;
+        for (let c = 1; c <= 8; c++) {
+          const cell = ws.getCell(r, c);
+          const isHeaderArea = r === 1 || c === 1;
+          cell.font = { name: "맑은 고딕", size: 9, bold: isHeaderArea, color: { argb: "FF000000" } };
+          cell.alignment = { vertical: "middle", horizontal: "center" };
+          cell.border = thinBorder;
+          if (isHeaderArea) {
+            cell.fill = purpleFill;
+          }
+        }
+      }
+
+      ws.getRow(4).height = 15;
+
+      ws.getRow(5).height = 14;
+      ws.getRow(6).height = 14;
+
+      for (let c = 1; c <= 29; c++) {
+        ws.getCell(5, c).value = headers[c - 1];
+        ws.mergeCells(5, c, 6, c);
+
+        const isYellowCol = c >= 9 && c <= 13;
+        const headerFill = isYellowCol ? yellowFill : purpleFill;
+
+        for (let r = 5; r <= 6; r++) {
+          const hCell = ws.getCell(r, c);
+          hCell.font = { name: "맑은 고딕", size: 9, bold: true, color: { argb: "FF000000" } };
+          hCell.alignment = { vertical: "middle", horizontal: "center", wrapText: false };
+          hCell.fill = headerFill;
+          hCell.border = thinBorder;
+        }
+      }
+
+      let currentRow = 7;
+      for (const pdata of parsedRecords) {
+        const row = ws.getRow(currentRow);
+        row.height = 16.5;
+
+        const rowValues = [
+          "19VQ",
+          "",
+          pdata.근로자명,
+          pdata.생년월일,
+          "한양이엔지㈜",
+          "P5 FAB1 Ph1 (FAB)",
+          "",
+          "Y",
+          "일반검진",
+          1,
+          pdata.건강검진일자,
+          pdata.검진결과,
+          pdata.위험도,
+          pdata.질병소견자여부,
+          pdata.고혈압,
+          pdata.당뇨,
+          pdata.고지혈증,
+          pdata.이상지질,
+          pdata.간장질환,
+          pdata.심전도,
+          pdata.흉부질환,
+          pdata.신장질환,
+          pdata.기타,
+          pdata.소견서여부,
+          pdata.최고혈압수치,
+          pdata.최저혈압수치,
+          pdata.혈당수치,
+          pdata.병원명,
+          pdata.비고사항
+        ];
+
+        for (let c = 1; c <= 29; c++) {
+          const cell = row.getCell(c);
+          cell.value = rowValues[c - 1];
+          cell.font = { name: "맑은 고딕", size: 9, bold: false, color: { argb: "FF000000" } };
+          cell.alignment = {
+            vertical: "middle",
+            horizontal: c === 29 ? "left" : "center",
+            wrapText: false
+          };
+          cell.border = thinBorder;
+        }
+
+        currentRow++;
+      }
+
+      const outBuffer = await wb.xlsx.writeBuffer();
+      const blob = new Blob([outBuffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const todayStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+      a.href = url;
+      a.download = `건강진단_업로드_완료_${todayStr}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    const dropzone = document.getElementById("hcDropzone");
+    const selectBtn = document.getElementById("hcSelectPdfBtn");
+    const pdfInput = document.getElementById("hcPdfInput");
+
+    dropzone.addEventListener("click", (event) => {
+      if (event.target.closest("button")) return;
+      if (hcRequireAccess() && !hcBatchBusy) pdfInput.click();
+    });
+    selectBtn.addEventListener("click", event => {
+      event.stopPropagation();
+      if (hcRequireAccess() && !hcBatchBusy) pdfInput.click();
+    });
+    pdfInput.addEventListener("change", event => {
+      const files = Array.from(event.target.files || []);
+      pdfInput.value = "";
+      handlePdfFiles(files);
+    });
+    dropzone.addEventListener("dragover", event => {
+      event.preventDefault();
+      if (!hcBatchBusy && hcAccess.allowed) dropzone.classList.add("dragover");
+    });
+    dropzone.addEventListener("dragleave", () => dropzone.classList.remove("dragover"));
+    dropzone.addEventListener("drop", event => {
+      event.preventDefault();
+      dropzone.classList.remove("dragover");
+      if (event.dataTransfer && !hcBatchBusy) handlePdfFiles(event.dataTransfer.files);
+    });
+
+    document.querySelectorAll(".hc-filter-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        if (!hcRequireAccess()) return;
+        document.querySelectorAll(".hc-filter-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        currentFilter = btn.getAttribute("data-filter");
+        updateStatsAndTable();
+      });
+    });
+
+    document.getElementById("hcSearchInput").addEventListener("input", event => {
+      if (!hcAccess.allowed) return;
+      currentSearch = event.target.value || "";
+      updateStatsAndTable();
+    });
+
+    document.getElementById("hcResetBtn").addEventListener("click", () => {
+      if (!hcRequireAccess() || hcBatchBusy) return;
+      if (confirm("현재 변환된 목록을 모두 비우시겠습니까?")) {
+        parsedRecords = [];
+        document.getElementById("hcProgressWrap").style.display = "none";
+        document.getElementById("hcErrorBox").style.display = "none";
+        updateStatsAndTable();
+      }
+    });
+    document.getElementById("hcDownloadExcelBtn").addEventListener("click", downloadCompletedExcel);
+
+    window.addEventListener("pagehide", () => {
+      parsedRecords = [];
+    });
+  </script>
+</body>
+</html>
