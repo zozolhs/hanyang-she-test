@@ -341,6 +341,14 @@
     .badge-a { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
     .badge-y { background: #dbeafe; color: #1d4ed8; font-weight: 800; }
 
+    /* HEALTH V17: 1,000명에서도 결과표는 페이지 분할 렌더링. 원본 데이터/다운로드는 전체 유지. */
+    .hc-pagination {display:flex;justify-content:flex-end;align-items:center;flex-wrap:wrap;gap:8px;
+      font-size:12px;color:#475569;margin-top:2px}
+    .hc-pagination button,.hc-pagination select {border:1px solid #cbd5e1;border-radius:7px;background:#fff;
+      color:#16286e;padding:7px 10px;font-size:12px;font-weight:700}
+    .hc-pagination button:disabled {opacity:.4;cursor:not-allowed}
+    .hc-pagination #hcPageInfo {margin-right:auto}
+
     /* 통합 SHE 로그인·권한 검증 완료 전 화면 선차단 */
     html.hc-locked body > header,
     html.hc-locked body > main { visibility: hidden; }
@@ -486,6 +494,17 @@
           <tbody id="hcTableBody"></tbody>
         </table>
       </div>
+      <div class="hc-pagination" id="hcPagination" aria-label="건강검진 결과 페이지 이동">
+        <span id="hcPageInfo">결과 0명</span>
+        <button id="hcPagePrev" type="button">◀ 이전</button>
+        <button id="hcPageNext" type="button">다음 ▶</button>
+        <label for="hcPageSize">페이지 표시</label>
+        <select id="hcPageSize" aria-label="페이지 표시 인원">
+          <option value="50" selected>50명 (빠름)</option>
+          <option value="100">100명</option>
+          <option value="200">200명</option>
+        </select>
+      </div>
     </div>
   </main>
 
@@ -495,13 +514,19 @@
     let parsedRecords = [];
     let currentFilter = "ALL";
     let currentSearch = "";
+    let hcPage = 0;
+    let hcPageSize = 50;
+    let hcSearchTimer = null;
+    let hcStatsMemo = null;
+    let hcFilterMemo = null;
+    const hcSearchMemo = new WeakMap();
 
     /*
      * 접속 결정은 반드시 서버 master 행의 승인 상태·역할·permissions.health를 기준으로 함.
      * sessionStorage 값은 브라우저 내비게이션 상태이며 신뢰 가능한 서버 인증 토큰이 아님.
      * 운영 배포 시 Supabase Auth + RLS/서버 측 검증을 추가로 반드시 적용할 것.
      */
-    const SHE_URL = "https://ahmqthuympannqsrszvv.supabase.co";
+    const SHE_URL = "https://ahmqthuympannqrszvv.supabase.co";
     const SHE_KEY = "sb_publishable_K7UKB4Kn2wiijlqPBXZL0Q_NOt3frvV";
     const SHE_MASTER_ID = "main_v12_users_master";
     const SHE_USER_SESSION = "hy_logged_user_session_v15";
@@ -758,14 +783,9 @@
                    fullText.match(/혈당\(식전\)\s*\d+\s*(?:미만|이하)\s*(\d{2,3})/);
       data.혈당수치 = fbgM ? parseInt(fbgM[1], 10) : "";
 
-      const riskM = fullText.match(/(저위험|중등도위험|고위험|최고위험)군?\s*으로\s*평가/) ||
-                    fullText.match(/발병위험\s*수준은[\s\S]{0,150}?(저위험|중등도위험|고위험|최고위험)군/);
-      if (riskM) {
-        const rVal = riskM[1].replace("군", "").trim();
-        data.위험도 = rVal === "중등도위험" ? "중위험" : rVal;
-      } else {
-        data.위험도 = "확인필요";
-      }
+      // 위험도는 검진결과 A/C/D 등급과 별개입니다. PDF에 명시된 위험군만 인식하고
+      // 미기재·서로 다른 위험군이 혼재한 경우 임의 추정하지 않습니다.
+      data.위험도 = extractExplicitRiskLevel(fullText);
 
       const grades = parseHealthGrades(page1Text);
       const priority = { D2: 6, D1: 5, C2: 4, C: 4, C1: 3, B: 2, A: 1 };
@@ -823,6 +843,23 @@
       return data;
     }
 
+    function extractExplicitRiskLevel(fullText) {
+      const text = String(fullText || '').replace(/[\u200B-\u200D\uFEFF]/g,' ').replace(/\s+/g,' ');
+      // 심뇌혈관·발병위험·위험도 등 명시 항목 인근의 위험군 표시만 인정.
+      const anchors = /(심\s*뇌\s*혈\s*관(?:질환)?|발병\s*위험|위험도|위험\s*수준|위험군)/g;
+      const levels = /(?:최고\s*위험|고\s*위험|중등도\s*위험|중\s*위험|저\s*위험)\s*군?/g;
+      const results = new Set();
+      let a;
+      while((a = anchors.exec(text))) {
+        const segment = text.slice(Math.max(0,a.index-45),Math.min(text.length,a.index+140));
+        for(const found of segment.matchAll(levels)) {
+          const risk=found[0].replace(/\s|군/g,'');
+          const mapped=risk==='중등도위험'?'중위험':risk;
+          if(['저위험','중위험','고위험','최고위험'].includes(mapped))results.add(mapped);
+        }
+      }
+      return results.size===1?[...results][0]:'확인필요';
+    }
     let hcBatchBusy = false;
     function hcSetProgress(label, percent) {
       const wrap = document.getElementById("hcProgressWrap");
@@ -902,42 +939,62 @@
     function updateStatsAndTable() {
       const statsGrid = document.getElementById("hcStatsGrid");
       const resultCard = document.getElementById("hcResultCard");
-
-      if (parsedRecords.length === 0) {
+      if (!parsedRecords.length) {
         statsGrid.style.display = "none";
         resultCard.style.display = "none";
+        hcPage=0;hcStatsMemo=null;hcFilterMemo=null;
         return;
       }
-
       statsGrid.style.display = "grid";
       resultCard.style.display = "flex";
 
-      const total = parsedRecords.length;
-      const diseaseCnt = parsedRecords.filter((r) => ["질환D1", "질환D2"].includes(r.검진결과)).length;
-      const observeCnt = parsedRecords.filter((r) => ["정상C1", "정상C2"].includes(r.검진결과)).length;
-      const normalCnt = parsedRecords.filter((r) => ["정상A", "정상B"].includes(r.검진결과)).length;
-
-      document.getElementById("statTotal").textContent = `${total}명`;
-      document.getElementById("statDisease").textContent = `${diseaseCnt}명`;
-      document.getElementById("statObserve").textContent = `${observeCnt}명`;
-      document.getElementById("statNormal").textContent = `${normalCnt}명`;
-      const needsReview = parsedRecords.filter(r => r.__gradeUncertain).length;
-      document.getElementById("hcReviewCount").textContent = needsReview ? ` · 판정 확인 필요 ${needsReview}건` : "";
-
-      const kw = currentSearch.trim().toLowerCase();
-      const filtered = parsedRecords.filter((r) => {
-        if (currentFilter === "DISEASE" && !["질환D1", "질환D2"].includes(r.검진결과)) return false;
-        if (currentFilter === "OBSERVE" && !["정상C1", "정상C2"].includes(r.검진결과)) return false;
-        if (currentFilter === "NORMAL" && !["정상A", "정상B"].includes(r.검진결과)) return false;
-        if (kw) {
-          const hay = `${r.근로자명} ${r.생년월일} ${r.검진결과} ${r.병원명} ${r.비고사항}`.toLowerCase();
-          if (!hay.includes(kw)) return false;
+      // 검색/페이지 이동 시 1,000명의 전체 집계를 다시 생성하지 않습니다.
+      if (!hcStatsMemo || hcStatsMemo.source !== parsedRecords || hcStatsMemo.length !== parsedRecords.length) {
+        let disease=0,observe=0,normal=0,review=0;
+        for(const r of parsedRecords) {
+          if(r.검진결과==='질환D1'||r.검진결과==='질환D2')disease++;
+          else if(r.검진결과==='정상C1'||r.검진결과==='정상C2')observe++;
+          else if(r.검진결과==='정상A'||r.검진결과==='정상B')normal++;
+          if(r.__gradeUncertain)review++;
         }
-        return true;
-      });
+        hcStatsMemo={source:parsedRecords,length:parsedRecords.length,disease,observe,normal,review};
+        hcFilterMemo=null;
+      }
+      document.getElementById('statTotal').textContent=`${parsedRecords.length}명`;
+      document.getElementById('statDisease').textContent=`${hcStatsMemo.disease}명`;
+      document.getElementById('statObserve').textContent=`${hcStatsMemo.observe}명`;
+      document.getElementById('statNormal').textContent=`${hcStatsMemo.normal}명`;
+      document.getElementById('hcReviewCount').textContent=hcStatsMemo.review?` · 판정 확인 필요 ${hcStatsMemo.review}건`:'';
 
-      const tbody = document.getElementById("hcTableBody");
-      tbody.innerHTML = filtered
+      const kw=currentSearch.trim().normalize('NFKC').toLocaleLowerCase('ko');
+      let filtered;
+      if(hcFilterMemo && hcFilterMemo.source===parsedRecords && hcFilterMemo.length===parsedRecords.length &&
+         hcFilterMemo.filter===currentFilter && hcFilterMemo.query===kw)filtered=hcFilterMemo.result;
+      else {
+        filtered=parsedRecords.filter(r=>{
+          if(currentFilter==='DISEASE' && r.검진결과!=='질환D1' && r.검진결과!=='질환D2')return false;
+          if(currentFilter==='OBSERVE' && r.검진결과!=='정상C1' && r.검진결과!=='정상C2')return false;
+          if(currentFilter==='NORMAL' && r.검진결과!=='정상A' && r.검진결과!=='정상B')return false;
+          if(kw) {
+            let text=hcSearchMemo.get(r);
+            if(text===undefined){text=[r.근로자명,r.생년월일,r.검진결과,r.병원명,r.비고사항].join(' ').normalize('NFKC').toLocaleLowerCase('ko');hcSearchMemo.set(r,text);}
+            if(!text.includes(kw))return false;
+          }
+          return true;
+        });
+        hcFilterMemo={source:parsedRecords,length:parsedRecords.length,filter:currentFilter,query:kw,result:filtered};
+      }
+      const pages=Math.max(1,Math.ceil(filtered.length/hcPageSize));
+      hcPage=Math.max(0,Math.min(pages-1,hcPage));
+      const pageStart=hcPage*hcPageSize;
+      const pageRows=filtered.slice(pageStart,pageStart+hcPageSize);
+      document.getElementById('hcPageInfo').textContent=filtered.length
+        ? `조회 ${filtered.length}명 / 전체 ${parsedRecords.length}명 · ${hcPage+1}/${pages} 페이지 · ${pageStart+1}~${pageStart+pageRows.length}명 표시`
+        : `검색 결과 0명 / 전체 ${parsedRecords.length}명`;
+      document.getElementById('hcPagePrev').disabled=hcPage===0;
+      document.getElementById('hcPageNext').disabled=hcPage>=pages-1;
+      const tbody=document.getElementById('hcTableBody');
+      tbody.innerHTML = pageRows
         .map((r, idx) => {
           const isD = ["질환D1", "질환D2"].includes(r.검진결과);
           const isC = ["정상C1", "정상C2"].includes(r.검진결과);
@@ -947,7 +1004,7 @@
 
           return `
             <tr class="${rowClass}">
-              <td>${idx + 1}</td>
+              <td>${pageStart + idx + 1}</td>
               <td><b>${hcEscapeHtml(r.근로자명 || "-")}</b></td>
               <td>${r.생년월일 || "-"}</td>
               <td>${r.건강검진일자 || "-"}</td>
@@ -963,7 +1020,7 @@
               <td>${yBadge(r.흉부질환)}</td>
               <td>${yBadge(r.신장질환)}</td>
               <td><b>${hcEscapeHtml(r.소견서여부)}</b></td>
-              <td>${hcEscapeHtml(r.최고혈압수치 !== "" ? `${r.최고혈압수치}/${r.최저혈압수치}` : "-")}</td>
+              <td>${hcEscapeHtml(r.최고혈압수치 !== "" && r.최고혈압수치 != null && r.최저혈압수치 != null ? `${r.최고혈압수치}/${r.최저혈압수치}` : "-")}</td>
               <td>${hcEscapeHtml(r.혈당수치 !== "" ? r.혈당수치 : "-")}</td>
               <td>${hcEscapeHtml(r.병원명)}</td>
               <td class="col-note">${hcEscapeHtml(r.비고사항)}</td>
@@ -1171,6 +1228,7 @@
         document.querySelectorAll(".hc-filter-btn").forEach(b => b.classList.remove("active"));
         btn.classList.add("active");
         currentFilter = btn.getAttribute("data-filter");
+        hcPage=0;
         updateStatsAndTable();
       });
     });
@@ -1178,13 +1236,22 @@
     document.getElementById("hcSearchInput").addEventListener("input", event => {
       if (!hcAccess.allowed) return;
       currentSearch = event.target.value || "";
-      updateStatsAndTable();
+      hcPage=0;
+      clearTimeout(hcSearchTimer);
+      hcSearchTimer=setTimeout(updateStatsAndTable,150);
+    });
+    document.getElementById('hcPagePrev').addEventListener('click',()=>{if(hcPage>0){hcPage--;updateStatsAndTable();}});
+    document.getElementById('hcPageNext').addEventListener('click',()=>{hcPage++;updateStatsAndTable();});
+    document.getElementById('hcPageSize').addEventListener('change',e=>{
+      const size=Number(e.target.value);
+      if(![50,100,200].includes(size))return;
+      hcPageSize=size;hcPage=0;updateStatsAndTable();
     });
 
     document.getElementById("hcResetBtn").addEventListener("click", () => {
       if (!hcRequireAccess() || hcBatchBusy) return;
       if (confirm("현재 변환된 목록을 모두 비우시겠습니까?")) {
-        parsedRecords = [];
+        parsedRecords = [];hcPage=0;hcStatsMemo=null;hcFilterMemo=null;
         document.getElementById("hcProgressWrap").style.display = "none";
         document.getElementById("hcErrorBox").style.display = "none";
         updateStatsAndTable();

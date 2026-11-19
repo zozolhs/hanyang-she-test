@@ -8,6 +8,7 @@
   <script>document.documentElement.classList.add("edu-locked");</script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./she-secure.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
     :root {
       --primary: #16286e;
@@ -102,6 +103,21 @@
     .stat-box .num.green { color: #15803d; }
     .stat-box .num.orange { color: #c2410c; }
     .stat-box .detail { color: #64748b; font-size: 11px; margin-top: 3px; line-height: 1.45; }
+    .period-panel { margin:-4px 0 13px; padding:10px; border:1px solid #dce4f0; border-radius:10px; background:#f8fbff; }
+    .period-toolbar {display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+    .period-title {font-size:11px;font-weight:800;color:#475569;margin-right:4px}
+    .period-tab {white-space:nowrap}
+    .period-tab[aria-pressed="true"] {background:#16286e;color:#fff;border-color:#16286e}
+    .regular-card {border:1px solid #cbdcfb;background:#eff6ff;border-radius:10px;padding:13px;margin-bottom:14px}
+    .regular-card h3 {font-size:13px;margin:0 0 7px;color:#16286e}
+    .regular-numbers {display:flex;flex-wrap:wrap;gap:14px;align-items:baseline}
+    .regular-numbers strong {font-size:23px;color:#166534}
+    .regular-numbers span {font-size:12px;font-weight:700;color:#475569}
+    .regular-card small {display:block;margin-top:7px;line-height:1.55;color:#475569}
+    .import-panel {border:1px dashed #a9c1e7;border-radius:9px;padding:10px;background:#f8fbff;margin-top:8px}
+    .import-panel .participant-tools {margin-bottom:4px}
+    .import-result {margin-top:7px;font-size:12px;line-height:1.55;white-space:pre-wrap;color:#334155;max-height:135px;overflow:auto}
+    .import-result.has-errors {color:#9f1239}
     .quick-link-list { display: flex; flex-direction: column; gap: 8px; }
     .quick-link-item { display: flex; justify-content: space-between; align-items: center;
       background: #f1f5f9; border-radius: 8px; padding: 12px 14px; border: 1px solid transparent;
@@ -257,6 +273,23 @@
           <h2 id="statsTitle" class="card-title" style="margin:0">🛡️ 연명부 기반 교육 관리 현황</h2>
           <button class="btn btn-outline" id="refreshRosterBtn" type="button">통계 새로고침</button>
         </div>
+        <div class="period-panel" aria-label="월별 교육 현황 조회">
+          <div class="period-toolbar">
+            <span class="period-title">조회 월</span>
+            <button type="button" id="regularPrevMonths" class="btn btn-outline btn-sm" title="5개월 이전">‹</button>
+            <div id="regularMonthTabs" class="calendar-toolbar"></div>
+            <button type="button" id="regularNextMonths" class="btn btn-outline btn-sm" title="5개월 이후">›</button>
+          </div>
+        </div>
+        <div class="regular-card" aria-live="polite">
+          <h3 id="regularPeriodTitle">정기안전교육 완료 현황</h3>
+          <div class="regular-numbers">
+            <strong id="regularCompleted">—명</strong>
+            <span id="regularPending">미완료 —명</span>
+            <span id="regularRate">이수율 —%</span>
+          </div>
+          <small id="regularStatsNote">현재 재직 인원 기준. 해당 월에 교육완료 확정된 정기 안전보건교육의 실제 참석자만 중복 없이 집계합니다.</small>
+        </div>
         <div class="stat-summary-row">
           <div class="stat-box">
             <div class="label">전체 등록 인원</div>
@@ -388,6 +421,14 @@
               <span id="attendeeCount" class="auth-badge">선택 0명</span>
             </div>
             <div id="attendeeList" class="participant-list" aria-label="교육 수강자 선택"></div>
+            <div class="import-panel">
+              <div class="participant-tools">
+                <button type="button" class="btn btn-outline btn-sm" id="eduExcelImportBtn">📤 엑셀 명단 자동선택</button>
+                <input type="file" id="eduExcelImportFile" accept=".xlsx,.xls,.csv" hidden>
+                <button type="button" class="btn btn-outline btn-sm" id="eduExcelErrorBtn" hidden>불일치 내역 CSV</button>
+              </div>
+              <div id="eduExcelImportResult" class="import-result" role="status" aria-live="polite">근로번호·성명·생년월일·업체명으로 연명부와 매칭합니다. 기존 선택자는 유지합니다.</div>
+            </div>
             <div class="participant-tools"><button id="selectAllAttendeesBtn" class="btn btn-outline btn-sm" type="button">검색 결과 전체 선택</button><button id="clearAttendeesBtn" class="btn btn-outline btn-sm" type="button">선택 해제</button></div>
             <span class="field-hint" id="attendeeHint">퇴사자는 수강자 선택 목록에서 제외됩니다. 처음 80명만 표시되며 검색하면 다른 인원을 찾을 수 있습니다.</span>
           </div>
@@ -419,7 +460,13 @@
           <div class="field"><label for="irisLocation">장소 *</label><input id="irisLocation" maxlength="120" required></div>
           <div class="field"><label for="irisProgress">진행상태</label><select id="irisProgress"><option value="scheduled">예정</option><option value="ongoing">진행 중</option><option value="completed">완료</option><option value="postponed">연기</option><option value="cancelled">취소</option></select></div>
           <div class="field"><label for="irisGuide">인솔자</label><input id="irisGuide" maxlength="100" placeholder="인솔 담당자"></div>
-          <div class="field full"><label for="irisSearch">홍채 대상자 (물산입사일 미입력자)</label><div class="participant-tools"><input id="irisSearch" type="search" placeholder="성명 · 근로번호 · 업체명"><span class="auth-badge" id="irisSelectedCount">선택 0명</span></div><div class="participant-list" id="irisAttendees"></div><div class="field-hint" id="irisHint">연명부 물산입사일 미입력자만 조회하며, 필수교육 5종 완료 여부를 함께 표시합니다.</div></div>
+          <div class="field full"><label for="irisSearch">홍채 대상자 (물산입사일 미입력자)</label><div class="participant-tools"><input id="irisSearch" type="search" placeholder="성명 · 근로번호 · 업체명"><span class="auth-badge" id="irisSelectedCount">선택 0명</span></div><div class="participant-list" id="irisAttendees"></div>
+            <div class="import-panel"><div class="participant-tools">
+              <button type="button" class="btn btn-outline btn-sm" id="irisExcelImportBtn">📤 엑셀 명단 자동선택</button>
+              <input type="file" id="irisExcelImportFile" accept=".xlsx,.xls,.csv" hidden>
+              <button type="button" class="btn btn-outline btn-sm" id="irisExcelErrorBtn" hidden>불일치 내역 CSV</button>
+            </div><div id="irisExcelImportResult" class="import-result" role="status" aria-live="polite">물산입사일 미입력 근로자만 자동선택합니다.</div></div>
+            <div class="field-hint" id="irisHint">연명부 물산입사일 미입력자만 조회하며, 필수교육 5종 완료 여부를 함께 표시합니다.</div></div>
           <div class="field full"><label for="irisNotes">메모 / 특이사항</label><textarea id="irisNotes" maxlength="2500" rows="3"></textarea></div>
         </div>
         <div class="modal-actions"><button id="deleteIrisBtn" class="btn btn-danger" type="button" hidden>일정 삭제</button><button id="cancelIrisBtn" class="btn btn-outline" type="button">취소</button><button class="btn btn-primary" type="submit">💾 홍채 일정 저장</button></div>
@@ -706,6 +753,7 @@
       $('statActive').textContent = summary.active.toLocaleString('ko-KR') + '명';
       $('statCompleted').textContent = summary.completed.toLocaleString('ko-KR') + '명';
       $('statExpired').textContent = summary.expired.toLocaleString('ko-KR') + '명';
+      renderRegularStats();
     }
     function makeId() {
       if (window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID();
@@ -1027,6 +1075,7 @@
         renderCalendar();
         renderScheduleList();
         renderBatchList();
+        renderRegularStats();
         updateStatus('saveStatus',response.data
           ? `✓ 교육 일정 동기화 완료 (${state.events.length}건)`
           : '✓ 서버에 저장된 교육 일정 없음 · 신규 등록 가능','success');
@@ -1328,8 +1377,13 @@
       }
     });
 
-    /* EDUCATION V15: 기존 DB row/items 포맷과 호환; 연명부 반영은 SQL RPC 트랜잭션만 수행. */
+    /* EDUCATION V17: 1,000명 성능 최적화; 기존 DB row/items 포맷과 호환; 연명부 반영은 SQL RPC 트랜잭션만 수행. */
     state.reports = [];
+    state.regularMonthStart = new Date(new Date().getFullYear(),new Date().getMonth(),1);
+    state.regularSelectedMonth = `${state.regularMonthStart.getFullYear()}-${String(state.regularMonthStart.getMonth()+1).padStart(2,'0')}`;
+    state.importResults = {education:[],iris:[]};
+    state.importRunning = false;
+    state.importIndexRef = null;
     state.workerIndex = new Map();
     state.workerSearch = [];
     state.schedPage = 0;
@@ -1343,6 +1397,8 @@
     state.pendingConfirm = false;
     state.participantTimer = null;
     state.batchPage = 0;
+    state.batchColumnPage = 0; // V18: 교육 항목도 구간별 표시하여 수천 명·다수 교육 처리
+    state.batchBaseCache = null;
     state.batchTimer = null;
     const STATUS_IRIS = Object.freeze({scheduled:'예정',ongoing:'진행 중',completed:'완료',postponed:'연기',cancelled:'취소'});
     const ATTENDANCE = Object.freeze({attended:'참석',postponed:'연기',cancelled:'취소',absent:'미참석'});
@@ -1364,11 +1420,18 @@
       if(state.statMemo?.source===workers)return state.statMemo.value;
       const result={total:0,active:0,completed:0,expired:0,companies:[]};
       const companies=new Map(),referenceDate=strictDate(todayString());
+      // 동일한 교육 날짜·시간은 직원마다 반복됩니다. 이번 통계 계산 내에서만 결과를 재사용합니다.
+      const parsedEducation=new Map();
+      const getEducationStatus=value=>{
+        const key=String(value??'');
+        if(!parsedEducation.has(key))parsedEducation.set(key,educationState(key,referenceDate));
+        return parsedEducation.get(key);
+      };
       for(const w of workers||[]) {
         if(!w||typeof w!=='object')continue;
         result.total++;
         if(!String(w.resignDate||'').trim())result.active++;
-        const statuses=Object.fromEntries(EDU_FIELDS.map(key=>[key,educationState(w[key],referenceDate)]));
+        const statuses=Object.fromEntries(EDU_FIELDS.map(key=>[key,getEducationStatus(w[key])]));
         const complete=REQUIRED_FIVE.every(k=>statuses[k]?.completed);
         const expired=EDU_FIELDS.some(k=>statuses[k]?.expired);
         if(complete)result.completed++;
@@ -1381,7 +1444,58 @@
       result.companies=[...companies.values()].sort((a,b)=>b.total-a.total||a.company.localeCompare(b.company,'ko'));
       state.statMemo={source:workers,value:result};return result;
     }
+    // 월별 정기안전교육: 확인 완료된 일정의 참석 근로자만 집계하고 미확정/취소/연기는 제외.
+    function monthKey(date) {return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`;}
+    function regularMonthlyData(month) {
+      // V18: 동일 일정/연명부로 월 탭을 넘길 때 수만 건 수강자 명단을 다시 순회하지 않습니다.
+      // 일정이 등록·변경·삭제되거나 서버 명단이 재조회되면 참조/길이 변경으로 캐시를 새로 구성합니다.
+      const prev=state.regularMonthlyCache;
+      if(!prev || prev.events!==state.events || prev.workers!==state.workerIndex || prev.eventCount!==state.events.length){
+        state.regularMonthlyCache={events:state.events,workers:state.workerIndex,eventCount:state.events.length,values:new Map()};
+      }
+      const memo=state.regularMonthlyCache.values;
+      if(memo.has(month))return memo.get(month);
+      const active = state.workerIndex || new Map();
+      const completed = new Set();
+      for (const e of state.events || []) {
+        if (e.kind !== 'education' || e.category !== 'regular' || e.status !== 'completed'
+            || !e.confirmedAt || !Array.isArray(e.confirmedKeys)) continue;
+        if (month !== 'all' && !String(e.date||'').startsWith(month+'-')) continue;
+        for (const key of e.confirmedKeys) if (active.has(key)) completed.add(key);
+      }
+      const total = (state.roster||[]).filter(w=>w&&typeof w==='object'&&!String(w.resignDate||'').trim()).length;
+      const result={total,complete:completed.size,pending:Math.max(0,total-completed.size),rate:total?completed.size/total*100:0};
+      memo.set(month,result);
+      return result;
+    }
+    function renderRegularStats() {
+      if (!$('regularMonthTabs')) return;
+      const root=$('regularMonthTabs'); root.replaceChildren();
+      const makeTab=(label,value)=>{
+        const b=el('button','btn btn-outline btn-sm period-tab',label);
+        b.type='button';b.setAttribute('aria-pressed',String(state.regularSelectedMonth===value));
+        b.addEventListener('click',()=>{state.regularSelectedMonth=value;renderRegularStats();});root.append(b);
+      };
+      makeTab('전체 기간','all');
+      const start=state.regularMonthStart;
+      for(let i=0;i<5;i++) {
+        const m=new Date(start.getFullYear(),start.getMonth()+i,1);
+        makeTab(`${m.getMonth()+1}월`,monthKey(m));
+      }
+      const month=state.regularSelectedMonth;
+      const parts=month!=='all'?month.split('-'):[];
+      $('regularPeriodTitle').textContent=month==='all'?'전체 기간 · 정기안전교육 완료 현황':`${parts[0]}년 ${Number(parts[1])}월 · 정기안전교육 완료 현황`;
+      if (!state.rosterReady || !state.roster) {
+        $('regularCompleted').textContent='—명';$('regularPending').textContent='미완료 —명';$('regularRate').textContent='이수율 —%';return;
+      }
+      const v=regularMonthlyData(month);
+      $('regularCompleted').textContent=`${v.complete.toLocaleString('ko-KR')}명`;
+      $('regularPending').textContent=`미완료 ${v.pending.toLocaleString('ko-KR')}명 / 재직 ${v.total.toLocaleString('ko-KR')}명`;
+      $('regularRate').textContent=`이수율 ${v.rate.toFixed(1)}%`;
+      $('regularStatsNote').textContent='현재 연명부 재직자 중 선택 기간의 정기 안전보건교육에서 실제 참석·완료 확정된 근로자만 집계합니다. 교육차수별 시간 충족 여부를 판정하는 법정 이수시간 보고서는 아닙니다. 기존 5종 8h 통계와 별도입니다.';
+    }
     function rosterComplete(worker) {
+      if(worker && typeof worker.__fiveComplete==='boolean')return worker.__fiveComplete;
       return REQUIRED_FIVE.every(k=>{
         const match=/\b(\d+(?:\.\d+)?)\s*h\b/i.exec(String(worker?.[k]||''));
         return match && Number(match[1])>=8;
@@ -1393,6 +1507,7 @@
         const w = {...normalizeWorker(raw),__key:attendeeKey(raw,i)};
         if(!w.name || String(w.resignDate||'').trim()) return;
         if (state.workerIndex.has(w.__key)) return; // 중복 고유키는 서버 확정 함수에서 차단
+        w.__fiveComplete=rosterComplete(w); // 서버 저장값에는 포함되지 않는 화면 인덱스 속성
         state.workerIndex.set(w.__key,w);
         state.workerSearch.push({worker:w,search:[w.name,w.company,w.workerNo,w.job].join(' ').toLocaleLowerCase('ko')});
       });
@@ -1403,8 +1518,10 @@
       const attendees = Array.isArray(keys) ? keys.map(x => typeof x==='string'?x:(x?.key||x?.uid||'')).filter(Boolean) : [];
       const kind = e.kind==='iris' ? 'iris' : 'education';
       const status = String(e.status||'scheduled');
+      // V18: 수천 명 출석상태를 O(n²) includes() 대신 O(n) Set 조회로 정규화.
+      const attendeeLookup = new Set(attendees);
       const outcomes = e.attendeeOutcomes && typeof e.attendeeOutcomes==='object' && !Array.isArray(e.attendeeOutcomes)
-        ? Object.fromEntries(Object.entries(e.attendeeOutcomes).filter(([k,v])=>attendees.includes(k)&&ATTENDANCE[v])) : {};
+        ? Object.fromEntries(Object.entries(e.attendeeOutcomes).filter(([k,v])=>attendeeLookup.has(k)&&ATTENDANCE[v])) : {};
       const confirmedKeys = Array.isArray(e.confirmedKeys) ? e.confirmedKeys.filter(k=>typeof k==='string') : null;
       return {
         id:String(e.id||e.uid||makeId()),kind,title:String(e.title||e.name||(kind==='iris'?'홍채등록':'')).trim(),
@@ -1495,21 +1612,27 @@
       const frag=document.createDocumentFragment();
       ['일','월','화','수','목','금','토'].forEach(w=>frag.appendChild(el('div','cal-day-header',w)));
       const from=new Date(year,month,1-first.getDay()),days=Math.ceil((first.getDay()+new Date(year,month+1,0).getDate())/7)*7;
+      const firstKey=formatDate(from),lastKey=formatDate(new Date(year,month,days-first.getDay()));
+      const currentTime=kstClock();
       const byDate=new Map();
-      for(const e of state.events) {if(!byDate.has(e.date))byDate.set(e.date,[]);byDate.get(e.date).push(e);}
+      for(const e of state.events) {
+        if(e.date<firstKey || e.date>lastKey)continue;
+        if(!byDate.has(e.date))byDate.set(e.date,[]);
+        byDate.get(e.date).push(e);
+      }
       for(let i=0;i<days;i++) {
         const day=new Date(from.getFullYear(),from.getMonth(),from.getDate()+i),key=formatDate(day);
         const events=byDate.get(key)||[],cell=el('div','cal-cell');
         if(day.getMonth()!==month)cell.classList.add('is-other-month');
         if(events.length)cell.classList.add('has-event');
-        if(key===todayString())cell.classList.add('is-today');
+        if(key===currentTime.date)cell.classList.add('is-today');
         const dateButton=el('button','cal-date',String(day.getDate()));dateButton.type='button';
         dateButton.addEventListener('click',()=>openEventModal(null,key));cell.appendChild(dateButton);
         for(const e of events.slice(0,3)) {
           const b=el('button','cal-event',`${e.kind==='iris'?'🔐':e.startTime} ${e.title}`);
           if(e.kind==='iris'&&e.irisProgress==='completed'||e.status==='completed')b.classList.add('completed');
           if(e.status==='cancelled')b.classList.add('cancelled');
-          b.title=`${e.title} · ${statusAtTime(e)}`;b.addEventListener('click',()=>e.kind==='iris'?openIris(e.id):openEventModal(e.id));cell.appendChild(b);
+          b.title=`${e.title} · ${statusAtTime(e,currentTime)}`;b.addEventListener('click',()=>e.kind==='iris'?openIris(e.id):openEventModal(e.id));cell.appendChild(b);
         }
         if(events.length>3)cell.appendChild(el('span','cal-more',`+ ${events.length-3}건`));
         frag.appendChild(cell);
@@ -1556,7 +1679,7 @@
       state.draftAttendees=new Set(data.attendeeKeys);
       $('eventModalTitle').textContent=locked?'교육완료 확정 이력 조회 (수정 불가)':original?'교육 일정 및 수강자 수정':'교육 일정 등록';
       for(const [id,key] of Object.entries({eventTitle:'title',eventCategory:'category',eventStatus:'status',eventDate:'date',eventStart:'startTime',eventEnd:'endTime',eventHours:'hours',eventLocation:'location',eventInstructor:'instructor',eventCourse:'courseKey',eventNotes:'notes'}))$(id).value=String(data[key]??'');
-      $('eventStatus').add(new Option('교육완료 확정','completed')); // 과거 완료 일정의 읽기 전용 조회용
+      if(![...$('eventStatus').options].some(option=>option.value==='completed'))$('eventStatus').add(new Option('교육완료 확정','completed')); // 중복 옵션 생성 방지
       for(const option of [...$('eventStatus').options])if(option.value==='completed'&&!locked)option.remove();
       $('guestAttendees').value=data.guests.join('\n');$('attendeeSearch').value='';
       $('deleteEventBtn').hidden=!original||locked;
@@ -1633,25 +1756,45 @@
       if(state.dirty||state.savePaused)return alert('미저장 일정이 있습니다. 서버 저장 상태를 확인한 후 확정하세요.');
       if(!state.rosterReady)return alert('연명부 조회에 실패했습니다. 연명부를 새로고침하세요.');
       if(!e.courseKey && !confirm('연명부 연계 항목이 없습니다. 완료 확정해도 연명부 교육시간은 반영되지 않습니다. 계속하시겠습니까?'))return;
-      state.confirmId=id;state.confirmDraft=new Map();
+      state.confirmId=id;state.confirmDraft=new Map();state.confirmPage=0;
       $('confirmTitle').textContent=`교육완료 확정 · ${e.title}`;
       $('confirmSummary').textContent=`${e.date} · ${e.hours}h · ${COURSE_LABELS[e.courseKey]||'연명부 연계 없음'} | 실제 참석자만 교육시간이 누적됩니다.`;
-      const root=$('confirmAttendees'),table=el('table','batch-report-table');
-      const head=el('thead');const tr=el('tr');['근로자','현재 교육값','참석 상태'].forEach(x=>tr.append(el('th','',x)));head.append(tr);table.append(head);
-      const body=el('tbody');
       for(const key of e.attendeeKeys) {
+        const w=state.workerIndex.get(key);
+        state.confirmDraft.set(key,!w||!workerEligible(w,e.courseKey)?'absent':e.attendeeOutcomes?.[key]||'attended');
+      }
+      renderConfirmAttendees();
+      $('confirmModal').hidden=false;
+    }
+    function renderConfirmAttendees() {
+      const e=state.events.find(x=>x.id===state.confirmId);
+      if(!e)return;
+      const keys=e.attendeeKeys, perPage=80;
+      const pages=Math.max(1,Math.ceil(keys.length/perPage));
+      state.confirmPage=Math.max(0,Math.min(pages-1,state.confirmPage||0));
+      const start=state.confirmPage*perPage;
+      const root=$('confirmAttendees'),table=el('table','batch-report-table');
+      const head=el('thead'),tr=el('tr');
+      ['근로자','현재 교육값','참석 상태'].forEach(x=>tr.append(el('th','',x)));
+      head.append(tr);table.append(head);
+      const body=el('tbody');
+      for(const key of keys.slice(start,start+perPage)) {
         const w=state.workerIndex.get(key),r=el('tr');
         r.append(el('td','',w?`${w.name} (${w.workerNo||key})`:key));
         r.append(el('td','',w?(w[e.courseKey]||'미이수'):'연명부 일치 없음'));
         const td=el('td'),select=el('select');select.dataset.key=key;
-        for(const [v,label] of Object.entries(ATTENDANCE)){const o=new Option(label,v);select.add(o);}
-        if(!w||!workerEligible(w,e.courseKey))select.value='absent';
-        else select.value=e.attendeeOutcomes?.[key]||'attended';
-        state.confirmDraft.set(key,select.value);td.append(select);r.append(td);body.append(r);
+        for(const [v,label] of Object.entries(ATTENDANCE))select.add(new Option(label,v));
+        select.value=state.confirmDraft.get(key)||'absent';
+        td.append(select);r.append(td);body.append(r);
       }
-      table.append(body);root.replaceChildren(table);
-      root.querySelectorAll('select').forEach(select=>select.addEventListener('change',()=>state.confirmDraft.set(select.dataset.key,select.value)));
-      $('confirmModal').hidden=false;
+      table.append(body);
+      const pager=el('div','page-toolbar'),count=el('span','',`전체 ${keys.length}명 · ${state.confirmPage+1}/${pages} 페이지 · ${start+1}~${Math.min(keys.length,start+perPage)}명 표시`);
+      const prev=el('button','btn btn-outline btn-sm','← 이전'),next=el('button','btn btn-outline btn-sm','다음 →');
+      prev.type=next.type='button';prev.disabled=state.confirmPage<=0;next.disabled=state.confirmPage>=pages-1;
+      prev.addEventListener('click',()=>{state.confirmPage--;renderConfirmAttendees();});
+      next.addEventListener('click',()=>{state.confirmPage++;renderConfirmAttendees();});
+      pager.append(count,prev,next);
+      root.replaceChildren(table,pager);
     }
     function closeConfirm() {if(state.pendingConfirm)return;$('confirmModal').hidden=true;state.confirmId=null;}
     async function commitConfirm() {
@@ -1719,9 +1862,18 @@
       }
       if(!matches.length)frag.append(el('div','participant-list-hint','물산입사일 미입력 대상자가 없습니다.'));
       root.replaceChildren(frag);
-      const valid=[...state.irisDraft].filter(key=>state.workerIndex.has(key)&&workerEligible(state.workerIndex.get(key),'','iris'));
-      $('irisSelectedCount').textContent=`대상 ${valid.length}명 · 5종 완료 ${valid.filter(key=>rosterComplete(state.workerIndex.get(key))).length}명`;
+      updateIrisSelectionSummary();
       $('irisHint').textContent=`물산입사일 미입력 ${matches.length}명 검색됨 · 화면 최대 55명 · 선택은 검색과 관계없이 유지됩니다.`;
+    }
+    function updateIrisSelectionSummary() {
+      let valid=0,completed=0;
+      for(const key of state.irisDraft){
+        const worker=state.workerIndex.get(key);
+        if(!workerEligible(worker,'','iris'))continue;
+        valid++;
+        if(rosterComplete(worker))completed++;
+      }
+      $('irisSelectedCount').textContent=`대상 ${valid}명 · 5종 완료 ${completed}명`;
     }
     async function submitIris(e) {
       e.preventDefault();if(!requireAccess())return;
@@ -1781,12 +1933,13 @@
       if(id&&!report)return notify('교육 보고서를 찾을 수 없습니다.');
       state.reportEditingId=report?.id||null;state.reportDraftIds=new Set(report?.eventIds||[]);
       state.reportDraftNotes=JSON.parse(JSON.stringify(report?.notes||{}));state.batchPage=0;
+      state.batchColumnPage=0;state.batchBaseCache=null;
       $('batchModalTitle').textContent=report?'교육 결과 보고서 조회·수정':'교육 결과 보고서 작성';
       $('batchTitle').value=report?.title||'';$('batchMemo').value=report?.memo||'';
       $('batchWorkerSearch').value='';$('deleteBatchBtn').hidden=!report;
       $('batchModal').hidden=false;renderBatchOptions();renderBatchMatrix();
     }
-    function closeBatch() {$('batchModal').hidden=true;state.reportEditingId=null;}
+    function closeBatch() {$('batchModal').hidden=true;state.reportEditingId=null;state.batchBaseCache=null;}
     function renderBatchOptions() {
       const root=$('batchEventOptions'),frag=document.createDocumentFragment();
       const completed=state.events.filter(e=>e.kind==='education'&&e.status==='completed').sort((a,b)=>-compareEvents(a,b));
@@ -1801,32 +1954,68 @@
       if(e.confirmedKeys)return e.confirmedKeys;
       return e.attendeeKeys.filter(key=>e.attendeeOutcomes?.[key]===undefined||e.attendeeOutcomes?.[key]==='attended');
     }
+    // V18: 차수별 교육 보고서의 변하지 않는 수강자·이수 집계를 한 번만 생성합니다.
+    // 표시되는 근로자는 40명, 교육 열은 6개씩만 DOM에 출력하며 전체 통계·CSV는 모두 유지합니다.
+    function reportMatrixBase() {
+      const ids=[...state.reportDraftIds];
+      const selected=ids.join('\u001f');
+      let cache=state.batchBaseCache;
+      if(cache && cache.selected===selected && cache.events===state.events
+        && cache.workers===state.workerIndex && cache.notes===state.reportDraftNotes) return cache;
+      const completed=new Map(state.events.filter(e=>e.kind==='education'&&e.status==='completed').map(e=>[e.id,e]));
+      const events=ids.map(id=>completed.get(id)).filter(Boolean);
+      const indexedEvents=events.map(e=>({e,attended:new Set(reportEventAttendees(e)),registered:new Set(e.attendeeKeys)}));
+      const keys=new Set();
+      for(const {e} of indexedEvents)for(const key of e.attendeeKeys)keys.add(key);
+      for(const noteId of Object.keys(state.reportDraftNotes)) {
+        const at=noteId.indexOf('::');if(at<0)continue;
+        if(completed.has(noteId.slice(0,at))&&state.reportDraftIds.has(noteId.slice(0,at))){
+          const key=noteId.slice(at+2);if(state.workerIndex.has(key))keys.add(key);
+        }
+      }
+      const people=[...keys].map(key=>({key,worker:state.workerIndex.get(key)}))
+        .sort((a,b)=>(a.worker?.name||a.key).localeCompare(b.worker?.name||b.key,'ko'));
+      for(const p of people) p.searchText=[p.worker?.name,p.worker?.company,p.worker?.workerNo,p.key]
+        .join(' ').toLocaleLowerCase('ko');
+      let allDone=0;
+      for(const p of people)if(indexedEvents.length && indexedEvents.every(({attended})=>attended.has(p.key)))allDone++;
+      const attendedCount=indexedEvents.reduce((sum,x)=>sum+x.attended.size,0);
+      cache={selected,events:state.events,workers:state.workerIndex,notes:state.reportDraftNotes,
+        items:indexedEvents,people,allDone,attendedCount};
+      state.batchBaseCache=cache;
+      return cache;
+    }
     function renderBatchMatrix() {
       if($('batchModal').hidden && !state.reportEditingId && state.reportDraftIds.size===0)return;
-      const events=[...state.reportDraftIds].map(id=>state.events.find(e=>e.id===id&&e.kind==='education'&&e.status==='completed')).filter(Boolean);
-      const people=new Set();for(const e of events)for(const key of e.attendeeKeys)people.add(key);
-      // 한 교육에는 등록되지 않았지만 연기/취소 특이사항이 작성된 명단은 보고서에 계속 유지
-      for(const noteKey of Object.keys(state.reportDraftNotes)){
-        const idx=noteKey.indexOf('::');if(idx<0)continue;
-        const eventId=noteKey.slice(0,idx),key=noteKey.slice(idx+2);
-        if(state.reportDraftIds.has(eventId)&&state.workerIndex.has(key))people.add(key);
-      }
-      const all=[...people].map(key=>({key,worker:state.workerIndex.get(key)})).sort((a,b)=>(a.worker?.name||a.key).localeCompare(b.worker?.name||b.key,'ko'));
+      const base=reportMatrixBase(), indexedEvents=base.items;
       const search=$('batchWorkerSearch').value.trim().toLocaleLowerCase('ko');
-      const matched=search?all.filter(x=>[x.worker?.name,x.worker?.company,x.worker?.workerNo,x.key].join(' ').toLocaleLowerCase('ko').includes(search)):all;
-      const maxPage=Math.max(0,Math.ceil(matched.length/40)-1);state.batchPage=Math.min(state.batchPage,maxPage);
-      let allDone=0;for(const person of all)if(events.length&&events.every(e=>reportEventAttendees(e).includes(person.key)))allDone++;
-      $('batchSummary').textContent=`선택 교육 ${events.length}건 · 중복 제외 수강인원 ${all.length}명 · 전체 교육 이수 ${allDone}명 · 개별 교육 이수 건수 ${events.reduce((sum,e)=>sum+reportEventAttendees(e).length,0)}건. ※ 특이사항 상태는 연명부의 확정 이력을 임의로 수정하지 않습니다.`;
+      const matched=search?base.people.filter(x=>x.searchText.includes(search)):base.people;
+      const maxPage=Math.max(0,Math.ceil(matched.length/40)-1);
+      state.batchPage=Math.max(0,Math.min(state.batchPage,maxPage));
+      const columnSize=6,maxColumnPage=Math.max(0,Math.ceil(indexedEvents.length/columnSize)-1);
+      state.batchColumnPage=Math.max(0,Math.min(state.batchColumnPage,maxColumnPage));
+      const colStart=state.batchColumnPage*columnSize;
+      const visibleEvents=indexedEvents.slice(colStart,colStart+columnSize);
+      $('batchSummary').textContent=`선택 교육 ${indexedEvents.length}건 · 중복 제외 수강인원 ${base.people.length}명 · 전체 교육 이수 ${base.allDone}명 · 개별 교육 이수 건수 ${base.attendedCount}건. ※ 특이사항 상태는 연명부의 확정 이력을 임의로 수정하지 않습니다.`;
       const root=$('batchMatrix');root.replaceChildren();
-      if(!events.length){root.append(el('div','empty-state','완료된 교육 일정을 하나 이상 선택하세요.'));return;}
+      if(!indexedEvents.length){root.append(el('div','empty-state','완료된 교육 일정을 하나 이상 선택하세요.'));return;}
+      if(indexedEvents.length>columnSize){
+        const coursePager=el('div','page-toolbar');
+        const info=el('span','',`교육 항목 ${colStart+1}~${Math.min(colStart+columnSize,indexedEvents.length)} / ${indexedEvents.length}건 표시 (전체 통계·다운로드에는 모두 포함)`);
+        const back=el('button','btn btn-outline btn-sm','← 이전 교육'),next=el('button','btn btn-outline btn-sm','다음 교육 →');
+        back.type=next.type='button';back.disabled=state.batchColumnPage===0;next.disabled=state.batchColumnPage>=maxColumnPage;
+        back.addEventListener('click',()=>{state.batchColumnPage--;renderBatchMatrix();});
+        next.addEventListener('click',()=>{state.batchColumnPage++;renderBatchMatrix();});
+        coursePager.append(info,back,next);root.append(coursePager);
+      }
       const table=el('table','batch-report-table');const head=el('thead'),h=el('tr');
       h.append(el('th','','근로자 / 업체'));
-      for(const e of events)h.append(el('th','',`${e.title} (${e.hours}h)\n${e.date}`));
+      for(const {e} of visibleEvents)h.append(el('th','',`${e.title} (${e.hours}h)\n${e.date}`));
       head.append(h);table.append(head);const body=el('tbody');
       for(const {key,worker:w} of matched.slice(state.batchPage*40,(state.batchPage+1)*40)) {
         const tr=el('tr');tr.append(el('td','',`${w?.name||key} / ${w?.company||'-'} / ${w?.workerNo||''}`));
-        for(const e of events) {
-          const td=el('td'),attended=reportEventAttendees(e).includes(key),registered=e.attendeeKeys.includes(key),noteId=`${e.id}::${key}`;
+        for(const {e,attended:attendedSet,registered:registeredSet} of visibleEvents) {
+          const td=el('td'),attended=attendedSet.has(key),registered=registeredSet.has(key),noteId=`${e.id}::${key}`;
           const note=state.reportDraftNotes[noteId]||{},label=el('div','',attended?'✓ 이수 확정':registered?`· ${ATTENDANCE[e.attendeeOutcomes?.[key]]||'미참석'} (확정 제외)`:'— 해당 교육 미등록');
           label.style.color=attended?'#15803d':'#475569';td.append(label);
           if(!registered){
@@ -1842,7 +2031,7 @@
       table.append(body);root.append(table);
       const pager=el('div','page-toolbar');pager.append(el('span','',`${matched.length}명 · ${state.batchPage+1}/${maxPage+1} 페이지`));
       const prev=el('button','btn btn-outline btn-sm','← 이전'),next=el('button','btn btn-outline btn-sm','다음 →');
-      prev.disabled=state.batchPage===0;next.disabled=state.batchPage===maxPage;
+      prev.type=next.type='button';prev.disabled=state.batchPage===0;next.disabled=state.batchPage===maxPage;
       prev.addEventListener('click',()=>{state.batchPage--;renderBatchMatrix();});
       next.addEventListener('click',()=>{state.batchPage++;renderBatchMatrix();});pager.append(prev,next);root.append(pager);
     }
@@ -1878,21 +2067,190 @@
       const blob=new Blob(['\uFEFF'+txt],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
       a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),2500);
     }
-    function exportBatch() {
-      const events=[...state.reportDraftIds].map(id=>state.events.find(e=>e.id===id&&e.kind==='education'&&e.status==='completed')).filter(Boolean);
-      const people=new Set();for(const e of events)for(const k of e.attendeeKeys)people.add(k);
-      for(const noteId of Object.keys(state.reportDraftNotes)){const at=noteId.indexOf('::');if(at>=0 && events.some(e=>e.id===noteId.slice(0,at)))people.add(noteId.slice(at+2));}
-      const rows=[['근로번호','성명','업체',...events.flatMap(e=>[`${e.title} 이수`,`${e.title} 특이사항`])]];
-      for(const key of people) {
-        const w=state.workerIndex.get(key)||{};
-        rows.push([w.workerNo||key,w.name||'',w.company||'',...events.flatMap(e=>{
-          const note=state.reportDraftNotes[`${e.id}::${key}`]||{};
-          return [reportEventAttendees(e).includes(key)?'이수 완료':e.attendeeKeys.includes(key)?ATTENDANCE[e.attendeeOutcomes?.[key]]||'미참석':REPORT_NOT_JOINED[note.status]||'미등록',note.memo||''];
-        })]);
+    // V18: 5,000명 x 수십 교육 CSV도 선형시간으로 처리합니다.
+    // 화면에서 교육 열을 나눠 보더라도 다운로드에는 선택된 교육 전체가 포함됩니다.
+    async function exportBatch() {
+      if(state.batchExportRunning)return;
+      state.batchExportRunning=true;
+      try {
+        const base=reportMatrixBase(),events=base.items;
+        if(!events.length){notify('다운로드할 완료 교육을 선택하세요.');return;}
+        const fileName=`교육결과_${($('batchTitle').value||'차수').replace(/[\/:*?"<>|]/g,'_')}_${todayString()}.csv`;
+        const columns=['근로번호','성명','업체',...events.flatMap(({e})=>[`${e.title} 이수`,`${e.title} 특이사항`])];
+        const parts=['\uFEFF'+columns.map(csvSafe).join(',')+'\r\n'];
+        // CSV는 한 번에 거대한 2차원 배열을 생성하지 않고 작은 배치로 직렬화합니다.
+        const batch=[];
+        for(let i=0;i<base.people.length;i++){
+          const {key,worker:w}=base.people[i];
+          const row=[w?.workerNo||key,w?.name||'',w?.company||''];
+          for(const {e,attended,registered} of events){
+            const note=state.reportDraftNotes[`${e.id}::${key}`]||{};
+            row.push(attended.has(key)?'이수 완료':registered.has(key)?ATTENDANCE[e.attendeeOutcomes?.[key]]||'미참석':REPORT_NOT_JOINED[note.status]||'미등록',note.memo||'');
+          }
+          batch.push(row.map(csvSafe).join(',')+'\r\n');
+          if(batch.length===100){parts.push(batch.join(''));batch.length=0;await new Promise(resolve=>setTimeout(resolve,0));}
+        }
+        if(batch.length)parts.push(batch.join(''));
+        const blob=new Blob(parts,{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+        a.href=url;a.download=fileName;a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);
+      }catch(error){console.error('교육 보고서 다운로드 실패:',error);notify('교육 보고서 다운로드 중 오류가 발생했습니다.');}
+      finally{state.batchExportRunning=false;}
+    }
+    /* V16: 업로드 명단은 브라우저에서만 읽음. 신원 확인 후 선택 키만 반영. */
+    function importClean(value) { return String(value??'').normalize('NFKC').replace(/[\s\u200B-\u200D\uFEFF]/g,'').toLowerCase(); }
+    function importWorkerNumber(value) {
+      const digits=String(value??'').trim().replace(/[^0-9]/g,'');
+      return digits.length>=1&&digits.length<=8?digits.padStart(8,'0'):'';
+    }
+    function importBirth(value) {
+      const raw=String(value??'').trim();
+      const d=raw.replace(/[^0-9]/g,'');
+      if(d.length===8&&(d.startsWith('19')||d.startsWith('20')))return d.slice(2);
+      if(d.length===6)return d;
+      return '';
+    }
+    function importCompany(value) {
+      return importClean(value).replace(/(?:\(주\)|㈜|주식회사|\(유\)|유한회사)/g,'');
+    }
+    const IMPORT_COLUMNS=Object.freeze({
+      workerNo:['근로번호','근로자번호','근로자id','사원번호','직원번호','근로id','workerid'],
+      name:['성명','이름','근로자명','근로자성명','수강자명','대상자명','name'],
+      birth:['생년월일','생일','출생일','생년월일6자리','birth','birthday','dob'],
+      company:['업체명','업체','소속업체','협력업체','회사명','소속','company']
+    });
+    function readImportHeaders(matrix) {
+      const all=Object.fromEntries(Object.entries(IMPORT_COLUMNS).map(([k,a])=>[k,new Set(a.map(importClean))]));
+      let best=null;
+      for(let i=0;i<Math.min(matrix.length,20);i++) {
+        const cells=matrix[i]||[],cols={};
+        cells.forEach((cell,j)=>{
+          const clean=importClean(cell);
+          for(const [key,aliases] of Object.entries(all))if(cols[key]===undefined&&aliases.has(clean))cols[key]=j;
+        });
+        const score=Object.keys(cols).length;
+        if((cols.workerNo!==undefined||cols.name!==undefined)&&(!best||score>best.score))best={index:i,cols,score};
       }
-      csvDownload(`교육결과_${($('batchTitle').value||'차수').replace(/[\\/:*?"<>|]/g,'_')}_${todayString()}.csv`,rows);
+      if(!best)throw Error('성명 또는 근로번호 열 제목을 찾지 못했습니다. 첫 20행 안에 머리글이 있어야 합니다.');
+      return best;
+    }
+    function importWorkerIndex() {
+      if(state.importIndexRef===state.roster&&state.importIndexes)return state.importIndexes;
+      const workers=(state.roster||[]).filter(w=>w&&typeof w==='object');
+      const byNo=new Map(), byName=new Map();
+      const add=(map,k,value)=>{if(!k)return;let list=map.get(k);if(!list){list=[];map.set(k,list);}list.push(value);};
+      workers.forEach((w,i)=>{
+        const entry={...w,__key:attendeeKey(w,i)};
+        add(byNo,importWorkerNumber(w.workerNo),entry);
+        add(byName,importClean(w.name),entry);
+      });
+      state.importIndexRef=state.roster;state.importIndexes={byNo,byName};
+      return state.importIndexes;
+    }
+    function matchImportRow(source,index) {
+      const number=importWorkerNumber(source.workerNo),name=importClean(source.name);
+      const birth=importBirth(source.birth),company=importCompany(source.company);
+      if(!number&&!name)return {reason:'근로번호·성명이 모두 없음'};
+      const lookup=importWorkerIndex();
+      let found=number?(lookup.byNo.get(number)||[]):(lookup.byName.get(name)||[]);
+      if(!found.length)return {reason:'연명부 일치 인원 없음'};
+      if(number&&found.length>1)return {reason:'근로번호 중복: 연명부 확인 필요'};
+      // 식별정보가 함께 제공되었는데 충돌할 경우 근로번호만으로 다른 사람을 선택하지 않음.
+      if(number) {
+        if(name&&found.some(w=>importClean(w.name)!==name))return {reason:'근로번호는 일치하나 성명이 다름'};
+        if(birth&&found.some(w=>importBirth(w.birth)!==birth))return {reason:'근로번호는 일치하나 생년월일이 다름'};
+        if(company&&found.some(w=>importCompany(w.company)!==company))return {reason:'근로번호는 일치하나 업체명이 다름'};
+      }else{
+        if(birth) found=found.filter(w=>importBirth(w.birth)===birth);
+        if(company)found=found.filter(w=>importCompany(w.company)===company);
+        if(!birth&&!company)return {reason:'동명이인 위험: 근로번호 또는 생년월일·업체명 필요'};
+        if(!found.length)return {reason:'성명 일치, 생년월일 또는 업체명 불일치'};
+        if(found.length>1)return {reason:'동명이인: 동일 정보의 근로자가 여러 명'};
+      }
+      if(found.length!==1)return {reason:'근로자 식별이 모호함'};
+      return {worker:found[0]};
+    }
+    function resultContainer(kind) {return $(kind==='iris'?'irisExcelImportResult':'eduExcelImportResult');}
+    function updateImportResult(kind,summary,issues=[]) {
+      const result=resultContainer(kind);result.textContent=summary;result.classList.toggle('has-errors',issues.length>0);
+      state.importResults[kind]=issues;
+      $(kind==='iris'?'irisExcelErrorBtn':'eduExcelErrorBtn').hidden=!issues.length;
+    }
+    function importReportCsv(kind) {
+      const issues=state.importResults[kind]||[];
+      if(!issues.length)return;
+      csvDownload(`${kind==='iris'?'홍채':'교육'}_명단_매칭확인_${todayString()}.csv`,[
+        ['엑셀 행','근로번호','성명','생년월일','업체명','확인 사유'],
+        ...issues.map(x=>[x.row,x.workerNo,x.name,x.birth,x.company,x.reason])
+      ]);
+    }
+    async function runAttendeeImport(file,kind) {
+      if(!file||!requireAccess())return;
+      if(!state.rosterReady) return alert('연명부 조회가 완료된 후 업로드하세요.');
+      if(state.importRunning)return alert('이전 명단 처리가 완료되지 않았습니다.');
+      if(!/\.(xlsx|xls|csv)$/i.test(file.name))return alert('엑셀(.xlsx/.xls) 또는 CSV 파일만 업로드할 수 있습니다.');
+      if(file.size>15*1024*1024)return alert('15MB 이하 명단 파일을 업로드해 주세요.');
+      if(!window.XLSX)return alert('엑셀 읽기 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인하세요.');
+      state.importRunning=true;
+      const container=resultContainer(kind);container.classList.remove('has-errors');container.textContent='엑셀 명단 확인 중…';
+      try{
+        const buffer=await file.arrayBuffer();
+        const workbook=XLSX.read(buffer,{type:'array'});
+        const sheet=workbook.Sheets?.[workbook.SheetNames?.[0]];
+        if(!sheet)throw Error('첫 번째 시트를 읽을 수 없습니다.');
+        const matrix=XLSX.utils.sheet_to_json(sheet,{header:1,raw:false,defval:'',blankrows:false});
+        const {index,cols}=readImportHeaders(matrix);
+        const draft=kind==='iris'?state.irisDraft:state.draftAttendees;
+        const selected=new Set(),issues=[];let empty=0,duplicate=0,matched=0,excluded=0;
+        for(let i=index+1;i<matrix.length;i++) {
+          const arr=matrix[i];
+          const source=Object.fromEntries(Object.entries(cols).map(([k,j])=>[k,String(arr?.[j]??'').trim()]));
+          if(!Object.values(source).some(Boolean)){empty++;continue;}
+          const result=matchImportRow(source,i+1);
+          if(!result.worker)issues.push({row:i+1,...source,reason:result.reason});
+          else {
+            const w=result.worker;
+            if(!workerEligible(w,kind==='iris'?'':$('eventCourse').value,kind)) {
+              excluded++;issues.push({row:i+1,...source,reason:kind==='iris'?'물산입사일 기입 또는 퇴사 인원: 홍채 대상 제외':'퇴사 인원 또는 용접공: 해당 교육 대상 제외'});
+            }else if(selected.has(w.__key)){
+              duplicate++;issues.push({row:i+1,...source,reason:'엑셀 명단 내 동일 근로자 중복'});
+            }else{
+              selected.add(w.__key);matched++;
+            }
+          }
+          if(i%300===0)await new Promise(resolve=>setTimeout(resolve,0));
+        }
+        for(const key of selected)draft.add(key);
+        if(kind==='iris')renderIrisAttendees();else renderAttendeeOptions();
+        const detail=issues.slice(0,12).map(x=>`${x.row}행 ${x.name||x.workerNo||'성명 미입력'}: ${x.reason}`).join('\n');
+        updateImportResult(kind,`일치 ${matched}명 자동선택 · 확인필요 ${issues.length}건 (중복 ${duplicate}, 대상 제외 ${excluded}) · 현재 선택 총 ${draft.size}명${detail?'\n'+detail:''}${issues.length>12?'\n외 '+(issues.length-12)+'건은 CSV 다운로드에서 확인':''}`,issues);
+      }catch(error){
+        console.error('엑셀 대상자 자동선택 오류:',error);
+        updateImportResult(kind,`엑셀 명단 업로드 실패: ${error.message||String(error)}`);
+        alert('명단 업로드 실패: '+(error.message||String(error)));
+      }finally{state.importRunning=false;}
+    }
+    function initAttendeeImport(kind) {
+      const prefix=kind==='iris'?'iris':'edu';
+      const file=$(prefix+'ExcelImportFile');
+      $(prefix+'ExcelImportBtn').addEventListener('click',()=>file.click());
+      file.addEventListener('change',async()=>{
+        const picked=file.files?.[0];file.value='';
+        if(picked)await runAttendeeImport(picked,kind);
+      });
+      $(prefix+'ExcelErrorBtn').addEventListener('click',()=>importReportCsv(kind));
     }
     function bindV15Events() {
+      initAttendeeImport('education');initAttendeeImport('iris');
+      $('regularPrevMonths').addEventListener('click',()=>{
+        const d=state.regularMonthStart;
+        state.regularMonthStart=new Date(d.getFullYear(),d.getMonth()-5,1);
+        state.regularSelectedMonth=monthKey(state.regularMonthStart);renderRegularStats();
+      });
+      $('regularNextMonths').addEventListener('click',()=>{
+        const d=state.regularMonthStart;
+        state.regularMonthStart=new Date(d.getFullYear(),d.getMonth()+5,1);
+        state.regularSelectedMonth=monthKey(state.regularMonthStart);renderRegularStats();
+      });
       $('addIrisCalendarBtn').addEventListener('click',()=>openIris());
       $('addIrisBtn').addEventListener('click',()=>openIris());
       $('closeIrisBtn').addEventListener('click',closeIris);$('cancelIrisBtn').addEventListener('click',closeIris);
@@ -1900,7 +2258,7 @@
       $('irisAttendees').addEventListener('change',e=>{
         if(e.target.type!=='checkbox')return;
         const key=e.target.dataset.key,w=state.workerIndex.get(key);if(!workerEligible(w,'','iris'))return;
-        if(e.target.checked)state.irisDraft.add(key);else state.irisDraft.delete(key);renderIrisAttendees();
+        if(e.target.checked)state.irisDraft.add(key);else state.irisDraft.delete(key);updateIrisSelectionSummary();
       });
       $('irisForm').addEventListener('submit',submitIris);$('deleteIrisBtn').addEventListener('click',deleteIris);
       $('attendeeList').addEventListener('change',e=>{
@@ -1921,13 +2279,17 @@
       $('confirmModal').addEventListener('click',e=>{if(e.target===$('confirmModal'))closeConfirm();});
       $('closeConfirmBtn').addEventListener('click',closeConfirm);$('cancelConfirmBtn').addEventListener('click',closeConfirm);
       $('commitConfirmBtn').addEventListener('click',commitConfirm);
+      $('confirmAttendees').addEventListener('change',e=>{
+        const t=e.target;
+        if(t.tagName==='SELECT' && t.dataset.key && state.confirmDraft.has(t.dataset.key))state.confirmDraft.set(t.dataset.key,t.value);
+      });
       $('newBatchReportBtn').addEventListener('click',()=>openBatch());
       $('closeBatchBtn').addEventListener('click',closeBatch);$('cancelBatchBtn').addEventListener('click',closeBatch);
       $('batchModal').addEventListener('click',e=>{if(e.target===$('batchModal'))closeBatch();});
       $('batchEventOptions').addEventListener('change',e=>{
         if(e.target.type!=='checkbox')return;
         if(e.target.checked)state.reportDraftIds.add(e.target.value);else state.reportDraftIds.delete(e.target.value);
-        state.batchPage=0;renderBatchMatrix();
+        state.batchPage=0;state.batchColumnPage=0;state.batchBaseCache=null;renderBatchMatrix();
       });
       $('batchMatrix').addEventListener('change',e=>updateReportNote(e.target));
       $('batchMatrix').addEventListener('input',e=>{if(e.target.dataset.kind==='memo')updateReportNote(e.target);});
