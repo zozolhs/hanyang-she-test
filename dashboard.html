@@ -9,6 +9,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./she-secure.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="./she-ocr.js" defer></script>
   <style>
     :root {
       --primary: #16286e;
@@ -424,6 +425,7 @@
             <div class="import-panel">
               <div class="participant-tools">
                 <button type="button" class="btn btn-outline btn-sm" id="eduExcelImportBtn">📤 엑셀 명단 자동선택</button>
+                <button type="button" class="btn btn-outline btn-sm" id="eduOcrBtn">🖼️ 이미지 OCR 명단</button>
                 <input type="file" id="eduExcelImportFile" accept=".xlsx,.xls,.csv" hidden>
                 <button type="button" class="btn btn-outline btn-sm" id="eduExcelErrorBtn" hidden>불일치 내역 CSV</button>
               </div>
@@ -463,6 +465,7 @@
           <div class="field full"><label for="irisSearch">홍채 대상자 (물산입사일 미입력자)</label><div class="participant-tools"><input id="irisSearch" type="search" placeholder="성명 · 근로번호 · 업체명"><span class="auth-badge" id="irisSelectedCount">선택 0명</span></div><div class="participant-list" id="irisAttendees"></div>
             <div class="import-panel"><div class="participant-tools">
               <button type="button" class="btn btn-outline btn-sm" id="irisExcelImportBtn">📤 엑셀 명단 자동선택</button>
+              <button type="button" class="btn btn-outline btn-sm" id="irisOcrBtn">🖼️ 이미지 OCR 명단</button>
               <input type="file" id="irisExcelImportFile" accept=".xlsx,.xls,.csv" hidden>
               <button type="button" class="btn btn-outline btn-sm" id="irisExcelErrorBtn" hidden>불일치 내역 CSV</button>
             </div><div id="irisExcelImportResult" class="import-result" role="status" aria-live="polite">물산입사일 미입력 근로자만 자동선택합니다.</div></div>
@@ -2183,21 +2186,9 @@
         ...issues.map(x=>[x.row,x.workerNo,x.name,x.birth,x.company,x.reason])
       ]);
     }
-    async function runAttendeeImport(file,kind) {
-      if(!file||!requireAccess())return;
-      if(!state.rosterReady) return alert('연명부 조회가 완료된 후 업로드하세요.');
-      if(state.importRunning)return alert('이전 명단 처리가 완료되지 않았습니다.');
-      if(!/\.(xlsx|xls|csv)$/i.test(file.name))return alert('엑셀(.xlsx/.xls) 또는 CSV 파일만 업로드할 수 있습니다.');
-      if(file.size>15*1024*1024)return alert('15MB 이하 명단 파일을 업로드해 주세요.');
-      if(!window.XLSX)return alert('엑셀 읽기 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인하세요.');
-      state.importRunning=true;
-      const container=resultContainer(kind);container.classList.remove('has-errors');container.textContent='엑셀 명단 확인 중…';
-      try{
-        const buffer=await file.arrayBuffer();
-        const workbook=XLSX.read(buffer,{type:'array'});
-        const sheet=workbook.Sheets?.[workbook.SheetNames?.[0]];
-        if(!sheet)throw Error('첫 번째 시트를 읽을 수 없습니다.');
-        const matrix=XLSX.utils.sheet_to_json(sheet,{header:1,raw:false,defval:'',blankrows:false});
+    async function applyAttendeeMatrix(matrix,kind) {
+      if(!requireAccess())throw Error('명단을 수정할 권한이 없습니다.');
+      if(!state.rosterReady)throw Error('연명부가 준비되지 않았습니다.');
         const {index,cols}=readImportHeaders(matrix);
         const draft=kind==='iris'?state.irisDraft:state.draftAttendees;
         const selected=new Set(),issues=[];let empty=0,duplicate=0,matched=0,excluded=0;
@@ -2223,11 +2214,44 @@
         if(kind==='iris')renderIrisAttendees();else renderAttendeeOptions();
         const detail=issues.slice(0,12).map(x=>`${x.row}행 ${x.name||x.workerNo||'성명 미입력'}: ${x.reason}`).join('\n');
         updateImportResult(kind,`일치 ${matched}명 자동선택 · 확인필요 ${issues.length}건 (중복 ${duplicate}, 대상 제외 ${excluded}) · 현재 선택 총 ${draft.size}명${detail?'\n'+detail:''}${issues.length>12?'\n외 '+(issues.length-12)+'건은 CSV 다운로드에서 확인':''}`,issues);
+      return resultContainer(kind).textContent;
+    }
+    async function runAttendeeImport(file,kind) {
+      if(!file||!requireAccess())return;
+      if(!state.rosterReady) return alert('연명부 조회가 완료된 후 업로드하세요.');
+      if(state.importRunning)return alert('이전 명단 처리가 완료되지 않았습니다.');
+      if(!/\.(xlsx|xls|csv)$/i.test(file.name))return alert('엑셀(.xlsx/.xls) 또는 CSV 파일만 업로드할 수 있습니다.');
+      if(file.size>15*1024*1024)return alert('15MB 이하 명단 파일을 업로드해 주세요.');
+      if(!window.XLSX)return alert('엑셀 읽기 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인하세요.');
+      state.importRunning=true;
+      const container=resultContainer(kind);container.classList.remove('has-errors');container.textContent='엑셀 명단 확인 중…';
+      try{
+        const buffer=await file.arrayBuffer();
+        const workbook=XLSX.read(buffer,{type:'array'});
+        const sheet=workbook.Sheets?.[workbook.SheetNames?.[0]];
+        if(!sheet)throw Error('첫 번째 시트를 읽을 수 없습니다.');
+        const matrix=XLSX.utils.sheet_to_json(sheet,{header:1,raw:false,defval:'',blankrows:false});
+        await applyAttendeeMatrix(matrix,kind);
       }catch(error){
         console.error('엑셀 대상자 자동선택 오류:',error);
         updateImportResult(kind,`엑셀 명단 업로드 실패: ${error.message||String(error)}`);
         alert('명단 업로드 실패: '+(error.message||String(error)));
       }finally{state.importRunning=false;}
+    }
+    async function applyOcrAttendeeMatrix(matrix,kind){
+      if(state.importRunning)throw Error('이미 다른 명단 처리 중입니다.');
+      state.importRunning=true;
+      try{return await applyAttendeeMatrix(matrix,kind);}
+      finally{state.importRunning=false;}
+    }
+    function openAttendeeOcr(kind){
+      if(!requireAccess())return;
+      if(!window.SHEOCR?.open)return alert('OCR 기능 파일 she-ocr.js가 없습니다. 배포 폴더를 확인하세요.');
+      window.SHEOCR.open({
+        title:kind==='iris'?'홍채 대상자 · 이미지 문자 인식':'교육 수강자 · 이미지 문자 인식',
+        applyLabel:'검토한 명단 자동 선택',
+        onApply:matrix=>applyOcrAttendeeMatrix(matrix,kind)
+      });
     }
     function initAttendeeImport(kind) {
       const prefix=kind==='iris'?'iris':'edu';
@@ -2238,6 +2262,7 @@
         if(picked)await runAttendeeImport(picked,kind);
       });
       $(prefix+'ExcelErrorBtn').addEventListener('click',()=>importReportCsv(kind));
+      $(kind==='iris'?'irisOcrBtn':'eduOcrBtn').addEventListener('click',()=>openAttendeeOcr(kind));
     }
     function bindV15Events() {
       initAttendeeImport('education');initAttendeeImport('iris');

@@ -10,6 +10,7 @@
   <script src="./she-secure.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+    <script src="./she-ocr.js" defer></script>
     <style>
         :root {
             --primary: #0052cc;
@@ -295,6 +296,7 @@
             <button type="button" class="btn btn-primary" onclick="saveRoster(true)">💾 서버 저장</button>
             <button type="button" class="btn btn-success" onclick="document.getElementById('excelUpload').click()">📤 엑셀 업로드</button>
             <input type="file" id="excelUpload" style="display:none;" accept=".xlsx,.xls,.csv">
+            <button type="button" id="rosterOcrOpen" class="btn btn-primary">🖼️ 이미지 OCR 추출·검토</button>
         </div>
     </div>
 
@@ -1348,6 +1350,38 @@ function decodeTemplateBase64(base64) {
   for(let i=0;i<decoded.length;i++) bytes[i]=decoded.charCodeAt(i);
   return bytes;
 }
+// V19: preserve original A:Y header/style while adding presentation and real Excel rules.
+// Excel conditional formats remain active after editing a downloaded workbook.
+const ROSTER_EXCEL_WIDTHS = Object.freeze([
+  6, 15, 15, 16, 8, 12, 11, 19, 17, 21, 18, 12, 15, 15, 13, 24,
+  20, 20, 20, 20, 20, 20, 20, 20, 20
+]);
+function rosterExcelConditionalRules(){
+  const cell='Q2'; // Excel expands this relative reference across Q2:Y(lastRow).
+  const date=`DATE(VALUE(LEFT(${cell},4)),VALUE(MID(${cell},6,2)),VALUE(MID(${cell},9,2)))`;
+  const hours=`IFERROR(VALUE(TRIM(SUBSTITUTE(MID(${cell},12,30),"h",""))),0)`;
+  const valid=`AND(${cell}<>"",LEN(${cell})>=13,IFERROR(ISNUMBER(SEARCH("h",${cell})),FALSE),IFERROR(LEFT(${cell},10)=TEXT(${date},"yyyy-mm-dd"),FALSE))`;
+  const expired=`AND(${valid},IFERROR(TODAY()>=EDATE(${date},2),FALSE))`;
+  const under=`AND(${valid},IFERROR(TODAY()<EDATE(${date},2),FALSE),${hours}>0,${hours}<8)`;
+  const complete=`AND(${valid},IFERROR(TODAY()<EDATE(${date},2),FALSE),${hours}>=8)`;
+  const fill=(background,foreground)=>({
+    fill:{type:'pattern',pattern:'solid',fgColor:{argb:background}},
+    font:{color:{argb:foreground},bold:true}
+  });
+  return [
+    {type:'expression',formulae:[expired],priority:1,stopIfTrue:true,style:fill('FFFEE2E2','FF991B1B')},
+    {type:'expression',formulae:[complete],priority:2,stopIfTrue:true,style:fill('FFDCFCE7','FF166534')},
+    {type:'expression',formulae:[under],priority:3,stopIfTrue:true,style:fill('FFFFEDD5','FF9A3412')}
+  ];
+}
+function formatRosterDownloadSheet(sheet,numberOfWorkers){
+  ROSTER_EXCEL_WIDTHS.forEach((width,i)=>{sheet.getColumn(i+1).width=width;});
+  sheet.getRow(1).height=Math.max(sheet.getRow(1).height||0,26);
+  sheet.views=[{state:'frozen',ySplit:1,activeCell:'D2',showGridLines:true}];
+  sheet.autoFilter={from:{row:1,column:1},to:{row:Math.max(2,numberOfWorkers+1),column:25}};
+  // One range / three rules, not a per-cell 5,000 x 9 styling loop.
+  sheet.addConditionalFormatting({ref:`Q2:Y${Math.max(numberOfWorkers+1,2)}`,rules:rosterExcelConditionalRules()});
+}
 async function exportRosterExcel() {
   if(!requireAccess()) return;
   const button=$('excelDownloadButton');
@@ -1389,6 +1423,7 @@ async function exportRosterExcel() {
       }
       dest.height=baseHeight;
     }
+    formatRosterDownloadSheet(sheet,matrix.length-1);
     const buffer=await workbook.xlsx.writeBuffer();
     const blob=new Blob([buffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
     const url=URL.createObjectURL(blob);
@@ -1930,6 +1965,34 @@ async function importRosterExcel(file) {
   } finally { rosterState.importing=false; $('excelUpload').value=''; }
 }
 
+// V19 OCR: image text is editable and never sent to Supabase until explicit review and normal save.
+// Use the same parser and conflict-protecting merge as the existing Excel upload.
+async function applyRosterOcrRows(matrix){
+  if(!requireAccess())throw Error('연명부 편집 권한이 없습니다.');
+  if(rosterState.importing)throw Error('다른 엑셀/이미지 처리가 진행 중입니다.');
+  if(!window.XLSX?.utils?.aoa_to_sheet)throw Error('엑셀 표 해석 라이브러리를 사용할 수 없습니다.');
+  rosterState.importing=true;
+  try {
+    const sheet=XLSX.utils.aoa_to_sheet(matrix);
+    const parsed=parseExcelWorkbook({SheetNames:['OCR_검토'],Sheets:{OCR_검토:sheet}});
+    const merged=mergeRosterImport(collectRows(),parsed.records,{zeroIgnored:parsed.zeroIgnored});
+    const problems=merged.stats.conflicts+merged.stats.ambiguous+merged.stats.skipped+merged.stats.existingDuplicates;
+    showRosterImportReport(merged,false);
+    if(!merged.changed)return `OCR 표 ${parsed.records.length}행 검토 · 변경 없음. 충돌/중복 보고서 확인.`;
+    const summary=rosterAuditSummary(merged,true);
+    // Always require an explicit second review even when no conflicts.
+    const proceed=confirm(`OCR 자료에서 추출한 정보는 오인식될 수 있습니다.\n\n${summary}\n\n기존 정보는 덮어쓰지 않고 신규 인원과 기존 빈칸만 반영합니다. 확인한 내용을 연명부에 적용할까요?`);
+    if(!proceed)return `OCR ${parsed.records.length}행 검토 완료 · 사용자 취소로 데이터 미변경. 불일치 내역을 확인하세요.`;
+    renderRows(merged.records);markDirty();showRosterImportReport(merged,true);
+    $('rosterImportStatus').textContent=`OCR 검토 적용 ${parsed.records.length}행 · 서버 저장 대기`;
+    return `OCR ${parsed.records.length}행 검토 적용 완료 · ${problems}건 확인 필요 · 서버 저장 버튼/상태를 확인하세요.`;
+  }finally{rosterState.importing=false;}
+}
+function openRosterOcr(){
+  if(!requireAccess())return;
+  if(!window.SHEOCR?.open)return alert('OCR 도구를 불러오지 못했습니다. she-ocr.js 파일이 같은 폴더에 있는지 확인하세요.');
+  window.SHEOCR.open({title:'근로자 연명부 · 이미지 문자 추출',applyLabel:'검토한 표를 연명부에 적용',onApply:applyRosterOcrRows});
+}
 function bindTableEvents() {
   const tbody = $('tableBody');
   tbody.addEventListener('input', event => {
@@ -2000,6 +2063,7 @@ function bindTableEvents() {
     }
   });
   $('excelUpload').addEventListener('change',event => importRosterExcel(event.target.files?.[0]));
+  $('rosterOcrOpen').addEventListener('click',openRosterOcr);
   $('searchInput').addEventListener('input',debounceRosterSearch);
   $('rosterPagePrev').addEventListener('click',() => rosterChangePage(-1));
   $('rosterPageNext').addEventListener('click',() => rosterChangePage(1));
