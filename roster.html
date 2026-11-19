@@ -242,12 +242,20 @@
         .roster-audit-actions { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin:10px 0; color:#7c2d12; font-size:12px; }
         .roster-import-audit pre { margin:0; max-height:210px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; color:#475569; line-height:1.6; font-size:12px; }
         .roster-crane-na { display:block; padding:8px 6px; border:1px solid #cbd5e1; border-radius:4px; background:#e2e8f0; color:#475569; font-size:12px; font-weight:800; text-align:center; white-space:nowrap; }
-        .roster-required-warning { display:block; padding-top:4px; color:#b91c1c; font-size:11px; font-weight:800; white-space:nowrap; }
+        .roster-required-warning { display:block; padding-top:3px; color:#b91c1c; font-size:12px; font-weight:900; white-space:nowrap; }
+        .roster-required-input { border-color:#dc2626 !important; background:#fff6f6 !important; }
+        .roster-required-input::placeholder {color:#b91c1c !important; opacity:1; font-weight:900;}
         .roster-required-warning[hidden] { display:none !important; }
         .roster-crane-na[hidden] { display:none !important; }
         td.roster-required-edu { background:#fff7f7; }
         td.roster-na-cell { background:#f1f5f9; }
 
+        .roster-pagination {display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:10px 0 14px;
+          padding:10px 12px;border:1px solid #dbe7f5;border-radius:8px;background:#f8fbff;font-size:12px;}
+        .roster-pagination #rosterPageInfo {font-weight:800;color:#16286e;margin-right:6px;}
+        .roster-pagination #rosterSelectedCount {font-weight:700;color:#1d4ed8;}
+        .roster-pagination-hint {color:#64748b;}
+        .roster-pagination select {padding:6px 8px;font-size:12px;}
         @media (max-width:1200px) { .control-panel { grid-template-columns:repeat(3, minmax(0,1fr)); } }
         @media (max-width:720px) {
           body { padding:10px; }
@@ -294,7 +302,7 @@
     <div class="control-panel">
         <div class="control-group">
             <label>통합 검색 (이름, 연락처, 근로번호 등)</label>
-            <input type="text" id="searchInput" placeholder="검색어를 입력하세요..." onkeyup="filterTable()">
+            <input type="text" id="searchInput" placeholder="검색어를 입력하세요...">
         </div>
         <div class="control-group">
             <label>업체 필터</label>
@@ -387,12 +395,25 @@
         </div>
     </div>
 
+    <!-- V13 : 검색 결과만 페이지 단위로 렌더링·DOM 재사용 (전체 명부는 메모리 및 서버에 유지) -->
+    <div class="roster-pagination" role="navigation" aria-label="연명부 페이지 이동">
+        <span id="rosterPageInfo" aria-live="polite">페이지 준비 중</span>
+        <button id="rosterPagePrev" type="button" class="btn roster-nav">◀ 이전</button>
+        <button id="rosterPageNext" type="button" class="btn roster-nav">다음 ▶</button>
+        <label for="rosterPageSize">페이지 표시 인원</label>
+        <select id="rosterPageSize" aria-label="페이지 표시 인원">
+            <option value="25" selected>25명 (빠름)</option><option value="40">40명</option>
+            <option value="80">80명</option><option value="120">120명</option>
+        </select>
+        <span id="rosterSelectedCount">선택 0명</span>
+        <span class="roster-pagination-hint">선택 전체는 현재 검색결과 전체 페이지에 적용</span>
+    </div>
     <!-- 데이터 테이블 (입력 칸 너비를 1단계씩 넉넉하게 확장) -->
     <div class="table-container">
         <table id="dataTable">
             <thead>
                 <tr>
-                    <th width="50"><input type="checkbox" id="selectAll" onclick="toggleSelectAll(this)"></th>
+                    <th width="50"><input type="checkbox" id="selectAll" onclick="toggleSelectAll(this)" title="검색 결과 전체 선택"></th>
                     <th width="60">NO</th>
                     <th width="160">근로번호 (8자리)</th>
                     <th width="130">성명</th>
@@ -430,7 +451,7 @@
     </div>
     <div class="roster-helper">
         ※ 엑셀 업로드는 열 제목·병합 제목·교육별 DATE를 자동 인식합니다. 같은 근로번호는 중복 추가하지 않고 기존 빈칸만 보완하며, 기존 값과 다른 입력은 충돌 보고서에 기록하고 보존합니다. 교육 0/0h/0.0은 적용하지 않습니다. 날짜를 확인할 수 없는 1~8h 시수는 잘못 저장하지 않고 업로드를 중단합니다. 교육입력 예: <b>2026-11-18 8h</b>. 8h 이상은 이수 완료(초록), 8h 미만이며 교육일 + 2개월 경과 시 만료(빨강)로 표시됩니다.
-        직종이 용접공이면 크레인은 해당사항 없음으로 잠기며, 밀폐감시자의 34호(밀폐) 교육이 없으면 빨간색 미이수 안내를 표시합니다. 데이터는 변경 후 자동 저장을 시도하며, 서버 저장 상태를 반드시 확인해 주세요. 서버 저장 실패 시 엑셀로 백업하세요.
+        직종이 용접공이면 크레인은 해당사항 없음으로 잠기며, 밀폐작업감시자의 34호(밀폐) 교육이 없으면 빨간색 미이수 안내를 표시합니다. 데이터는 변경 후 자동 저장을 시도하며, 서버 저장 상태를 반드시 확인해 주세요. 서버 저장 실패 시 엑셀로 백업하세요.
     </div>
 </div>
 
@@ -628,7 +649,7 @@ function parseEducation(raw) {
   const hours = hourMatch ? Number(hourMatch[1]) : 0;
   const completed = hours >= 8;
   const dueDate = date ? addCalendarMonths(date, 2) : null;
-  const today = strictDate(getTodayDate());
+  const today = rosterView.todayDate || strictDate(getTodayDate());
   const expired = !completed && Boolean(dueDate && today && dueDate <= today);
   const soon = !completed && Boolean(dueDate && today && dueDate > today && (dueDate.getTime() - today.getTime()) <= 7*86400000);
   return { date, hours, completed, dueDate, expired, soon };
@@ -682,10 +703,10 @@ function validateEduInput(input) {
 
 /* 직종별 교육 규칙: 표시용 경고/해당 없음 문구는 절대 DB 필드값으로 저장하지 않는다. */
 function isWelderJob(job) {
-  return String(job ?? '').normalize('NFKC').trim() === '용접공';
+  return normalizeRosterJob(job) === '용접공';
 }
 function isConfinedWatcherJob(job) {
-  return String(job ?? '').normalize('NFKC').trim() === '밀폐감시자';
+  return normalizeRosterJob(job) === '밀폐작업감시자';
 }
 function hasValidEducationEntry(value) {
   const match = String(value ?? '').trim().match(/^(\d{4}-\d{2}-\d{2})\s+(\d+(?:\.\d+)?)h$/i);
@@ -731,10 +752,14 @@ function applyOccupationRulesToRow(row) {
         cell.appendChild(warning);
       }
       warning.hidden = false;
+      closed.placeholder = '필수교육 미이수';
+      closed.classList.add('roster-required-input');
       cell.classList.add('roster-required-edu');
-      closed.title = '밀폐감시자 필수교육 미이수 — 유효한 날짜와 교육시간을 입력하세요.';
+      closed.title = '밀폐작업감시자 필수교육 미이수 — 유효한 날짜와 교육시간을 입력하세요.';
     } else {
       if (warning) warning.remove();
+      closed.placeholder = 'YYYY-MM-DD 8h';
+      closed.classList.remove('roster-required-input');
       cell.classList.remove('roster-required-edu');
       closed.title = '';
     }
@@ -771,16 +796,29 @@ function readServerRecords(row) {
   return records.filter(r => r && typeof r === 'object').map(normalizeRecord);
 }
 
+/* V13: 데이터 메모리 저장소 + 25행 기본 페이지 및 행 재사용 렌더링. 전체 데이터를 DOM에 저장하지 않는다. */
+const rosterView = {
+  records: [], byId: new Map(), byIndex: new Map(), cache: new Map(),
+  filtered: [], selected: new Set(), selectedFilteredCount:0, page: 0, pageSize: 25,
+  searchTimer: null, editFilterTimer:null, lastDay: '', todayDate:null, lastFilterMs: 0, lastRenderMs: 0,
+};
+function normalizeRosterJob(value) {
+  return String(value ?? '').normalize('NFKC').replace(/[\s\u00a0\u200b-\u200d\u2060\ufeff]/g, '').trim();
+}
 function createRow(record) {
-  const data = normalizeRecord(record);
+  const data = record;
   const row = document.createElement('tr');
   row.dataset.uid = data.uid;
   const checkCell = row.insertCell();
   const checkbox = document.createElement('input');
   checkbox.type = 'checkbox';
   checkbox.className = 'row-checkbox';
+  checkbox.checked = rosterView.selected.has(data.uid);
+  checkbox.setAttribute('aria-label', `선택: ${data.name || data.workerNo || '신규 인원'}`);
+  row._rosterCheckbox = checkbox;
+  row._rosterInputs = Object.create(null);
   checkCell.appendChild(checkbox);
-  row.insertCell().textContent = '';
+  row.insertCell().textContent = String((rosterView.byIndex.get(data.uid) ?? 0) + 1);
   for (const f of FIELD_DEFS) {
     const td = row.insertCell();
     const input = document.createElement('input');
@@ -788,34 +826,150 @@ function createRow(record) {
     input.dataset.field = f.key;
     input.className = f.css || '';
     input.placeholder = f.placeholder || '';
-    input.value = data[f.key];
+    input.value = data[f.key] || '';
     input.autocomplete = 'off';
     if (f.key === 'workerNo') input.maxLength = 32;
     if (f.key === 'notes') input.title = '특이사항 기록';
     td.appendChild(input);
+    row._rosterInputs[f.key] = input;
     if (EDU_KEYS.includes(f.key)) updateInputColor(input);
   }
   applyOccupationRulesToRow(row);
   return row;
 }
-
 function collectRows() {
-  return Array.from($('tableBody').rows).map(row => {
-    const rec = { uid: row.dataset.uid || makeUid() };
-    for (const f of FIELD_DEFS) rec[f.key] = row.querySelector(`[data-field="${f.key}"]`)?.value.trim() || '';
-    return rec;
+  // 모든 페이지의 수정사항을 포함한다. DOM에 나타난 행만 추출하지 않는다.
+  return rosterView.records.map(normalizeRecord);
+}
+function rebuildRosterIndex() {
+  rosterView.byId.clear();
+  rosterView.byIndex.clear();
+  rosterView.cache.clear();
+  rosterView.records.forEach((rec, i) => {
+    if (!rec.uid || rosterView.byId.has(rec.uid)) rec.uid = makeUid();
+    rosterView.byId.set(rec.uid, rec);
+    rosterView.byIndex.set(rec.uid, i);
   });
 }
-
 function renderRows(records) {
-  const tbody = $('tableBody');
-  const fragment = document.createDocumentFragment();
-  records.forEach(record => fragment.appendChild(createRow(record)));
-  tbody.replaceChildren(fragment);
-  updateRowNumbers();
+  rosterView.records = records.map(normalizeRecord);
+  rosterView.selected.clear();
+  rosterView.page = 0;
+  rebuildRosterIndex();
   updateFilterDropdowns();
-  initAllEduInputs();
   filterTable();
+}
+function todayCacheInvalidation() {
+  const day = getTodayDate();
+  if (rosterView.lastDay !== day) {
+    rosterView.lastDay = day;
+    rosterView.todayDate = strictDate(day);
+    rosterView.cache.clear();
+  }
+}
+function recordState(record) {
+  if (!rosterView.todayDate) todayCacheInvalidation();
+  const existing = rosterView.cache.get(record.uid);
+  if (existing) return existing;
+  const welding = isWelderJob(record.job);
+  let expired = false, soon = false, earliestDue = Number.MAX_SAFE_INTEGER;
+  for (const key of EDU_KEYS) {
+    if (welding && key === 'eduCrane') continue;
+    const edu = parseEducation(record[key]);
+    if (edu.expired || edu.soon) {
+      if (edu.expired) expired = true;
+      if (edu.soon) soon = true;
+      if (edu.dueDate) earliestDue = Math.min(earliestDue, edu.dueDate.getTime());
+    }
+  }
+  const resignedDate = strictDate(record.resignDate);
+  const rehireDate = strictDate(record.rehireDate);
+  const resigned = Boolean(resignedDate && (!rehireDate || rehireDate < resignedDate));
+  const cached = {
+    search: FIELD_DEFS.map(f => record[f.key] || '').join('\u0001').normalize('NFKC').toLowerCase(),
+    resigned, expired, soon, earliestDue, welding
+  };
+  rosterView.cache.set(record.uid, cached);
+  return cached;
+}
+/* V13: 행 재사용(리사이클링). 검색마다 25×25개의 입력 노드를 재생성하지 않는다. */
+function patchRosterRow(row, record) {
+  const changedWorker = row.dataset.uid !== record.uid;
+  if (changedWorker) row.dataset.uid = record.uid;
+  const check = row._rosterCheckbox;
+  if (check) {
+    const shouldCheck = rosterView.selected.has(record.uid);
+    if (check.checked !== shouldCheck) check.checked = shouldCheck;
+    if (changedWorker) check.setAttribute('aria-label', `선택: ${record.name || record.workerNo || '신규 인원'}`);
+  }
+  const number = String((rosterView.byIndex.get(record.uid) ?? 0) + 1);
+  if (row.cells[1].textContent !== number) row.cells[1].textContent = number;
+  let rulesChanged = changedWorker;
+  for (const field of FIELD_DEFS) {
+    const input = row._rosterInputs[field.key];
+    if (!input) continue;
+    const nextValue = record[field.key] || '';
+    if (changedWorker) {
+      input.classList.remove('roster-invalid');
+      delete input.dataset.beforeFocus;
+    }
+    if (input.value !== nextValue) {
+      input.value = nextValue;
+      if (field.key === 'job' || field.key === 'eduClosed') rulesChanged = true;
+      if (EDU_KEYS.includes(field.key)) updateInputColor(input);
+    } else if (changedWorker && EDU_KEYS.includes(field.key)) {
+      // 이전 레코드가 남긴 교육시간 색상을 다른 근로자에게 누출하지 않는다.
+      updateInputColor(input);
+    }
+  }
+  if (rulesChanged) applyOccupationRulesToRow(row);
+}
+function showRosterPage() {
+  const began = performance.now();
+  const count = rosterView.filtered.length;
+  const maxPage = Math.max(0, Math.ceil(count / rosterView.pageSize) - 1);
+  rosterView.page = Math.max(0, Math.min(maxPage, rosterView.page));
+  const start = rosterView.page * rosterView.pageSize;
+  const slice = rosterView.filtered.slice(start, start + rosterView.pageSize);
+  const tbody = $('tableBody');
+  // 검색 결과가 같으면 기존 노드를 그대로 두어 렌더링 비용을 최소화한다.
+  for (let i = 0; i < slice.length; i++) {
+    const existing = tbody.rows[i];
+    if (existing) patchRosterRow(existing, slice[i]);
+    else tbody.appendChild(createRow(slice[i]));
+  }
+  while (tbody.rows.length > slice.length) tbody.deleteRow(tbody.rows.length - 1);
+  $('rowCount').textContent = String(count);
+  $('rosterTotalCount').textContent = String(rosterView.records.length);
+  $('rosterPageInfo').textContent = count
+    ? `${rosterView.page + 1} / ${maxPage+1} 페이지 · ${start+1}~${start+slice.length}명 표시`
+    : '검색 결과 없음';
+  $('rosterPagePrev').disabled = rosterView.page <= 0;
+  $('rosterPageNext').disabled = rosterView.page >= maxPage;
+  $('rosterSelectedCount').textContent = `선택 ${rosterView.selected.size}명`;
+  updateSelectAllCheck();
+  rosterView.lastRenderMs = performance.now() - began;
+}
+function rosterChangePage(offset) {
+  rosterView.page += offset;
+  showRosterPage();
+  const scroller = document.querySelector('.table-container');
+  if (scroller) scroller.scrollTop = 0;
+}
+function rosterSetPageSize(size) {
+  const next = Number(size);
+  if (![25,40,80,120].includes(next)) return;
+  rosterView.pageSize = next;
+  rosterView.page = 0;
+  showRosterPage();
+}
+function updateSelectAllCheck() {
+  const checkbox = $('selectAll');
+  const total = rosterView.filtered.length;
+  const selected = rosterView.selectedFilteredCount;
+  checkbox.checked = total > 0 && selected === total;
+  checkbox.indeterminate = selected > 0 && selected < total;
+  checkbox.title = '현재 검색 결과 전체 선택 (다른 페이지 포함)';
 }
 
 function markDirty() {
@@ -959,137 +1113,133 @@ function applyDateToSelected(className) {
   if (!requireAccess()) return;
   const key = CLASS_TO_EDU[className];
   if (!key) return;
-  const rows = Array.from(document.querySelectorAll('#tableBody .row-checkbox:checked'));
-  if (!rows.length) { alert('교육을 일괄 입력할 작업자를 먼저 선택해 주세요.'); return; }
+  const targets = [...rosterView.selected].map(uid => rosterView.byId.get(uid)).filter(Boolean);
+  if (!targets.length) return alert('교육을 일괄 입력할 작업자를 먼저 선택해 주세요.');
   const hour = document.querySelector('input[name="quickHour"]:checked')?.value || '8h';
   const value = `${getTodayDate()} ${hour}`;
-  let applied = 0;
-  let excluded = 0;
-  for (const cb of rows) {
-    const row = cb.closest('tr');
-    const input = row?.querySelector(`[data-field="${key}"]`);
-    if (!input || input.disabled || (key === 'eduCrane' && isWelderJob(row?.querySelector('[data-field="job"]')?.value))) {
-      excluded++;
-      continue;
+  let applied = 0, excluded = 0;
+  for (const record of targets) {
+    if (key === 'eduCrane' && isWelderJob(record.job)) { excluded++; continue; }
+    if (record[key] !== value) {
+      record[key] = value;
+      rosterView.cache.delete(record.uid);
+      applied++;
     }
-    input.value = value;
-    updateInputColor(input);
-    applyOccupationRulesToRow(row);
-    applied++;
   }
-  if (applied) markDirty();
-  filterTable();
+  if (applied) { markDirty(); filterTable(false); }
   alert(`${applied}명에게 [${value}] 값을 입력했습니다.${excluded ? ` 용접공 등 제한 대상 ${excluded}명은 제외했습니다.` : ''} 저장 상태를 확인해 주세요.`);
 }
-
 function toggleSelectAll(source) {
-  document.querySelectorAll('#tableBody tr').forEach(row => {
-    if (row.style.display !== 'none') row.querySelector('.row-checkbox').checked = source.checked;
-  });
+  for (const rec of rosterView.filtered) {
+    if (source.checked) rosterView.selected.add(rec.uid);
+    else rosterView.selected.delete(rec.uid);
+  }
+  rosterView.selectedFilteredCount = source.checked ? rosterView.filtered.length : 0;
+  // 화면 내 체크박스만 동기화. 화면 밖 선택도 유지됨.
+  document.querySelectorAll('#tableBody .row-checkbox').forEach(cb => { cb.checked = source.checked; });
+  updateSelectAllCheck();
+  $('rosterSelectedCount').textContent = `선택 ${rosterView.selected.size}명`;
 }
-
 function deleteSelectedRows() {
   if (!requireAccess()) return;
-  const selected = Array.from(document.querySelectorAll('#tableBody .row-checkbox:checked'));
-  if (!selected.length) return alert('삭제할 인원을 선택해 주세요.');
-  if (!confirm(`선택한 ${selected.length}명의 근로자 정보를 삭제하시겠습니까?`)) return;
-  selected.forEach(cb => cb.closest('tr').remove());
-  $('selectAll').checked = false;
-  updateRowNumbers();
+  const count = rosterView.selected.size;
+  if (!count) return alert('삭제할 인원을 선택해 주세요.');
+  if (!confirm(`선택한 ${count}명의 근로자 정보를 삭제하시겠습니까?`)) return;
+  rosterView.records = rosterView.records.filter(rec => !rosterView.selected.has(rec.uid));
+  rosterView.selected.clear();
+  rebuildRosterIndex();
   updateFilterDropdowns();
-  filterTable();
+  filterTable(false);
   markDirty();
 }
-
 function updateRowNumbers() {
-  Array.from($('tableBody').rows).forEach((tr,i) => { tr.cells[1].textContent = String(i+1); });
+  document.querySelectorAll('#tableBody tr').forEach(row => {
+    const index = rosterView.byIndex.get(row.dataset.uid);
+    if (index !== undefined) row.cells[1].textContent = String(index + 1);
+  });
 }
-
 function populateSelect(selectId, values) {
   const select = $(selectId);
+  const nextItems = [...values].sort((a,b) => a.localeCompare(b, 'ko'));
+  const signature = JSON.stringify(nextItems);
+  if (select._lastSignature === signature) return;
   const previous = select.value;
   const title = select.options[0]?.textContent || '전체';
-  select.replaceChildren(new Option(title, ''));
-  [...values].sort((a,b)=>a.localeCompare(b,'ko')).forEach(item => select.add(new Option(item,item)));
-  if ([...select.options].some(o => o.value === previous)) select.value = previous;
+  const options = [new Option(title, ''), ...nextItems.map(item => new Option(item,item))];
+  select.replaceChildren(...options);
+  if (nextItems.includes(previous)) select.value = previous;
+  select._lastSignature = signature;
 }
-
 function updateFilterDropdowns() {
   const company = new Set(), job = new Set(), process = new Set();
-  Array.from($('tableBody').rows).forEach(row => {
-    for (const [key,set] of [['company',company],['job',job],['process',process]]) {
-      const value = row.querySelector(`[data-field="${key}"]`)?.value.trim();
-      if (value) set.add(value);
-    }
-  });
+  for (const rec of rosterView.records) {
+    if (rec.company) company.add(rec.company.trim());
+    if (rec.job) job.add(rec.job.trim());
+    if (rec.process) process.add(rec.process.trim());
+  }
   populateSelect('filterCompany', company);
   populateSelect('filterJob', job);
   populateSelect('filterProcess', process);
 }
-
 function getRowEducationState(row) {
-  const welding = isWelderJob(row.querySelector('[data-field="job"]')?.value);
-  const states = EDU_KEYS.filter(key => !(welding && key === 'eduCrane')).map(key => parseEducation(row.querySelector(`[data-field="${key}"]`)?.value));
-  const expired = states.filter(s => s.expired);
-  const soon = states.filter(s => s.soon);
-  const earliestDue = expired.length
-    ? Math.min(...expired.map(s => s.dueDate.getTime()))
-    : soon.length ? Math.min(...soon.map(s=>s.dueDate.getTime())) : Number.MAX_SAFE_INTEGER;
-  return {expired:expired.length > 0, soon:soon.length > 0, earliestDue};
+  const rec = rosterView.byId.get(row?.dataset?.uid);
+  return rec ? recordState(rec) : {expired:false,soon:false,earliestDue:Number.MAX_SAFE_INTEGER};
 }
-
-function filterTable() {
-  const q = $('searchInput').value.toLowerCase().trim();
+function filterTable(resetPage = true) {
+  const began = performance.now();
+  todayCacheInvalidation();
+  const query = $('searchInput').value.normalize('NFKC').toLowerCase().trim();
   const company = $('filterCompany').value;
   const job = $('filterJob').value;
   const process = $('filterProcess').value;
   const resign = $('filterResign').value;
   const due = $('filterDueDate').value;
-  const eduFilters = Array.from(document.querySelectorAll('.edu-filter:checked')).map(el => CLASS_TO_EDU[el.value]).filter(Boolean);
-  const body = $('tableBody');
-  const rows = Array.from(body.rows);
-  const computed = new Map();
-  for (const row of rows) {
-    const fieldValue = key => row.querySelector(`[data-field="${key}"]`)?.value.trim() || '';
-    const resignedDate = strictDate(fieldValue('resignDate'));
-    const rehireDate = strictDate(fieldValue('rehireDate'));
-    const resigned = Boolean(resignedDate && (!rehireDate || rehireDate < resignedDate));
-    const matchResign = resign === 'active' ? !resigned : resign === 'resigned' ? resigned : true;
-    const result = getRowEducationState(row);
-    const matchDue = due === 'expired' ? result.expired : due === 'soon' ? result.soon : due === 'active' ? !result.expired : true;
-    const matchText = !q || FIELD_DEFS.some(field => fieldValue(field.key).toLowerCase().includes(q));
-    const matchEdu = eduFilters.every(key => !(key === 'eduCrane' && isWelderJob(fieldValue('job'))) && hasValidEducationEntry(fieldValue(key)));
-    const match = matchText && (!company || fieldValue('company') === company) &&
-      (!job || fieldValue('job') === job) && (!process || fieldValue('process') === process) &&
-      matchResign && matchDue && matchEdu;
-    computed.set(row, {match, earliest:result.earliestDue});
+  const eduFilters = Array.from(document.querySelectorAll('.edu-filter:checked'))
+    .map(el => CLASS_TO_EDU[el.value]).filter(Boolean);
+  const matches = [];
+  for (const rec of rosterView.records) {
+    if (company && rec.company !== company) continue;
+    if (job && rec.job !== job) continue;
+    if (process && rec.process !== process) continue;
+    const s = recordState(rec);
+    if (query && !s.search.includes(query)) continue;
+    if (resign === 'active' && s.resigned) continue;
+    if (resign === 'resigned' && !s.resigned) continue;
+    if (due === 'expired' && !s.expired) continue;
+    if (due === 'soon' && !s.soon) continue;
+    if (due === 'active' && s.expired) continue;
+    if (eduFilters.some(k => (k === 'eduCrane' && s.welding) || !hasValidEducationEntry(rec[k]))) continue;
+    matches.push(rec);
   }
   if (due === 'expired' || due === 'soon') {
-    rows.sort((a,b)=>computed.get(a).earliest - computed.get(b).earliest);
-    body.append(...rows);
+    matches.sort((a,b) => recordState(a).earliestDue - recordState(b).earliestDue);
   }
-  let visible = 0;
-  rows.forEach(row => {
-    const matched = computed.get(row).match;
-    row.hidden = !matched;
-    row.style.display = matched ? '' : 'none';
-    if (matched) visible++;
-  });
-  updateRowNumbers();
-  $('rowCount').textContent = String(visible);
-  $('rosterTotalCount').textContent = String(rows.length);
+  rosterView.filtered = matches;
+  rosterView.selectedFilteredCount = matches.reduce((count, rec) => count + Number(rosterView.selected.has(rec.uid)), 0);
+  if (resetPage) rosterView.page = 0;
+  rosterView.lastFilterMs = performance.now() - began;
+  showRosterPage();
 }
-
+function debounceRosterSearch() {
+  clearTimeout(rosterView.searchTimer);
+  rosterView.searchTimer = setTimeout(() => filterTable(), 180);
+}
 function addNewRow() {
   if (!requireAccess()) return;
   const rec = normalizeRecord({uid:makeUid()});
-  const row = createRow(rec);
-  $('tableBody').appendChild(row);
-  updateRowNumbers();
+  rosterView.records.push(rec);
+  rosterView.byId.set(rec.uid, rec);
+  rosterView.byIndex.set(rec.uid, rosterView.records.length-1);
+  // 신규자 정보 입력을 위해 기존 필터는 해제한다.
+  $('searchInput').value='';
+  for (const id of ['filterCompany','filterJob','filterProcess','filterResign','filterDueDate']) $(id).value='';
+  document.querySelectorAll('.edu-filter:checked').forEach(el => el.checked=false);
   updateFilterDropdowns();
   filterTable();
+  rosterView.page = Math.ceil(rosterView.filtered.length/rosterView.pageSize)-1;
+  showRosterPage();
   markDirty();
-  row.querySelector('[data-field="workerNo"]').focus();
+  $('tableBody').querySelector(`tr[data-uid="${rec.uid}"] [data-field="workerNo"]`)?.focus();
 }
 
 function buildExcelFilename() { return `한양이엔지_연명부_${getTodayDate()}.xlsx`; }
@@ -1659,36 +1809,77 @@ async function importRosterExcel(file) {
 
 function bindTableEvents() {
   const tbody = $('tableBody');
-  tbody.addEventListener('input',event => {
+  tbody.addEventListener('input', event => {
     const target = event.target;
     if (!target.matches('input[data-field]')) return;
+    const rec = rosterView.byId.get(target.closest('tr')?.dataset.uid);
+    if (!rec) return;
+    const key = target.dataset.field;
+    const value = target.value;
+    if (rec[key] !== value) {
+      rec[key] = value;
+      rosterView.cache.delete(rec.uid);
+      markDirty();
+    }
     if (target.classList.contains('edu-input')) updateInputColor(target);
-    if (['job','eduClosed'].includes(target.dataset.field)) applyOccupationRulesToRow(target.closest('tr'));
-    markDirty();
+    if (key === 'job' || key === 'eduClosed') applyOccupationRulesToRow(target.closest('tr'));
   });
-  tbody.addEventListener('change',event => {
+  tbody.addEventListener('change', event => {
     const target = event.target;
+    const row = target.closest('tr');
+    if (target.classList.contains('row-checkbox')) {
+      if (target.checked) {
+        if (!rosterView.selected.has(row.dataset.uid)) rosterView.selectedFilteredCount++;
+        rosterView.selected.add(row.dataset.uid);
+      } else {
+        if (rosterView.selected.has(row.dataset.uid)) rosterView.selectedFilteredCount--;
+        rosterView.selected.delete(row.dataset.uid);
+      }
+      $('rosterSelectedCount').textContent = `선택 ${rosterView.selected.size}명`;
+      updateSelectAllCheck();
+      return;
+    }
     if (!target.matches('input[data-field]')) return;
+    const rec = rosterView.byId.get(row?.dataset.uid);
+    if (rec && rec[target.dataset.field] !== target.value) {
+      rec[target.dataset.field] = target.value;
+      rosterView.cache.delete(rec.uid);
+    }
     if (['company','process','job'].includes(target.dataset.field)) updateFilterDropdowns();
-    if (['job','eduClosed'].includes(target.dataset.field)) applyOccupationRulesToRow(target.closest('tr'));
-    filterTable();
+    // 검색/조건 필터가 켜져 있거나 판정 필드가 바뀐 경우만 결과를 갱신.
+    const hasActiveFilter = Boolean($('searchInput').value.trim() ||
+      ['filterCompany','filterJob','filterProcess','filterResign','filterDueDate'].some(id => $(id).value) ||
+      document.querySelector('.edu-filter:checked'));
+    if (hasActiveFilter || ['company','job','process'].includes(target.dataset.field)) {
+      clearTimeout(rosterView.editFilterTimer);
+      rosterView.editFilterTimer = setTimeout(() => filterTable(false), 140);
+    }
   });
-  tbody.addEventListener('focusin',event => {
+  tbody.addEventListener('focusin', event => {
     const input = event.target;
     if (input.matches('input.edu-input[data-field]')) input.dataset.beforeFocus = input.value;
   });
-  tbody.addEventListener('focusout',event => {
+  tbody.addEventListener('focusout', event => {
     const input = event.target;
     if (!input.matches('input[data-field]')) return;
+    const rec = rosterView.byId.get(input.closest('tr')?.dataset.uid);
     if (input.classList.contains('edu-input')) validateEduInput(input);
     if (['resignDate','rehireDate','samsungStartDate'].includes(input.dataset.field)) {
       const value = input.value.trim();
-      if (value && !strictDate(value)) { input.classList.add('roster-invalid'); }
-      else input.classList.remove('roster-invalid');
+      input.classList.toggle('roster-invalid', Boolean(value && !strictDate(value)));
+    }
+    // 0시간 복구·교육 형식 정규화 등 blur 후 값이 수정되면 기록에도 즉시 반영.
+    if (rec && rec[input.dataset.field] !== input.value) {
+      rec[input.dataset.field] = input.value;
+      rosterView.cache.delete(rec.uid);
+      markDirty();
     }
   });
   $('excelUpload').addEventListener('change',event => importRosterExcel(event.target.files?.[0]));
-  $('searchInput').addEventListener('input',filterTable);
+  $('searchInput').addEventListener('input',debounceRosterSearch);
+  $('rosterPagePrev').addEventListener('click',() => rosterChangePage(-1));
+  $('rosterPageNext').addEventListener('click',() => rosterChangePage(1));
+  $('rosterPageSize').addEventListener('change',event => rosterSetPageSize(event.target.value));
   const params = new URLSearchParams(window.location.search);
   const filter = params.get('filter');
   if (filter === 'expired' || filter === 'active' || filter === 'soon') $('filterDueDate').value = filter;
@@ -1718,7 +1909,10 @@ window.addEventListener('pageshow', e => {
   if (e.persisted && rosterState.ready) verifyRosterAccess(true);
 });
 setInterval(() => {
-  if (!document.hidden && rosterState.ready) verifyRosterAccess(true);
+  if (!document.hidden && rosterState.ready) {
+    verifyRosterAccess(true);
+    if (getTodayDate() !== rosterView.lastDay) filterTable(false);
+  }
 }, 45000);
 window.addEventListener('beforeunload',event => {
   if (rosterState.dirty) { event.preventDefault(); event.returnValue = ''; }
