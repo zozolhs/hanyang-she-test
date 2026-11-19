@@ -1970,28 +1970,46 @@ async function importRosterExcel(file) {
 async function applyRosterOcrRows(matrix){
   if(!requireAccess())throw Error('연명부 편집 권한이 없습니다.');
   if(rosterState.importing)throw Error('다른 엑셀/이미지 처리가 진행 중입니다.');
-  if(!window.XLSX?.utils?.aoa_to_sheet)throw Error('엑셀 표 해석 라이브러리를 사용할 수 없습니다.');
+  if(!window.SHEOCR?.matchRosterBlankFields)throw Error('OCR 매칭 모듈을 불러오지 못했습니다. 최신 she-ocr.js를 확인하세요.');
   rosterState.importing=true;
   try {
-    const sheet=XLSX.utils.aoa_to_sheet(matrix);
-    const parsed=parseExcelWorkbook({SheetNames:['OCR_검토'],Sheets:{OCR_검토:sheet}});
-    const merged=mergeRosterImport(collectRows(),parsed.records,{zeroIgnored:parsed.zeroIgnored});
-    const problems=merged.stats.conflicts+merged.stats.ambiguous+merged.stats.skipped+merged.stats.existingDuplicates;
-    showRosterImportReport(merged,false);
-    if(!merged.changed)return `OCR 표 ${parsed.records.length}행 검토 · 변경 없음. 충돌/중복 보고서 확인.`;
-    const summary=rosterAuditSummary(merged,true);
-    // Always require an explicit second review even when no conflicts.
-    const proceed=confirm(`OCR 자료에서 추출한 정보는 오인식될 수 있습니다.\n\n${summary}\n\n기존 정보는 덮어쓰지 않고 신규 인원과 기존 빈칸만 반영합니다. 확인한 내용을 연명부에 적용할까요?`);
-    if(!proceed)return `OCR ${parsed.records.length}행 검토 완료 · 사용자 취소로 데이터 미변경. 불일치 내역을 확인하세요.`;
-    renderRows(merged.records);markDirty();showRosterImportReport(merged,true);
-    $('rosterImportStatus').textContent=`OCR 검토 적용 ${parsed.records.length}행 · 서버 저장 대기`;
-    return `OCR ${parsed.records.length}행 검토 적용 완료 · ${problems}건 확인 필요 · 서버 저장 버튼/상태를 확인하세요.`;
+    const matched=window.SHEOCR.matchRosterBlankFields(matrix,collectRows());
+    const s=matched.stats;
+    // Match report uses the existing downloadable CSV review panel.
+    const entries=matched.entries;
+    const problems=s.unmatched+s.conflicts+s.invalid+s.duplicates;
+    const oldReport={records:matched.records,entries,changed:matched.changed,
+      stats:{sourceRows:s.sourceRows,added:0,matched:s.matched,inFileDuplicates:s.duplicates,
+        completedRows:s.matched,unchangedRows:s.unchanged,filledCells:s.filledCells,unchangedCells:s.unchanged,
+        conflicts:s.conflicts,ambiguous:s.conflicts,skipped:s.unmatched+s.invalid,zeroExcluded:0,existingDuplicates:0}};
+    showRosterImportReport(oldReport,false);
+    const summary=`OCR 문서 ${s.sourceRows}명 · 기존 명부 일치 ${s.matched}명 · 빈칸 보완 ${s.filledCells}개 (퇴사일자 ${s.filledResignDates||0}건) · 미일치/충돌/중복 ${problems}건`;
+    if(!matched.changed)return `${summary}\n기존 연명부 변경 없음. 검토 보고서를 확인하세요.`;
+    if(!confirm(`${summary}\n\n신규 인원 생성과 기존 값 덮어쓰기는 하지 않습니다. 퇴사일자가 입력되면 재직 인원 통계가 변경됩니다. 원본 퇴사일을 확인했으며 기존 근로자의 빈칸만 보완할까요?`))
+      return `${summary}\n사용자 취소로 기존 데이터 유지.`;
+    // V21: patch only blank fields for the verified worker. Resign date affects active count.
+    const currentByUid=rosterView.byId;
+    for(const updated of matched.records){
+      const current=currentByUid.get(updated.uid);
+      if(!current)continue;
+      let changed=false;
+      for(const field of ['workerNo','name','birth','phone','resignDate']){
+        // Recheck at application time: never overwrite a nonblank value.
+        if(!String(current[field]??'').trim() && String(updated[field]??'').trim()){
+          current[field]=updated[field];changed=true;
+        }
+      }
+      if(changed)invalidateRecordCache(current.uid);
+    }
+    filterTable(false);markDirty();showRosterImportReport(oldReport,true);
+    $('rosterImportStatus').textContent=`OCR 검토 적용 ${s.matched}명 · 기존 빈칸 ${s.filledCells}개 보완 (퇴사일자 ${s.filledResignDates||0}건) · 서버 저장 대기`;
+    return `${summary}\n빈칸 보완 적용 완료. 서버 저장 상태를 확인하세요.`;
   }finally{rosterState.importing=false;}
 }
 function openRosterOcr(){
   if(!requireAccess())return;
   if(!window.SHEOCR?.open)return alert('OCR 도구를 불러오지 못했습니다. she-ocr.js 파일이 같은 폴더에 있는지 확인하세요.');
-  window.SHEOCR.open({title:'근로자 연명부 · 이미지 문자 추출',applyLabel:'검토한 표를 연명부에 적용',onApply:applyRosterOcrRows});
+  window.SHEOCR.open({title:'근로자 연명부 · 신원 확인 및 퇴사일자 빈칸 보완',applyLabel:'일치 근로자 빈칸만 보완',includeResignDate:true,onApply:applyRosterOcrRows});
 }
 function bindTableEvents() {
   const tbody = $('tableBody');
