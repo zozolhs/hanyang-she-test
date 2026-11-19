@@ -785,7 +785,7 @@
 
       // 위험도는 검진결과 A/C/D 등급과 별개입니다. PDF에 명시된 위험군만 인식하고
       // 미기재·서로 다른 위험군이 혼재한 경우 임의 추정하지 않습니다.
-      data.위험도 = extractExplicitRiskLevel(fullText);
+      data.위험도 = extractExplicitRiskLevel(pagesText);
 
       const grades = parseHealthGrades(page1Text);
       const priority = { D2: 6, D1: 5, C2: 4, C: 4, C1: 3, B: 2, A: 1 };
@@ -843,22 +843,30 @@
       return data;
     }
 
-    function extractExplicitRiskLevel(fullText) {
-      const text = String(fullText || '').replace(/[\u200B-\u200D\uFEFF]/g,' ').replace(/\s+/g,' ');
-      // 심뇌혈관·발병위험·위험도 등 명시 항목 인근의 위험군 표시만 인정.
-      const anchors = /(심\s*뇌\s*혈\s*관(?:질환)?|발병\s*위험|위험도|위험\s*수준|위험군)/g;
-      const levels = /(?:최고\s*위험|고\s*위험|중등도\s*위험|중\s*위험|저\s*위험)\s*군?/g;
-      const results = new Set();
-      let a;
-      while((a = anchors.exec(text))) {
-        const segment = text.slice(Math.max(0,a.index-45),Math.min(text.length,a.index+140));
-        for(const found of segment.matchAll(levels)) {
-          const risk=found[0].replace(/\s|군/g,'');
-          const mapped=risk==='중등도위험'?'중위험':risk;
-          if(['저위험','중위험','고위험','최고위험'].includes(mapped))results.add(mapped);
+    // V22: PDF 2페이지 개인별 최종 판정 문장만 위험도로 인정합니다.
+    // 아래의 KOSHA 위험도 분류표나 주석에 등장하는 고위험·최고위험은 개인 결과가 아닙니다.
+    // 문장이 없거나 상충하는 판정이 있으면 위험도를 추정하지 않고 확인필요로 남깁니다.
+    function extractExplicitRiskLevel(pagesText) {
+      const pages = Array.isArray(pagesText) ? pagesText : [pagesText];
+      const judgmentPages = pages.length > 1 ? pages.slice(1) : pages;
+      const found = new Set();
+      const sentence = /발\s*병\s*위\s*험\s*수\s*준\s*은\s*(최\s*고\s*위\s*험\s*군|중\s*등\s*도\s*위\s*험\s*군|고\s*위\s*험\s*군|중\s*위\s*험\s*군|저\s*위\s*험\s*군)\s*(?:으\s*로\s*)?(?:평\s*가\s*되\s*었\s*습\s*니\s*다|판\s*정\s*되\s*었\s*습\s*니\s*다|입\s*니\s*다)/g;
+      const levels = {
+        '저위험군':'저위험', '중위험군':'중위험', '중등도위험군':'중위험',
+        '고위험군':'고위험', '최고위험군':'최고위험'
+      };
+      for (const page of judgmentPages) {
+        const text = String(page || '').normalize('NFKC')
+          .replace(/[\u200B-\u200D\uFEFF]/g, ' ')
+          .replace(/\s+/g, ' ');
+        sentence.lastIndex = 0;
+        let match;
+        while ((match = sentence.exec(text)) !== null) {
+          const level = levels[match[1].replace(/\s/g, '')];
+          if (level) found.add(level);
         }
       }
-      return results.size===1?[...results][0]:'확인필요';
+      return found.size === 1 ? [...found][0] : '확인필요';
     }
     let hcBatchBusy = false;
     function hcSetProgress(label, percent) {
