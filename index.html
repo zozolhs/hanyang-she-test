@@ -9016,15 +9016,45 @@ function setupSecureAdmin(){
  <div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:12px;min-width:880px"><thead><tr style="background:#eff6ff;text-align:left"><th>성명</th><th>부서</th><th>역할</th><th>상태</th><th>SAFETY</th><th>HEALTH</th><th>ROSTER</th><th>EDUCATION</th><th>동작</th></tr></thead><tbody id="sheSecureUsers"></tbody></table></div>
  <p id="sheSecureMsg" style="font-size:12px;margin-top:10px;color:#64748b"></p></div>`;
  document.body.appendChild(div);
+ const signupBar=document.createElement('div');
+ signupBar.style.cssText='padding:12px;border:1px solid #bfdbfe;background:#eff6ff;border-radius:12px;margin:14px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap';
+ const signupStatus=document.createElement('span');
+ signupStatus.id='sheV24SignupStatus';signupStatus.textContent='회원가입 접수 상태 확인 중';
+ signupStatus.style.cssText='font-size:12px;font-weight:750;color:#1e3a8a;flex:1';
+ const signupToggle=document.createElement('button');signupToggle.type='button';
+ signupToggle.id='sheV24SignupToggle';signupToggle.textContent='가입 신청 상태 확인';
+ signupToggle.style.cssText='padding:8px 12px;border:1px solid #93c5fd;border-radius:9px;background:white;color:#1d4ed8;font-weight:800';
+ signupBar.append(signupStatus,signupToggle);
+ div.querySelector('table').parentElement.before(signupBar);
+ signupToggle.addEventListener('click',async()=>{
+  const current=signupToggle.dataset.enabled==='true';
+  signupToggle.disabled=true;
+  try{
+   await window.SHESEC.setRegistration(!current);
+   await refreshSignupStatus();
+  }catch(err){signupStatus.textContent='⚠️ '+(err.message||'가입 접수 설정 오류');}
+  finally{signupToggle.disabled=false;}
+ });
  $('sheSecureClose').addEventListener('click',closeSecureAdmin);
  div.addEventListener('click',e=>{if(e.target===div)closeSecureAdmin();});
 }
 function stopUserTimer(){if(state.tabTimer){clearInterval(state.tabTimer);state.tabTimer=null;}}
 function closeSecureAdmin(){$('sheSecureAdmin').hidden=true;stopUserTimer();}
+async function refreshSignupStatus(){
+ if(!canControlUsers())return;
+ const status=$('sheV24SignupStatus'),toggle=$('sheV24SignupToggle');
+ if(!status||!toggle)return;
+ const value=await window.SHESEC.registrationStatus();
+ const enabled=value.enabled===true;
+ toggle.dataset.enabled=String(enabled);
+ toggle.textContent=enabled?'신규 가입 접수 닫기':'신규 가입 접수 2시간 열기';
+ const ending=enabled&&value.expires_at?new Date(value.expires_at).toLocaleString('ko-KR'):'';
+ status.textContent=enabled?'✅ 신규 가입 접수 중 (자동 종료: '+ending+')':'🔒 현재 신규 회원가입 접수 중지';
+}
 async function openSecureAdmin(){
  if(!canControlUsers())return;
  if(!$('sheSecureAdmin'))setupSecureAdmin();
- $('sheSecureAdmin').hidden=false;await refreshUsers();
+ $('sheSecureAdmin').hidden=false;await Promise.all([refreshUsers(),refreshSignupStatus()]);
  stopUserTimer();state.tabTimer=setInterval(()=>{
   if(document.hidden||$('sheSecureAdmin').hidden)return;
   refreshUsers();
