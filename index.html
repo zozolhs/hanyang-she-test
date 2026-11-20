@@ -8765,7 +8765,7 @@ function showMaintenance(){
 function reconcileHeader(){
  const u=state.current;
  if($('currentUserBadge'))$('currentUserBadge').textContent=state.authorized?`접속중: ${u.name}`:'로그인 필요';
- if($('currentUserRoleBadge'))$('currentUserRoleBadge').textContent=isSuper()?'최고관리자':u?.role==='admin'?'관리자':'기술인';
+ if($('currentUserRoleBadge'))$('currentUserRoleBadge').textContent=isSuper()?'최고관리자':u?.role==='admin'?'관리자':u?.role==='viewer_admin'?'조회관리자':'기술인';
  if($('headerAdminBtn'))$('headerAdminBtn').style.display=hasAccess('safety')?'':'none';
  if($('sheMaintenanceToggle')){
   $('sheMaintenanceToggle').style.display=isSuper()?'':'none';
