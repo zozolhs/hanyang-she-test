@@ -4972,6 +4972,8 @@ body:not(.she-portal-active) #shePortal{display:none!important}
   }
 
   async function saveToLocalIDB(dataObj) {
+    // V24: browser-wide caches are disabled to prevent cross-account data leakage.
+    return false;
     try {
       const db = await openLocalIDB();
       if (!db) return;
@@ -4985,6 +4987,8 @@ body:not(.she-portal-active) #shePortal{display:none!important}
   }
 
   async function loadFromLocalIDB() {
+    // V24: browser-wide caches are disabled to prevent cross-account data leakage.
+    return null;
     try {
       const db = await openLocalIDB();
       if (!db) return null;
