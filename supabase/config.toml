@@ -1,0 +1,4 @@
+# TEST-only authentication function using its own opaque session tokens.
+# It validates requests itself; does not accept Supabase Auth JWTs as user sessions.
+[functions.she-v24-auth]
+verify_jwt = false
