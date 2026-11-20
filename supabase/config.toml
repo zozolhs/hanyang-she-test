@@ -1,0 +1,4 @@
+# HANYANG SHE V24 TEST. Tokens are verified inside each Edge Function.
+# Do not deploy before the auth+permission tests documented in the README.
+[functions.she-v24-data]
+verify_jwt = false
