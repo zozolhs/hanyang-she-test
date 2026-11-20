@@ -264,14 +264,14 @@ body:not(.she-portal-active) #shePortal{display:none!important}
 
       <div class="flex items-center space-x-2">
         <button onclick="openWorkerGateModal()" class="hidden sm:inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold transition">
-          <span>🔐 접속·가입신청 화면</span>
+          <span id="sheHeaderAccessLabel">🔐 접속·가입신청 화면</span>
         </button>
 
         <button onclick="openLoginSwitchModal()" class="flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200/80 text-xs font-medium text-slate-700 transition">
           <span class="w-2 h-2 rounded-full bg-emerald-500" id="currentUserDot"></span>
           <span id="currentUserBadge">접속중: 김안전</span>
           <span id="currentUserRoleBadge" class="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-blue-600 text-white">서버관리자</span>
-          <span class="text-[11px] text-blue-600 font-semibold underline ml-0.5">전환</span>
+          <span class="text-[11px] text-blue-600 font-semibold underline ml-0.5" id="sheHeaderAccessShortcut">권한</span>
         </button>
 
         <button id="headerAdminBtn" style="display:none" onclick="handleHeaderAdminClick()" class="relative px-4 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-semibold shadow-2xs transition flex items-center gap-1.5">
@@ -280,6 +280,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
         </button>
 <div id="sheHeaderActions" style="display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-left:auto;">
   <button id="sheSearchBackButton" class="she-header-control" type="button" style="display:none">🏠 SHE 메인 포털로</button>
+  <button id="sheRiskRefreshBtn" class="she-header-control" type="button" style="display:none" title="서버에서 위험성평가 자료를 읽기 전용으로 다시 불러옵니다">🔄 자료 새로고침</button>
   <button id="sheMaintenanceToggle" class="she-header-control" type="button" style="display:none" aria-pressed="false">🔧 서버점검 OFF</button>
   <button id="sheV24PasswordChange" class="she-header-control" type="button" style="display:none">🔑 비밀번호 변경</button>
   <button id="sheLogoutBtn" class="she-header-control" type="button" style="display:none">🚪 로그아웃</button>
@@ -311,6 +312,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
   </div>
 </section>
   <main class="flex-1 max-w-[1180px] w-full mx-auto px-4 sm:px-6 py-8">
+    <div id="sheSafetySyncStatus" role="status" aria-live="polite" style="text-align:right;font-size:12px;color:#64748b;margin:-6px 0 12px">안전 자료 연결 상태 확인 중...</div>
 
     <!-- 1. 히어로 배너 영역 -->
     <section class="hero-banner-bg rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden mb-10 relative">
@@ -4912,7 +4914,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="./she-v24-index.js?v=20261120-account-delete"></script>
+<script src="./she-v24-index.js?v=20261120-access-permissions-refresh"></script>
 <script>
 (function() {
   const SUPABASE_URL = "https://ahmqthuympannqsrszvv.supabase.co";
@@ -4964,6 +4966,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
   let hasCompletedInitialLoad = false;
   let isPartialRecoveryState = false;
   let syncTimer = null;
+  let unconfirmedRiskChanges = false;
   let lastDataSig = "";
   let lastUsersSig = "";
   let authModalMode = "login";
@@ -7067,7 +7070,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
         target.id !== "hyHeaderLogoutBtn" &&
         ((target.closest("button").textContent || "").includes("접속중:") || text === "전환" || text === "계정 전환");
 
-      if (clickedHeaderSwitchBadge && !isSuperAdminLoggedIn()) {
+      if (clickedHeaderSwitchBadge && !window.SHESEC && !isSuperAdminLoggedIn()) {
         e.stopImmediatePropagation();
         e.preventDefault();
         alert("🔒 타인 계정으로 임의 전환할 수 없습니다.\n다른 계정으로 접속하려면 [로그아웃] 후 [접속·가입신청 화면]에서 본인 이름과 비밀번호(4자리)로 로그인해 주세요.");
@@ -7481,34 +7484,17 @@ body:not(.she-portal-active) #shePortal{display:none!important}
   // =========================================================================
   // 11. 우측 하단 DB 상태 배지 및 문서 삭제 기능
   // =========================================================================
+  // V24: no floating manual save or emergency-recovery controls. Automatic
+  // saves remain permission-checked; refresh is an explicit read-only action.
   function createStatusBadge() {
-    if (!document.body || document.getElementById("sbStatusBadge")) return;
-    const badge = document.createElement("div");
-    badge.id = "sbStatusBadge";
-    badge.style.cssText = "position:fixed;bottom:16px;right:16px;z-index:99999;background:#0f172a;color:#fff;padding:8px 14px;border-radius:9999px;font-size:12px;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,0.25);display:flex;align-items:center;gap:8px;flex-wrap:wrap;";
-    badge.innerHTML = `<span id="sbStatusDot" style="width:8px;height:8px;border-radius:50%;background:#f59e0b;display:inline-block;"></span>
-                       <span id="sbStatusText">DB 연결 중...</span>
-                       <button id="sbManualSyncBtn" type="button" style="background:#2563eb;color:#fff;border:none;border-radius:6px;padding:3px 9px;font-size:11px;cursor:pointer;">즉시 저장</button>
-                       <button id="sbForceRecoverBtn" type="button" style="background:#059669;color:#fff;border:none;border-radius:6px;padding:3px 9px;font-size:11px;cursor:pointer;" title="서버의 모든 백업 청크(chunk_0~15)를 전수 스캔하여 복구합니다">🚑 서버 청크 강제복구</button>
-                       <button id="sbChangePwBtn" type="button" style="background:#475569;color:#fff;border:none;border-radius:6px;padding:3px 9px;font-size:11px;cursor:pointer;display:none;">🔑 관리자비번변경</button>`;
-    document.body.appendChild(badge);
-
-    document.getElementById("sbManualSyncBtn").addEventListener("click", () => {
-      isPartialRecoveryState = false;
-      saveAllDataToSupabase(true);
-    });
-    document.getElementById("sbForceRecoverBtn").addEventListener("click", () => forceRecoverAllChunksFromServer(true));
-    document.getElementById("sbChangePwBtn").addEventListener("click", () => openChangePasswordPrompt());
-    updateHeaderAuthControls();
+    document.getElementById("sbStatusBadge")?.remove();
   }
-
   function setStatus(state, text) {
-    createStatusBadge();
-    const dot = document.getElementById("sbStatusDot");
-    const label = document.getElementById("sbStatusText");
-    if (!dot || !label) return;
-    dot.style.background = state === "ok" ? "#22c55e" : state === "work" ? "#f59e0b" : "#ef4444";
-    label.textContent = text;
+    const label=document.getElementById("sheSafetySyncStatus");
+    if (!label) return;
+    label.textContent=text;
+    label.title=text;
+    label.style.color=state==="ok"?"#15803d":state==="work"?"#92400e":"#b91c1c";
   }
 
   function deleteSingleDocument(docIndex, docTitle) {
@@ -7790,6 +7776,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
 
       lastDataSig = computeDataSig();
       lastUsersSig = computeUsersSig();
+      unconfirmedRiskChanges = false;
       const nowStr = new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
       setStatus("ok", `DB 저장됨 (${items.length.toLocaleString()}건 · ${nowStr})`);
       if (showNotification && typeof showToast === "function") {
@@ -8745,8 +8732,10 @@ body:not(.she-portal-active) #shePortal{display:none!important}
     // SHE 통합: 전역 폴링 제거. 데이터 변경 시 저장, 회원 조회는 관리자 인원 탭에서만 12초 간격.
     const scheduleRiskSave = () => {
       if (!hasCompletedInitialLoad || isSyncingFromServer || isSavingNow) return;
+      unconfirmedRiskChanges = true;
       clearTimeout(syncTimer);
       syncTimer = setTimeout(() => {
+        syncTimer = null;
         if (window.SHEIndex && !window.SHEIndex.hasAccess('safety')) return;
         if (!isPartialRecoveryState) saveAllDataToSupabase(false);
       }, 650);
@@ -8761,7 +8750,26 @@ body:not(.she-portal-active) #shePortal{display:none!important}
     }, true);
   }
 
+  // On-demand refresh is READ ONLY. No direct store_put, no manual save, and
+  // no server-side recovery/write request can be triggered from this button.
+  async function reloadSafetyDataReadOnly() {
+    if (!window.SHEIndex?.hasAccess("safety_view"))
+      throw new Error("안전 자료 조회 권한이 없습니다.");
+    if (!hasCompletedInitialLoad || isSavingNow || isSyncingFromServer || syncTimer!==null)
+      throw new Error("초기 자료 로딩 또는 자동 저장이 진행 중입니다.");
+    if (unconfirmedRiskChanges)
+      throw new Error("아직 서버에 저장되지 않은 변경사항이 있습니다. 자동 저장 완료 후 새로고침하세요.");
+    const check=await sb.from("hanyang_safety_store")
+      .select("id,updated_at").eq("id",META_ROW_ID).maybeSingle();
+    if (check.error || !check.data)
+      throw new Error("서버에서 안전 자료를 확인할 수 없습니다.");
+    await loadAllDataFromSupabase();
+    if (isPartialRecoveryState)
+      throw new Error("일부 자료를 불러오지 못했습니다. 기존 데이터를 수정하지 마세요.");
+    return getPrimaryArray("items").length;
+  }
   window.sheV32 = Object.freeze({
+    reloadSafetyDataReadOnly,
     lookupSerial: lookupSerialForCardOrModalFast,
     enhanceDetailModal: enhanceDetailModalWithSerialAndCalibration,
     refreshUsers: refreshUsersFromServerNow,
@@ -8789,6 +8797,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
 'use strict';
 const CFG={size:35,modules:['safety','health','roster','education']};
 const state={current:null,authorized:false,view:'portal',pagination:null,listObserver:null,tabTimer:null,maintenance:false};
+let permissionDialog=null, riskRefreshBusy=false, lastRiskRefreshAt=0;
 const $=id=>document.getElementById(id);
 const safeStr=s=>String(s==null?'':s);
 const esc=s=>safeStr(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -8819,6 +8828,8 @@ function reconcileHeader(){
  }
  if($('sheLogoutBtn'))$('sheLogoutBtn').style.display=state.authorized?'':'none';
  if($('sheV24PasswordChange'))$('sheV24PasswordChange').style.display=state.authorized?'':'none';
+if($('sheHeaderAccessLabel'))$('sheHeaderAccessLabel').textContent=state.authorized?'🔐 내 권한 보기':'🔐 접속·가입신청 화면';
+if($('sheRiskRefreshBtn'))$('sheRiskRefreshBtn').style.display=state.authorized&&state.view==='search'&&canSafetyView()?'':'none';
  for(const mod of [...CFG.modules,'admin']){
   const c=document.querySelector(`[data-she-module="${mod}"]`);
   if(c){const yes=mod==='safety'?canSafetyView():mod==='admin'?canControlUsers():hasAccess(mod);
@@ -8899,6 +8910,82 @@ function initLoginForm(){
  };
  $('sheGateMode').addEventListener('change',setMode);setMode();
  $('sheGateForm').addEventListener('submit',onAuthSubmit);
+}
+function el(tag,text,style){
+ const node=document.createElement(tag);
+ if(text!==undefined&&text!==null)node.textContent=String(text);
+ if(style)node.style.cssText=style;
+ return node;
+}
+function closePermissionDialog(){
+ const dlg=permissionDialog;if(!dlg)return;
+ permissionDialog=null;document.removeEventListener('keydown',dlg._esc);dlg.remove();
+}
+async function showCurrentPermissions(){
+ if(!state.authorized)return showGate();
+ if(permissionDialog)return;
+ const dlg=el('div',null,'position:fixed;inset:0;z-index:100080;background:#020617b5;display:flex;align-items:center;justify-content:center;padding:18px;');
+ dlg.setAttribute('role','dialog');dlg.setAttribute('aria-modal','true');dlg.setAttribute('aria-label','내 권한 보기');
+ const box=el('section',null,'background:white;border-radius:18px;width:min(450px,100%);max-height:90vh;overflow:auto;padding:24px;box-shadow:0 20px 60px #02061755');
+ const heading=el('h2','🔐 내 업무 권한','color:#16286e;font-weight:900;font-size:21px;margin:0 0 12px');
+ const content=el('div','서버에서 권한을 확인하는 중입니다.','color:#475569;font-size:13px');
+ const actions=el('div',null,'display:flex;flex-wrap:wrap;gap:8px;margin-top:18px');
+ const close=el('button','닫기','border:1px solid #cbd5e1;border-radius:9px;background:white;color:#334155;padding:9px 15px;font-weight:800;cursor:pointer');
+ close.type='button';close.onclick=closePermissionDialog;actions.append(close);
+ box.append(heading,content,actions);dlg.append(box);document.body.append(dlg);
+ dlg.addEventListener('click',event=>{if(event.target===dlg)closePermissionDialog()});
+ dlg._esc=event=>{if(event.key==='Escape')closePermissionDialog()};
+ document.addEventListener('keydown',dlg._esc);
+ permissionDialog=dlg;close.focus();
+ try{
+  const result=await window.SHESEC.guard('safety_view',true);
+  if(permissionDialog!==dlg)return;
+  if(!result.ok){closePermissionDialog();await checkAccess(true);return;}
+  const p=result.profile;state.current=p;state.authorized=true;state.maintenance=!!p.maintenance;reconcileHeader();
+  const labels={super_admin:'최고관리자',admin:'관리자',viewer_admin:'조회관리자',worker:'일반 사용자'};
+  content.replaceChildren(
+   el('strong',(p.name||p.login_id)+' · '+(labels[p.role]||p.role),'display:block;color:#0f172a;font-size:16px;margin-bottom:4px'),
+   el('div','아이디: '+p.login_id+(p.department?' · 소속: '+p.department:''),'font-size:12px;color:#64748b;margin-bottom:14px')
+  );
+  const grid=el('div',null,'display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px');
+  for(const [mod,label] of [['safety','SAFETY 안전'],['health','HEALTH 보건'],['roster','ROSTER 인원'],['education','EDUCATION 교육'],['admin','ADMIN CONSOLE']]){
+   const read=window.SHESEC.permit(p,mod==='safety'?'safety_view':mod);
+   const write=mod==='admin'?p.role==='super_admin':window.SHESEC.canWrite(p,mod);
+   const card=el('div',null,'border:1px solid #dbe5f4;border-radius:10px;background:#f8fbff;padding:10px 12px');
+   card.append(el('strong',label,'display:block;font-size:12px;color:#16286e;margin-bottom:4px'),
+    el('span',read?(write?'조회 · 수정 가능':'조회 가능'):'권한 없음',
+     'font-size:12px;font-weight:800;color:'+(read?'#15803d':'#64748b')));
+   grid.append(card);
+  }
+  content.append(grid,el('p','현재 승인된 권한을 표시합니다. 업무 데이터 접근과 저장은 서버에서 별도 검증합니다.',
+   'color:#64748b;font-size:11px;margin:12px 0 0;line-height:1.5'));
+  const change=el('button','로그아웃 후 계정 변경·가입','padding:9px 13px;border-radius:9px;border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;font-size:12px;font-weight:800;cursor:pointer');
+  change.type='button';
+  change.onclick=async()=>{change.disabled=true;closePermissionDialog();
+   try{await logout()}catch{showGate('다른 아이디로 다시 로그인해 주세요.')}};
+  actions.prepend(change);
+ }catch(err){
+  if(permissionDialog===dlg)content.textContent='현재 권한을 확인할 수 없습니다. '+(err?.message||'잠시 후 다시 시도해 주세요.');
+ }
+}
+async function refreshSafetyReadOnly(){
+ if(!state.authorized||state.view!=='search'||!canSafetyView()||riskRefreshBusy)return;
+ const status=$('sheSafetySyncStatus');
+ if(Date.now()-lastRiskRefreshAt<10000){if(status)status.textContent='최근 새로고침 완료 · 잠시 후 다시 시도해 주세요.';return;}
+ const button=$('sheRiskRefreshBtn');riskRefreshBusy=true;
+ if(button){button.disabled=true;button.textContent='⏳ 불러오는 중';}
+ try{
+  if(!await checkAccess(true))return;
+  if(typeof window.sheV32?.reloadSafetyDataReadOnly!=='function')throw Error('자료 새로고침을 사용할 수 없습니다.');
+  const count=await window.sheV32.reloadSafetyDataReadOnly();
+  lastRiskRefreshAt=Date.now();
+  if(status){status.textContent='✅ 서버 자료 새로고침 완료 ('+count.toLocaleString('ko-KR')+'건)';status.style.color='#15803d';}
+ }catch(err){
+  if(status){status.textContent='⚠️ '+(err?.message||'자료 조회에 실패했습니다.');status.style.color='#b91c1c';}
+ }finally{
+  riskRefreshBusy=false;
+  if(button){button.disabled=false;button.textContent='🔄 자료 새로고침';}
+ }
 }
 function openPasswordChange(){
  if(!state.authorized)return showGate();
@@ -9232,16 +9319,8 @@ function bindLegacy(){
  };
  window.handleHeaderAdminClick=()=>window.openAdminModal('excel');
  window.resetToHome=()=>applyPortalView('portal');
- window.openWorkerGateModal=()=>{
-  // A sign-up page click must not falsely mark an active session logged out.
-  if(state.authorized){
-   if(confirm('현재 '+(state.current?.name||'사용자')+' 계정으로 로그인되어 있습니다.\n다른 계정 로그인 또는 신규 가입을 위해 로그아웃하시겠습니까?'))
-    void logout();
-   return;
-  }
-  showGate();
- };
- window.openLoginSwitchModal=()=>{if(confirm('로그아웃하고 계정을 변경하시겠습니까?'))logout();};
+ window.openWorkerGateModal=()=>{if(state.authorized)void showCurrentPermissions();else showGate();};
+ window.openLoginSwitchModal=()=>{if(state.authorized)void showCurrentPermissions();else showGate();};
  window.quickSwitchToServerAdmin=()=>alert('관리자 자동 전환은 허용되지 않습니다.');
  window.openServerAdminAuthModal=()=>alert('기존 마스터 비밀번호 로그인은 폐기됐습니다.');
  window.handleWorkerGateSubmit=e=>{e?.preventDefault();showGate();};
@@ -9266,6 +9345,7 @@ function attachEvents(){
  $('sheLogoutBtn')?.addEventListener('click',logout);
  $('sheV24PasswordChange')?.addEventListener('click',openPasswordChange);
  $('sheSearchBackButton')?.addEventListener('click',()=>applyPortalView('portal'));
+$('sheRiskRefreshBtn')?.addEventListener('click',refreshSafetyReadOnly);
  $('sheRefreshAccess')?.addEventListener('click',()=>checkAccess(true));
  window.addEventListener('focus',()=>{if(state.authorized)checkAccess(true);});
  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&state.authorized)checkAccess(true);});
