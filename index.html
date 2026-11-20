@@ -4435,6 +4435,34 @@ body:not(.she-portal-active) #shePortal{display:none!important}
     }
 
     function updateCurrentUserHeader() {
+      // V24 server identity is authoritative, even after legacy redraws.
+      if (window.SHESEC) {
+        const v = window.SHESEC.profile;
+        const active = v?.status === 'approved' &&
+          (!v.maintenance || v.role === 'super_admin');
+        const badge = document.getElementById('currentUserBadge');
+        const roleBadge = document.getElementById('currentUserRoleBadge');
+        const dot = document.getElementById('currentUserDot');
+        const admin = document.getElementById('headerAdminBtnText');
+        if (badge) badge.textContent = active
+          ? '접속중: ' + (v.name || v.login_id) : '로그인 필요';
+        if (roleBadge) {
+          roleBadge.textContent = !active ? '미로그인'
+            : v.role === 'super_admin' ? '최고관리자'
+            : v.role === 'admin' ? '관리자'
+            : v.role === 'viewer_admin' ? '조회관리자'
+            : '일반 사용자';
+          roleBadge.className = active && v.role === 'super_admin'
+            ? 'px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-blue-600 text-white'
+            : 'px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-700';
+        }
+        if (dot) dot.className = 'w-2 h-2 rounded-full ' +
+          (active ? 'bg-emerald-500' : 'bg-slate-400');
+        if (admin) admin.textContent = active && window.SHESEC.canWrite(v,'safety')
+          ? '⚙️ 엑셀·PDF 업로드 / 서버관리자' : '🔒 관리자';
+        document.getElementById('accessDeniedOverlay')?.classList.add('hidden');
+        return;
+      }
       const badge = document.getElementById('currentUserBadge');
       const roleBadge = document.getElementById('currentUserRoleBadge');
       const dot = document.getElementById('currentUserDot');
@@ -6062,6 +6090,16 @@ body:not(.she-portal-active) #shePortal{display:none!important}
   }
 
   function setCurrentUserGlobal(userObj) {
+    // Old browser PIN/guest values never override a verified V24 user.
+    if (window.SHESEC) {
+      const v = window.SHESEC.profile;
+      if (!v || v.status !== 'approved') return;
+      userObj = {
+        id:v.id,name:v.name||v.login_id,birth:'',dept:v.department||'',
+        role:v.role,status:v.status,approved:true,blocked:false,allowed:true,
+        isAdmin:window.SHESEC.canWrite(v,'safety'),permissions:v.permissions||{}
+      };
+    }
     detectDataVariables(false);
     const copyObj = Object.assign({}, userObj);
     detectedVars.currentUser.forEach((v) => setGlobalValue(v, copyObj));
@@ -6782,6 +6820,14 @@ body:not(.she-portal-active) #shePortal{display:none!important}
   // 9. 세션 상태 동기화 및 로그인 헬퍼
   // =========================================================================
   function applySessionUserState(forceRender) {
+    // V24 sessions are resolved by SHESEC; do not restore a fake guest
+    // when safety data finishes loading asynchronously.
+    if (window.SHESEC) {
+      if (window.SHESEC.profile?.status === 'approved')
+        setCurrentUserGlobal(window.SHESEC.profile);
+      if (forceRender) refreshUI();
+      return;
+    }
     sanitizeAdminUsersList();
 
     if (isSuperAdminLoggedIn()) {
