@@ -38,6 +38,15 @@ input:focus-visible,select:focus-visible,button:focus-visible{outline:3px solid 
 .account .controls label{min-width:115px;flex:1}
 .account .permission{display:flex;align-items:center;gap:5px;font-size:13px;min-width:auto}
 .account .permission input{width:auto}
+.my-permissions{border-top:1px solid #e0e8f3;margin-top:22px;padding-top:20px}
+.permission-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.permission-tile{border:1px solid #cdd9e9;border-radius:10px;padding:12px;display:flex;gap:7px;flex-direction:column}
+.permission-tile strong{font-size:14px}
+.permission-tile span{font-size:13px;font-weight:700}
+.permission-yes{color:#137041}
+.permission-no{color:#64748b}
+.permission-unknown{color:#b42318}
+@media(max-width:600px){.permission-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){section{padding:17px}header{padding:20px}}
 </style>
 <script src="./v24-auth-test.js" defer></script>
@@ -64,6 +73,11 @@ input:focus-visible,select:focus-visible,button:focus-visible{outline:3px solid 
 <h1>로그인 확인</h1>
 <p id="userInfo"></p>
 <p class="muted">인증 확인만 완료되었습니다. 업무 메뉴에 접속하는 기능은 아직 연결되지 않았습니다.</p>
+<div id="myPermissions" class="my-permissions" aria-label="내 메뉴별 권한 설정값">
+<h2>내 메뉴별 권한 설정값</h2>
+<p class="muted">Supabase 인증 서버에 저장된 계정별 설정입니다. 실제 안전·보건·인원·교육 업무 화면의 접근 권한 적용과는 별개이며, 일반 근로자 기본 조회 범위는 포함하지 않습니다.</p>
+<div id="permissionList" class="permission-grid"></div>
+</div>
 <div class="stat"><button type="button" id="refreshMe">세션 다시 확인</button><button type="button" id="logout" class="primary">로그아웃</button></div>
 </section>
 <section id="admin" hidden>
