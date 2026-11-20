@@ -243,12 +243,20 @@ const V24={
   schedule(data){
     if(!this.canWrite()||this.conflict)return;
     this.pending=JSON.stringify(data);this.dirty=true;
+    const status=document.getElementById("onepageConnection");
+    if(status){status.textContent="⏳ ONE-PAGE 변경사항 자동 저장 대기 중";status.style.color="#92400e";}
     clearTimeout(this.timer);this.timer=setTimeout(()=>{this.timer=null;void this.flush().catch(()=>{})},650);
   },
   async flush(){
     clearTimeout(this.timer);this.timer=null;
     if(this.conflict)throw Error("변경 충돌: 이 화면을 닫지 말고 관리자를 호출하세요.");
-    if(this.busy)return;
+    if(this.busy){
+      // A photo upload can request flush while an earlier save is in flight.
+      // Wait for the prior request and then flush any subsequent edits.
+      for(let i=0;i<150&&this.busy;i++)await new Promise(r=>setTimeout(r,100));
+      if(this.busy)throw Error("자동 저장을 마칠 수 없습니다. 잠시 후 다시 시도하세요.");
+    }
+    if(!this.pending)return;
     this.busy=true;
     try{
       while(this.pending){
@@ -259,6 +267,8 @@ const V24={
         this.version=response.updated_at;
       }
       this.dirty=false;
+      const status=document.getElementById("onepageConnection");
+      if(status){status.textContent="✅ ONE-PAGE 서버 자동 저장 완료";status.style.color="#15803d";}
     }catch(e){
       this.conflict=true;this.dirty=true;
       const status=document.getElementById("onepageConnection");
@@ -269,6 +279,9 @@ const V24={
   },
   photo(action,info={}){return this.req("store","onepage_photo_"+action,info)}
 };
+window.addEventListener("beforeunload",event=>{
+ if(V24.dirty||V24.busy||V24.conflict){event.preventDefault();event.returnValue=""; }
+});
 const blobAsURL=blob=>new Promise((ok,no)=>{const reader=new FileReader();reader.onload=()=>ok(reader.result);reader.onerror=()=>no(Error("사진 읽기 실패"));reader.readAsDataURL(blob)});
 const SEED=[];
 const $=id=>document.getElementById(id), KEY='HANYANG_ONEPAGE_V1';
