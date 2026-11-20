@@ -10,7 +10,7 @@ const ITERATIONS = 310000;
 const SESSION_HOURS = 8;
 const enc = new TextEncoder();
 const ALLOWED_ORIGIN = Deno.env.get("SHE_V24_ALLOWED_ORIGIN") || "https://zozolhs.github.io";
-const SIGNUP_ENABLED = Deno.env.get("SHE_V24_ALLOW_REGISTRATION") === "true";
+// Registration is controlled by the super-admin from the portal, and expires automatically.
 const LOGIN_ID = /^[a-z0-9][a-z0-9._-]{3,31}$/;
 const MODULES = ["safety", "health", "roster", "education"];
 
@@ -111,7 +111,11 @@ async function requireAccount(req: Request, onlySuper = false) {
   return { account, session };
 }
 async function register(body: Record<string, unknown>) {
-  if (!SIGNUP_ENABLED) throw new ApiError(503, "신규 가입 접수가 아직 활성화되지 않았습니다.");
+  const { data: registration, error: windowError } = await db.from("she_v24_signup_config")
+    .select("enabled_until").eq("id","main").maybeSingle();
+  if (windowError) throw new ApiError(503, "회원가입 접수 설정을 확인할 수 없습니다.");
+  if (!registration?.enabled_until || Date.parse(registration.enabled_until) <= Date.now())
+    throw new ApiError(503, "신규 가입 접수가 현재 비활성화되어 있습니다.");
   const { loginId, password } = credentials(body);
   const displayName = requiredString(body.display_name, "성명", 100).trim();
   const department = typeof body.department === "string" ? body.department.trim() : "";
@@ -189,6 +193,24 @@ async function bootstrap(req: Request, body: Record<string, unknown>) {
   });
   if (error) throw new ApiError(409, "초기 최고관리자 등록 실패");
   return { message: "최고관리자 계정 등록 완료. 초기 등록 비밀값을 즉시 폐기하세요." };
+}
+async function registrationStatus(req: Request) {
+  await requireAccount(req,true);
+  const { data, error } = await db.from("she_v24_signup_config")
+    .select("enabled_until").eq("id","main").maybeSingle();
+  if (error) throw new ApiError(503, "회원가입 접수 설정을 확인할 수 없습니다.");
+  const expiresAt = data?.enabled_until || null;
+  return { enabled: !!expiresAt && Date.parse(expiresAt)>Date.now(), expires_at: expiresAt };
+}
+async function setRegistration(req: Request, body: Record<string, unknown>) {
+  const { account }=await requireAccount(req,true);
+  if(typeof body.enabled !== "boolean")throw new ApiError(400,"회원가입 설정 형식 오류");
+  // Automatically expires after 2 hours even if the admin closes their browser.
+  const enabled_until=body.enabled ? new Date(Date.now()+2*3600_000).toISOString() : null;
+  const {error}=await db.from("she_v24_signup_config")
+    .update({enabled_until,changed_by:account.id,updated_at:new Date().toISOString()}).eq("id","main");
+  if(error)throw new ApiError(503,"회원가입 접수 설정 변경 실패");
+  return {enabled:body.enabled,expires_at:enabled_until};
 }
 async function updateUser(body: Record<string, unknown>) {
   const accountId = requiredString(body.account_id, "계정", 64);
@@ -275,6 +297,8 @@ Deno.serve(async (req: Request) => {
         await requireAccount(req, true);
         result = await updateUser(body); break;
       }
+      case "registration_status": result = await registrationStatus(req); break;
+      case "set_registration": result = await setRegistration(req, body); break;
       case "change_password": result = await changePassword(req, body); break;
       default: throw new ApiError(400, "지원하지 않는 요청입니다.");
     }
