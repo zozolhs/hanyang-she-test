@@ -4894,6 +4894,8 @@ body:not(.she-portal-active) #shePortal{display:none!important}
   const CHUNK_PREFIX = "main_v10_chunk_";
   const USERS_MASTER_ROW_ID = "main_v12_users_master";
   const CHUNK_SIZE = 800;
+  // V24: retain previously allocated chunks even after records are removed.
+  let knownServerChunkCount = 2;
 
   const SUPER_ADMIN_SESSION_KEY = "hy_super_admin_verified_v15";
   const ADMIN_SESSION_KEY = "hy_admin_verified_session_v15";
@@ -7709,18 +7711,13 @@ body:not(.she-portal-active) #shePortal{display:none!important}
         users: [],
         updated_at: updatedAt
       }));
-
-      if (chunkPayloads.length > 0) {
-        const { error: chunkErr } = await sb
-          .from("hanyang_safety_store")
-          .upsert(chunkPayloads, { onConflict: "id" });
-
-        if (chunkErr) {
-          setStatus("err", "서버 분할저장 실패 (로컬백업 완료)");
-          return;
-        }
+      // Clearing removed entries in old chunks prevents deleted records from
+      // reappearing after the next full scan.
+      for(let i=chunkPayloads.length;i<knownServerChunkCount;i++) {
+        chunkPayloads.push({
+          id:`${CHUNK_PREFIX}${i}`, documents:[],items:[],users:[],updated_at:updatedAt
+        });
       }
-
       const metaPayload = {
         id: META_ROW_ID,
         documents: docs,
@@ -7735,12 +7732,13 @@ body:not(.she-portal-active) #shePortal{display:none!important}
         updated_at: updatedAt
       };
 
+      // One V24 server-side transaction updates ALL chunks and metadata.
       const { error: metaErr } = await sb
         .from("hanyang_safety_store")
-        .upsert(metaPayload, { onConflict: "id" });
-
+        .upsert([...chunkPayloads,metaPayload], { onConflict: "id" });
       if (metaErr) {
-        setStatus("err", "서버 저장 실패 (로컬백업 완료)");
+        setStatus("err", "서버 일괄 저장이 거부됐습니다. 변경 충돌 또는 권한을 확인하세요.");
+        if(showNotification)alert(metaErr.message||"서버 일괄 저장에 실패했습니다.");
         return;
       }
 
@@ -7913,6 +7911,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
         ? metaRow.items[0]
         : { chunkCount: 0, totalItems: 0 };
 
+      knownServerChunkCount = Math.max(knownServerChunkCount,Number(metaInfo.chunkCount||0));
       if (metaInfo.docTableMapsV24 && typeof metaInfo.docTableMapsV24 === "object") {
         const localMaps = getStoredDocTableMaps();
         Object.keys(metaInfo.docTableMapsV24).forEach((k) => {
