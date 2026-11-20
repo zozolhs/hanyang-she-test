@@ -452,6 +452,27 @@ body:not(.she-portal-active) #shePortal{display:none!important}
         </button>
       </div>
 
+      <!-- 작업장 평가: 기존 문서와 ONE-PAGE를 같은 탭 안의 하위 메뉴로 관리 -->
+      <div id="workplaceSubtabs" class="hidden bg-white border border-blue-200 rounded-xl p-3 mb-4 shadow-sm">
+        <div class="flex flex-wrap gap-2 items-center">
+          <strong class="text-xs font-extrabold text-blue-900 mr-1">작업장 평가</strong>
+          <button id="workplaceDocumentsBtn" type="button" onclick="switchWorkplaceSubtab('documents')"
+            class="px-4 py-2 rounded-lg text-xs font-extrabold bg-blue-600 text-white">기존 작업장 평가서</button>
+          <button id="workplaceOnepageBtn" type="button" onclick="switchWorkplaceSubtab('onepage')"
+            class="px-4 py-2 rounded-lg text-xs font-bold border border-blue-200 bg-blue-50 text-blue-800">📋 ONE-PAGE 수시 위험성평가</button>
+        </div>
+      </div>
+      <div id="workplaceOnepagePanel" class="hidden bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm mb-4">
+        <div class="px-4 py-3 bg-blue-50 border-b border-blue-100 flex justify-between gap-2 flex-wrap">
+          <div><strong class="text-sm text-blue-950">ONE-PAGE 수시 위험성평가 실시 현황</strong>
+          <p class="text-xs text-slate-600 mt-1">월별 실적 · 원본·이행사진·메일·제출 관리 · 엑셀 및 PDF 보고서</p></div>
+          <span class="text-xs text-slate-500">V24 SAFETY 권한 적용</span>
+        </div>
+        <iframe id="workplaceOnepageFrame" title="ONE-PAGE 수시 위험성평가 통합 관리"
+          loading="lazy" referrerpolicy="no-referrer"
+          style="display:block;border:0;width:100%;height:min(85vh,960px);min-height:650px"
+          sandbox="allow-same-origin allow-scripts allow-downloads allow-modals allow-popups"></iframe>
+      </div>
       <!-- [화면 A] 등록된 위험성평가 문서 그리드 뷰 -->
       <div id="documentGridView">
         <div class="bg-white rounded-xl border border-slate-200/90 px-5 py-4 mb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-2xs">
@@ -1938,6 +1959,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
     }
 
     let currentCategory = '전체';
+    let workplaceSubtab = 'documents';
     let currentSearchQuery = '';
     let selectedDocumentId = null;
     let currentEditingItemId = null;
@@ -2107,7 +2129,49 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       renderAll();
     }
 
+    function switchWorkplaceSubtab(mode) {
+      if (currentCategory !== "작업장 평가") return;
+      if (mode !== "documents" && mode !== "onepage") return;
+      if (mode === "onepage" &&
+          (!window.SHEIndex || !window.SHEIndex.hasAccess("safety_view"))) {
+        alert("로그인 후 안전 자료 조회 권한을 확인하세요.");
+        return;
+      }
+      workplaceSubtab = mode;
+      selectedDocumentId = null;
+      currentSearchQuery = "";
+      const search = document.getElementById("searchInput");
+      if (search) search.value = "";
+      document.getElementById("clearSearchBtn")?.classList.add("hidden");
+      renderAll();
+    }
+    function syncWorkplaceSubtab() {
+      const selected = currentCategory === "작업장 평가";
+      const tabs = document.getElementById("workplaceSubtabs");
+      const panel = document.getElementById("workplaceOnepagePanel");
+      const a = document.getElementById("workplaceDocumentsBtn");
+      const b = document.getElementById("workplaceOnepageBtn");
+      const grid = document.getElementById("documentGridView");
+      const list = document.getElementById("itemListView");
+      if (!tabs || !panel) return;
+      tabs.classList.toggle("hidden", !selected);
+      const show = selected && workplaceSubtab === "onepage";
+      panel.classList.toggle("hidden", !show);
+      if (show) {
+        grid?.classList.add("hidden");
+        list?.classList.add("hidden");
+        const frame = document.getElementById("workplaceOnepageFrame");
+        // Load the ONE-PAGE module only after a user explicitly opens its tab.
+        if (frame && !frame.getAttribute("src"))
+          frame.setAttribute("src", "./onepage-integrated.html?v=20261120-v24");
+      }
+      const selectedStyle = "px-4 py-2 rounded-lg text-xs font-extrabold bg-blue-600 text-white";
+      const otherStyle = "px-4 py-2 rounded-lg text-xs font-bold border border-blue-200 bg-blue-50 text-blue-800";
+      if (a) a.className = show ? otherStyle : selectedStyle;
+      if (b) b.className = show ? selectedStyle : otherStyle;
+    }
     function selectCategory(cat) {
+      if (currentCategory !== cat) workplaceSubtab = "documents";
       currentCategory = cat;
       updateCategoryTabStyles();
       renderAll();
@@ -2207,6 +2271,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
         itemListView.classList.remove('hidden');
         renderItemCards();
       }
+      syncWorkplaceSubtab();
     }
 
     function renderDocumentCards() {
