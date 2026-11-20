@@ -195,6 +195,29 @@ async function findRows(filter,columns,single=false){
   }
   return {data:null,error:failure("데이터 조회 ID가 필요합니다.",400)};
 }
+async function writeSafetyBatch(raws){
+  if(!Array.isArray(raws)||!raws.length)throw failure("저장할 자료가 없습니다.",400);
+  const rows=[];
+  for(const raw of raws){
+    const id=raw.id,version=versions.get(id),old=fullRows.get(id);
+    if(!/^main_v10_(meta|chunk_\d+)$/.test(id)||!old||!version){
+      throw failure("서버에 기록된 안전 자료 버전이 없습니다. 최신 자료를 다시 불러오세요.",409);
+    }
+    rows.push({id,expected_updated_at:version,
+      documents:raw.documents??old.documents,
+      items:raw.items??old.items,
+      users:raw.users??old.users});
+  }
+  const res=await request("store","store_put_batch",{rows});
+  for(const r of res.rows||[]){
+    const item=rows.find(x=>x.id===r.id);
+    if(!item)continue;
+    const current={id:item.id,documents:item.documents,items:item.items,
+      users:item.users,updated_at:r.updated_at};
+    versions.set(item.id,r.updated_at);fullRows.set(item.id,current);
+  }
+  return (res.rows||[]).map(r=>fullRows.get(r.id));
+}
 async function writeOne(raw,expectedFromQuery){
   if(!raw||typeof raw.id!=="string")throw failure("저장할 데이터 ID가 없습니다.",400);
   const id=raw.id;
@@ -252,6 +275,10 @@ class StoreQuery {
       }
       if(this.mode==="upsert"){
         const raws=Array.isArray(this.payload)?this.payload:[this.payload];
+        if(raws.every(r=>/^main_v10_(meta|chunk_\d+)$/.test(r?.id||""))){
+          const updated=await writeSafetyBatch(raws);
+          return {data:updated.map(r=>selectColumns(r,this.columns)),error:null};
+        }
         const updated=[];
         for(const row of raws)updated.push(await writeOne(row,null));
         return {data:updated.map(r=>selectColumns(r,this.columns)),error:null};
