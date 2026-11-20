@@ -148,6 +148,101 @@ async function putSafetyBatch(a:Account,input:Record<string,unknown>) {
   if(data?.status!=="ok")throw new ApiError(400,"일괄 저장 요청 형식 오류");
   return {status:"ok",rows:data.rows};
 }
+// ONE-PAGE: isolated V24 SAFETY data; never writes the existing risk-document chunks.
+function onepageRead(a:Account){if(!canRead(a,"safety"))throw new ApiError(403,"ONE-PAGE 조회 권한이 없습니다.");}
+function onepageWrite(a:Account){if(!canWrite(a,"safety"))throw new ApiError(403,"ONE-PAGE 수정 권한이 없습니다.");}
+function safeText(v:unknown,max:number,label:string):string{
+  if(typeof v!=="string"||v.length>max)throw new ApiError(400,label+" 형식 오류");
+  return v;
+}
+async function onepageGet(a:Account) {
+  onepageRead(a);
+  const {data,error}=await db.from("she_v24_onepage_state")
+    .select("payload,updated_at").eq("id","main").maybeSingle();
+  if(error)throw new ApiError(503,"ONE-PAGE 조회 실패");
+  if(!data||!Array.isArray(data.payload?.rows))throw new ApiError(503,"ONE-PAGE 자료가 없습니다.");
+  return {data:data.payload,updated_at:data.updated_at};
+}
+async function onepagePut(a:Account,input:Record<string,unknown>) {
+  onepageWrite(a);
+  const expected=safeText(input.expected_updated_at,64,"수정 기준 시각");
+  if(!Number.isFinite(Date.parse(expected)))throw new ApiError(400,"수정 기준 시각 오류");
+  const payload=input.data;
+  if(!payload||typeof payload!=="object"||Array.isArray(payload)||
+    !Array.isArray((payload as Record<string,unknown>).rows)||
+    JSON.stringify(payload).length>1_100_000)throw new ApiError(400,"ONE-PAGE 저장 형식 또는 크기 오류");
+  const {data,error}=await db.rpc("she_v24_onepage_cas",{
+    p_actor:a.id,p_expected_at:expected,p_payload:payload
+  });
+  if(error)throw new ApiError(503,"ONE-PAGE 저장 실패");
+  if(data?.status==="conflict")throw new ApiError(409,"다른 관리자가 먼저 수정했습니다. 변경사항을 별도로 보관하고 새로고침하세요.");
+  if(data?.status!=="ok")throw new ApiError(400,"ONE-PAGE 저장 대상 오류");
+  return {updated_at:data.updated_at,status:"ok"};
+}
+function photoInput(v:unknown, label:string, maxLen:number, required=true):string {
+  if(!required&&typeof v==="undefined")return "";
+  return safeText(v,maxLen,label);
+}
+function validateDataUrl(v:string,maxLength:number):string {
+  if(v.length>maxLength||
+    !/^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(v))
+    throw new ApiError(413,"허용하지 않는 사진 형식 또는 크기입니다.");
+  return v;
+}
+async function onepagePhotoList(a:Account){
+  onepageRead(a);
+  const {data,error}=await db.from("she_v24_onepage_photos")
+    .select("id,row_id,taken_at,caption,filename,width,height,thumbnail_data_url")
+    .order("taken_at",{ascending:true}).limit(1000);
+  if(error)throw new ApiError(503,"ONE-PAGE 사진 목록 조회 실패");
+  return {photos:data||[]};
+}
+async function onepagePhotoGet(a:Account,input:Record<string,unknown>){
+  onepageRead(a);
+  const id=photoInput(input.id,"사진 ID",100);
+  const {data,error}=await db.from("she_v24_onepage_photos")
+    .select("id,row_id,taken_at,caption,filename,width,height,photo_data_url")
+    .eq("id",id).maybeSingle();
+  if(error)throw new ApiError(503,"ONE-PAGE 사진 조회 실패");
+  if(!data)throw new ApiError(404,"사진을 찾을 수 없습니다.");
+  return {photo:data};
+}
+async function onepagePhotoPut(a:Account,input:Record<string,unknown>){
+  onepageWrite(a);
+  const id=photoInput(input.id,"사진 ID",100);
+  const rowId=photoInput(input.row_id,"평가 항목 ID",100);
+  const filename=photoInput(input.filename||"","사진 파일명",200);
+  const caption=photoInput(input.caption||"","사진 설명",1000);
+  const dataUrl=validateDataUrl(photoInput(input.photo_data_url,"사진 파일",1150000),1150000);
+  const thumbnail=validateDataUrl(photoInput(input.thumbnail_data_url,"사진 미리보기",65000),65000);
+  const takenAt=input.taken_at;
+  const width=input.width, height=input.height;
+  if(!Number.isSafeInteger(takenAt)||Number(takenAt)<0||
+     !Number.isInteger(width)||Number(width)<0||Number(width)>1600||
+     !Number.isInteger(height)||Number(height)<0||Number(height)>1600)
+    throw new ApiError(400,"사진 메타데이터 오류");
+  const {data:state,error:stateError}=await db.from("she_v24_onepage_state")
+    .select("payload").eq("id","main").maybeSingle();
+  if(stateError)throw new ApiError(503,"ONE-PAGE 평가 항목 확인 실패");
+  if(!state?.payload?.rows?.some((r:Record<string,unknown>)=>r.id===rowId))
+    throw new ApiError(409,"평가 항목이 먼저 저장되어야 사진을 등록할 수 있습니다.");
+  const ext=/^data:image\/(jpeg|png|webp)/.exec(dataUrl)?.[1];
+  const {error}=await db.from("she_v24_onepage_photos").upsert({
+    id,row_id:rowId,caption,filename,taken_at:takenAt,
+    width,height,mime_type:"image/"+ext,
+    photo_data_url:dataUrl,thumbnail_data_url:thumbnail,
+    updated_at:new Date().toISOString()
+  },{onConflict:"id"});
+  if(error)throw new ApiError(503,"ONE-PAGE 사진 저장 실패");
+  return {status:"ok",id};
+}
+async function onepagePhotoDelete(a:Account,input:Record<string,unknown>){
+  onepageWrite(a);
+  const id=photoInput(input.id,"사진 ID",100);
+  const {error}=await db.from("she_v24_onepage_photos").delete().eq("id",id);
+  if(error)throw new ApiError(503,"ONE-PAGE 사진 삭제 실패");
+  return {status:"ok",id};
+}
 async function listRows(a:Account) {
   const {data,error}=await db.from("hanyang_safety_store").select("id,updated_at").order("id");
   if (error)throw new ApiError(503,"업무 목록 조회 실패");
@@ -222,6 +317,12 @@ Deno.serve(async (req:Request)=>{
       case "store_put_batch":return send(req,200,await putSafetyBatch(a,input));
       case "store_education_roster":return send(req,200,await educationRoster(a));
       case "store_confirm_education":return send(req,200,await confirmEducation(a,input));
+      case "onepage_get":return send(req,200,await onepageGet(a));
+      case "onepage_put":return send(req,200,await onepagePut(a,input));
+      case "onepage_photo_list":return send(req,200,await onepagePhotoList(a));
+      case "onepage_photo_get":return send(req,200,await onepagePhotoGet(a,input));
+      case "onepage_photo_put":return send(req,200,await onepagePhotoPut(a,input));
+      case "onepage_photo_delete":return send(req,200,await onepagePhotoDelete(a,input));
       default:throw new ApiError(400,"지원하지 않는 요청입니다.");
     }
   }catch(error){
