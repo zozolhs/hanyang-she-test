@@ -13,7 +13,7 @@ const LEGACY_KEYS=["hy_super_admin_verified_v15","hy_admin_verified_session_v15"
   "hy_logged_user_session_v15","hy_health_manager_verified"];
 const MODULES=["safety","health","roster","education"];
 let token=sessionStorage.getItem(STORAGE_KEY)||null;
-let profile=null,verifiedAt=0,ongoing=null;
+let profile=null,verifiedAt=0,ongoing=null,notifiedToken=null;
 const versions=new Map(),fullRows=new Map();
 function clearLegacy(){
   for(const k of LEGACY_KEYS)sessionStorage.removeItem(k);
@@ -60,7 +60,7 @@ function normalize(a){
   };
 }
 function reset(){
-  setToken(null);profile=null;verifiedAt=0;versions.clear();fullRows.clear();
+  setToken(null);profile=null;verifiedAt=0;notifiedToken=null;versions.clear();fullRows.clear();
   clearLegacy();
 }
 function permitted(p,mod,write=false){
@@ -91,8 +91,12 @@ async function refresh(force=false){
       verifiedAt=Date.now();
       // Old login flags must not authorize any server action.
       clearLegacy();
-      if(permitted(profile,"safety_view"))
+      // Full business-data synchronization is launched only once per session.
+      // A permission check or browser focus must not reload all risk data.
+      if(permitted(profile,"safety_view") && notifiedToken!==token){
+        notifiedToken=token;
         document.dispatchEvent(new CustomEvent("she:authorized",{detail:profile}));
+      }
       return profile;
     }catch(e){
       if(e.status===401||e.status===403)reset();
