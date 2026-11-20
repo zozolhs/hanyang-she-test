@@ -4966,6 +4966,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
   let hasCompletedInitialLoad = false;
   let isPartialRecoveryState = false;
   let syncTimer = null;
+  let unconfirmedRiskChanges = false;
   let lastDataSig = "";
   let lastUsersSig = "";
   let authModalMode = "login";
@@ -7775,6 +7776,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
 
       lastDataSig = computeDataSig();
       lastUsersSig = computeUsersSig();
+      unconfirmedRiskChanges = false;
       const nowStr = new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
       setStatus("ok", `DB 저장됨 (${items.length.toLocaleString()}건 · ${nowStr})`);
       if (showNotification && typeof showToast === "function") {
@@ -8730,8 +8732,10 @@ body:not(.she-portal-active) #shePortal{display:none!important}
     // SHE 통합: 전역 폴링 제거. 데이터 변경 시 저장, 회원 조회는 관리자 인원 탭에서만 12초 간격.
     const scheduleRiskSave = () => {
       if (!hasCompletedInitialLoad || isSyncingFromServer || isSavingNow) return;
+      unconfirmedRiskChanges = true;
       clearTimeout(syncTimer);
       syncTimer = setTimeout(() => {
+        syncTimer = null;
         if (window.SHEIndex && !window.SHEIndex.hasAccess('safety')) return;
         if (!isPartialRecoveryState) saveAllDataToSupabase(false);
       }, 650);
@@ -8751,8 +8755,10 @@ body:not(.she-portal-active) #shePortal{display:none!important}
   async function reloadSafetyDataReadOnly() {
     if (!window.SHEIndex?.hasAccess("safety_view"))
       throw new Error("안전 자료 조회 권한이 없습니다.");
-    if (isSavingNow || isSyncingFromServer)
-      throw new Error("저장 또는 자료 동기화가 진행 중입니다.");
+    if (!hasCompletedInitialLoad || isSavingNow || isSyncingFromServer || syncTimer!==null)
+      throw new Error("초기 자료 로딩 또는 자동 저장이 진행 중입니다.");
+    if (unconfirmedRiskChanges)
+      throw new Error("아직 서버에 저장되지 않은 변경사항이 있습니다. 자동 저장 완료 후 새로고침하세요.");
     const check=await sb.from("hanyang_safety_store")
       .select("id,updated_at").eq("id",META_ROW_ID).maybeSingle();
     if (check.error || !check.data)
