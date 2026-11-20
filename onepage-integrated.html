@@ -195,6 +195,7 @@ body.editing .row{border-color:#facc15;box-shadow:0 0 0 1px #fde68a}
   <button class="btn dk" id="bDone" hidden>✔ 수정완료</button>
   <button class="btn" id="bImport">📥 엑셀 가져오기</button>
   <button class="btn" id="bExport">📤 엑셀 내보내기</button>
+  <button class="btn" id="bUnsavedBackup" type="button" hidden>📥 미저장 기록 백업</button>
   <button class="btn" id="bPhotoPdf">📄 월 사진 PDF</button>
   <button class="btn dk" id="bView">🖥 월 한페이지 보기</button>
   <button class="btn" id="bPrint">🖨 월 출력</button>
@@ -273,6 +274,7 @@ const V24={
       this.conflict=true;this.dirty=true;
       const status=document.getElementById("onepageConnection");
       if(status){status.textContent="⚠️ 저장 실패: "+e.message;status.style.color="#b91c1c"}
+      const backup=document.getElementById("bUnsavedBackup");if(backup)backup.hidden=false;
       toast("저장 실패. 화면을 닫지 마세요: "+e.message,20000);
       throw e;
     }finally{this.busy=false;}
@@ -444,6 +446,14 @@ function addRow(){ if(!canWrite()) return; editMode=true; const now=new Date(), 
   const r=blankRow({date,cls:nextCls(ym)}); D.rows.push(r); newIds.add(r.id); save(); if(sel==='ALL') sel=ym; onlyMiss=false; trFilter=''; trSort=false; pg=0;
   const i=visibleRows().findIndex(x=>x.id===r.id); pg=Math.floor(i/calcPS()); renderAll(); const el=document.querySelector(`[data-id="${r.id}"][data-f=content]`); if(el){ autosize(el); el.focus(); el.scrollIntoView({block:'center'}); } }
 $('bEdit').onclick=startEdit; $('bNew').onclick=addRow; $('bDone').onclick=finishEdit;
+$('bUnsavedBackup').onclick=()=>{
+ if(!canWrite()||!D)return;
+ const data=new Blob([JSON.stringify(D,null,2)],{type:"application/json;charset=utf-8"});
+ const url=URL.createObjectURL(data),a=document.createElement("a");
+ a.href=url;a.download="ONE-PAGE_미저장기록_"+new Date().toISOString().slice(0,10)+".json";
+ document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2500);
+ toast("미저장 기록을 JSON 파일로 백업했습니다. 서버에 자동 반영된 것은 아닙니다.",5000);
+};
 $('fab').onclick=addRow;
 let rsz; window.addEventListener('resize',()=>{ clearTimeout(rsz); rsz=setTimeout(()=>{ if(D&&calcPS()!==PSZ) renderTable(); },200); });
 document.addEventListener('keydown',e=>{ if(['INPUT','TEXTAREA','SELECT'].includes((e.target.tagName||''))||$('lb').style.display==='flex'||$('pv').style.display==='flex'||$('mdl').style.display==='flex') return; if(e.key==='ArrowRight'&&!$('pgNext')?.disabled) goPg(pg+1); if(e.key==='ArrowLeft'&&!$('pgPrev')?.disabled) goPg(pg-1); });
