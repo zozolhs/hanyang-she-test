@@ -145,7 +145,7 @@ BEGIN
   RETURN jsonb_build_object('status','completed','eventId',p_event_id,
     'added',v_total,'excluded',v_skipped,'over8h',v_over);
 END;
-$function$
+$function$;
 
 REVOKE ALL ON FUNCTION public.she_v24_confirm_education(text,text,uuid,jsonb) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.she_v24_confirm_education(text,text,uuid,jsonb) TO service_role;
