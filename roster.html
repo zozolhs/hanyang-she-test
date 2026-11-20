@@ -7,7 +7,7 @@
     <!-- 공개키 기반 접속: 로그인 상태는 sessionStorage만 사용 -->
     <script>document.documentElement.classList.add("roster-locked");</script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="./she-secure.js"></script>
+  <script src="./she-v24-index.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
     <style>
@@ -1079,6 +1079,10 @@ async function loadRoster() {
 
 async function saveRoster(manual = true) {
   if (!requireAccess()) return false;
+  if (!window.SHESEC.canWrite(rosterState.user,"roster")) {
+    setSaveStatus('조회 전용 계정은 연명부를 수정할 수 없습니다.', 'error');
+    return false;
+  }
   clearTimeout(rosterState.debounceTimer);
   if (rosterState.saving) { rosterState.saveQueued = true; return false; }
   if (!rosterState.dirty) {
