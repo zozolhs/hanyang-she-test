@@ -169,7 +169,7 @@ async function login(body: Record<string, unknown>) {
     account_id: account.id, refresh_hash: await digest(token), expires_at: expiresAt,
   });
   if (sessionError) throw new ApiError(503, "로그인 세션 생성 실패");
-  return { token, expires_at: expiresAt, account: publicAccount(account) };
+  return { token, expires_at: expiresAt, account: {...publicAccount(account),maintenance:await maintenance()} };
 }
 async function bootstrap(req: Request, body: Record<string, unknown>) {
   const secret = Deno.env.get("SHE_V24_BOOTSTRAP_SECRET") || "";
@@ -285,7 +285,7 @@ Deno.serve(async (req: Request) => {
       case "bootstrap": result = await bootstrap(req, body); break;
       case "me": {
         const { account } = await requireAccount(req);
-        result = { account: publicAccount(account) }; break;
+        result = { account: {...publicAccount(account),maintenance:await maintenance()} }; break;
       }
       case "logout": {
         const { session } = await requireAccount(req);
