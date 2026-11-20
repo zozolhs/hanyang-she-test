@@ -7069,7 +7069,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
         target.id !== "hyHeaderLogoutBtn" &&
         ((target.closest("button").textContent || "").includes("접속중:") || text === "전환" || text === "계정 전환");
 
-      if (clickedHeaderSwitchBadge && !isSuperAdminLoggedIn()) {
+      if (clickedHeaderSwitchBadge && !window.SHESEC && !isSuperAdminLoggedIn()) {
         e.stopImmediatePropagation();
         e.preventDefault();
         alert("🔒 타인 계정으로 임의 전환할 수 없습니다.\n다른 계정으로 접속하려면 [로그아웃] 후 [접속·가입신청 화면]에서 본인 이름과 비밀번호(4자리)로 로그인해 주세요.");
