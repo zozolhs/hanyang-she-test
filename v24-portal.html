@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src https://ahmqthuympannqsrszvv.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none'; frame-ancestors 'none'">
+<title>HANYANG SHE V24 · 통합관리시스템</title>
+<style>
+:root{font:15px/1.6 system-ui,-apple-system,"Malgun Gothic",sans-serif;color:#16263d;background:#edf3f9}
+*{box-sizing:border-box}body{margin:0;min-height:100vh}button,input,select,textarea{font:inherit}
+button{cursor:pointer;border:1px solid #c3cedd;background:#fff;color:#193660;border-radius:10px;padding:10px 15px;font-weight:750}button:hover:not(:disabled){background:#eff6ff}button:disabled{opacity:.52;cursor:wait}
+button.primary{background:#1b56bf;color:#fff;border-color:#1b56bf}button.primary:hover:not(:disabled){background:#1845a0}
+button.danger{color:#b42318;border-color:#f3c1b9}
+a{color:#1554bc}button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid #8dc2ff;outline-offset:2px}
+header{background:linear-gradient(117deg,#101f4f,#195aa3);color:white;padding:24px max(20px,calc((100vw - 1130px)/2))}
+.brand{display:flex;align-items:center;gap:12px}.logo{display:inline-grid;place-items:center;width:46px;height:46px;background:#ffffff25;border-radius:13px;font-weight:950}
+.brand h1{font-size:21px;margin:0;line-height:1.25}.brand p{color:#d9e8ff;font-size:13px;margin:5px 0 0}
+main{max-width:1160px;padding:24px 18px 55px;margin:auto}
+.card{background:white;border:1px solid #d8e3f0;border-radius:18px;box-shadow:0 10px 25px #162a4c0b;padding:24px;margin-bottom:18px}
+h2{font-size:20px;margin:0 0 8px}h3{font-size:17px;margin:0 0 10px}
+.muted{color:#596b83;font-size:13px}.notice{background:#fffaec;border:1px solid #e7d6a7;color:#714f13;border-radius:12px;padding:13px 17px;margin-bottom:17px;font-size:13px}
+#message{white-space:pre-wrap;min-height:20px;font-weight:700;margin:0 0 16px}#message[data-kind="error"]{color:#af2115}#message[data-kind="ok"]{color:#13754e}
+[hidden]{display:none!important}
+.form{display:grid;gap:14px;max-width:440px;margin-top:18px}
+label.field{display:grid;gap:6px;font-weight:700;font-size:13px}
+input,textarea,select{background:#fff;color:#182b47;border:1px solid #b9c7da;padding:11px 12px;border-radius:10px;width:100%}
+textarea{min-height:100px;resize:vertical}
+.split{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.auth-tabs{display:flex;gap:8px;margin-top:18px}.auth-tabs button[aria-pressed="true"]{background:#1b56bf;color:#fff}
+.userbar{display:flex;gap:12px;justify-content:space-between;align-items:center;flex-wrap:wrap}.who{display:grid;gap:3px}.who strong{font-size:16px}
+.nav{display:flex;gap:9px;flex-wrap:wrap;margin:16px 0}.nav button[aria-selected="true"]{background:#153d86;color:white;border-color:#153d86}
+.toolrow{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:16px 0}.toolrow input{max-width:530px;flex:1;min-width:220px}
+.status{font-size:12px;display:inline-block;padding:3px 8px;border-radius:99px;background:#e8eef7;color:#3b5579;font-weight:800}.status.yes{background:#e1f8ec;color:#137549}.status.no{background:#f3f5f8;color:#697586}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:14px 0}
+.stat{background:#f3f7fc;border:1px solid #dde7f4;border-radius:12px;padding:13px}.stat strong{display:block;font-size:14px}
+.stat .value{font-weight:850;font-size:13px;margin-top:4px}
+.tablewrap{overflow-x:auto;margin-top:14px;border:1px solid #e2e8f0;border-radius:12px}
+table{width:100%;border-collapse:collapse;min-width:710px}th,td{text-align:left;padding:11px 13px;border-bottom:1px solid #e8edf5;font-size:13px;vertical-align:top}th{background:#f4f7fc;color:#394c6a;font-size:12px;position:sticky;top:0}
+tbody tr:last-child td{border-bottom:none}td .clamp{max-width:340px;white-space:pre-wrap;overflow-wrap:anywhere;max-height:98px;overflow:hidden}
+.empty{color:#64748b;text-align:center;padding:30px;background:#f9fbff;border:1px dashed #cbd5e1;border-radius:12px}
+.editor{border:1px solid #cbd9ec;border-radius:13px;background:#f7faff;padding:17px;margin-top:18px}
+.editor form{display:grid;grid-template-columns:1fr 1fr;gap:12px}.editor form .full{grid-column:1/-1}
+.permission-set{display:flex;gap:14px;flex-wrap:wrap;margin:12px 0}
+.permission-set label{display:flex;gap:5px;align-items:center;font-size:13px;font-weight:700}
+.permission-set input{width:auto}
+.member{border:1px solid #dbe5f2;padding:16px;border-radius:13px;margin-top:12px}
+.member .meta{font-size:12px;color:#61728a;margin:4px 0 12px}
+.member .split .field{min-width:170px;flex:1}
+#pwdForm{max-width:440px;margin:12px 0}
+footer{color:#667890;font-size:12px;text-align:center;margin-top:28px}
+@media(max-width:650px){.card{padding:17px}.brand h1{font-size:18px}.stats{grid-template-columns:1fr 1fr}.editor form{grid-template-columns:1fr}header{padding:20px}}
+</style>
+<script src="./v24-portal.js" defer></script>
+</head>
+<body>
+<header><div class="brand"><span class="logo">SHE</span><div><h1>HANYANG ENG · SHE 통합관리시스템</h1><p>V24 · 아이디 로그인 / 서버 권한 검증 / TEST</p></div></div></header>
+<main>
+<div class="notice">HANYANG-SHE-TEST 환경의 통합 시험판입니다. 실제 근로자 정보가 포함될 수 있습니다. 권한이 부여된 업무에만 접근하세요. 기존 V23 업무 포털 및 데이터는 별도로 유지됩니다.</div>
+<p id="message" role="status" aria-live="polite"></p>
+<section id="guest" class="card">
+<h2>아이디 로그인</h2><p class="muted">이메일 없이 고유 아이디로 이용합니다. 가입 신청은 최고관리자 승인 후 로그인할 수 있습니다.</p>
+<div class="auth-tabs"><button id="modeLogin" type="button" aria-pressed="true">로그인</button><button id="modeRegister" type="button" aria-pressed="false">회원가입 신청</button></div>
+<form id="loginForm" class="form">
+<label class="field">아이디<input id="loginId" autocomplete="username" required minlength="4" maxlength="32" pattern="[a-z0-9][a-z0-9._-]{3,31}" placeholder="영문 소문자·숫자 4~32자리"></label>
+<label class="field">비밀번호<input id="loginPassword" type="password" autocomplete="current-password" required minlength="6" maxlength="128" placeholder="최소 6자리"></label>
+<div id="registerFields" hidden>
+<label class="field">성명<input id="registerName" autocomplete="name" maxlength="100"></label>
+<label class="field">소속 업체·부서<input id="registerDept" autocomplete="organization" maxlength="80"></label>
+</div>
+<button id="authSubmit" class="primary" type="submit">로그인</button>
+</form>
+</section>
+<div id="workApp" hidden>
+<section class="card userbar"><div class="who"><strong id="userLabel">로그인 사용자</strong><span id="roleLabel" class="muted"></span></div><div class="split"><button id="sessionCheck" type="button">세션 확인</button><button id="logout" class="danger" type="button">로그아웃</button></div></section>
+<section class="card">
+<h2>내 메뉴 접근 권한</h2>
+<div id="accessBadges" class="stats"></div>
+<p class="muted">이 권한은 서버에서 매 요청 검증합니다. 조회 관리자에게는 수정 기능이 제공되지 않습니다.</p>
+</section>
+<nav class="nav" aria-label="업무 메뉴">
+<button type="button" data-mod="safety" aria-selected="true">안전 / 위험성평가</button>
+<button type="button" data-mod="roster" aria-selected="false">인원 / 연명부</button>
+<button type="button" data-mod="education" aria-selected="false">교육 일정</button>
+<button type="button" data-mod="health" aria-selected="false">보건</button>
+<button type="button" data-mod="admin" aria-selected="false" hidden>최고관리자 / 회원 승인</button>
+<button type="button" data-mod="password" aria-selected="false">비밀번호 변경</button>
+</nav>
+<section id="modulePanel" class="card" aria-live="polite"><h2>업무 자료 불러오는 중</h2></section>
+</div>
+<footer>V24 통합 TEST · 권한 없는 데이터는 서버에서 차단 · 서비스 키 및 로그인 토큰 비공개</footer>
+</main>
+</body>
+</html>
