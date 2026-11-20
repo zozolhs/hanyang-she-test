@@ -97,6 +97,57 @@ function educationRosterView(row:Record<string,unknown>) {
     items, users:[], redacted_for_education:true
   };
 }
+async function educationRoster(a:Account) {
+  if (!canRead(a,"education"))throw new ApiError(403,"교육 연명부 조회 권한이 없습니다.");
+  const {data:row,error}=await db.from("hanyang_safety_store")
+    .select("items").eq("id","main_v1_roster_master").maybeSingle();
+  if (error)throw new ApiError(503,"교육 연명부 조회 실패");
+  if (!row || !Array.isArray(row.items))throw new ApiError(503,"교육 연명부가 없습니다.");
+  const safe=new Set(["uid","workerNo","name","company","job","resignDate","samsungStartDate",
+    "eduCommon","edu13ho","edu38ho","edu4ho","edu35ho","eduClosed",
+    "eduMsds","edu2ho","eduCrane"]);
+  return {workers:row.items.map((r:Record<string,unknown>)=>
+    Object.fromEntries(Object.entries(r).filter(([k])=>safe.has(k))))};
+}
+async function confirmEducation(a:Account,input:Record<string,unknown>) {
+  if (!canWrite(a,"education"))throw new ApiError(403,"교육 확정 권한이 없습니다.");
+  const id=input.event_id,expected=input.expected_updated_at,attendance=input.attendance;
+  if(typeof id!=="string"||id.length<1||id.length>150||
+     typeof expected!=="string"||expected.length>60||!Number.isFinite(Date.parse(expected))||
+     !attendance||typeof attendance!=="object"||Array.isArray(attendance)||
+     Object.keys(attendance).length>1000)
+    throw new ApiError(400,"교육 확정 요청 형식 오류");
+  const {data,error}=await db.rpc("she_v24_confirm_education",{
+    p_event_id:id,p_expected_updated_at:expected,
+    p_actor:a.id,p_attendance:attendance
+  });
+  if(error)throw new ApiError(409,"교육 확정 실패: 일정 또는 대상자의 최신 상태를 확인하세요.");
+  return data as Record<string,unknown>;
+}
+async function putSafetyBatch(a:Account,input:Record<string,unknown>) {
+  if(!canWrite(a,"safety"))throw new ApiError(403,"안전 자료 수정 권한이 없습니다.");
+  if(!Array.isArray(input.rows)||input.rows.length<1||input.rows.length>20)
+    throw new ApiError(400,"일괄 저장 건수 오류");
+  const seen=new Set<string>();
+  for(const row of input.rows){
+    if(!row||typeof row!=="object"||Array.isArray(row))throw new ApiError(400,"저장 형식 오류");
+    const r=row as Record<string,unknown>, {id,scope}=requireId(r.id);
+    if(scope!=="safety"||seen.has(id)||typeof r.expected_updated_at!=="string"||
+       !Number.isFinite(Date.parse(r.expected_updated_at))||
+       !Array.isArray(r.documents)||!Array.isArray(r.items)||!Array.isArray(r.users)||
+       r.documents.length>2000||r.items.length>5000||r.users.length>2000)
+      throw new ApiError(400,"일괄 저장 항목이 유효하지 않습니다.");
+    seen.add(id);
+  }
+  const {data,error}=await db.rpc("she_v24_cas_update_safety_batch",{
+    p_rows:input.rows,p_actor:a.id
+  });
+  if(error)throw new ApiError(503,"안전 자료 일괄 저장에 실패했습니다.");
+  if(data?.status==="conflict")throw new ApiError(409,"다른 사용자가 안전 자료를 먼저 수정했습니다. 다시 불러오세요.");
+  if(data?.status==="not_found")throw new ApiError(404,"저장 대상 청크가 없습니다.");
+  if(data?.status!=="ok")throw new ApiError(400,"일괄 저장 요청 형식 오류");
+  return {status:"ok",rows:data.rows};
+}
 async function listRows(a:Account) {
   const {data,error}=await db.from("hanyang_safety_store").select("id,updated_at").order("id");
   if (error)throw new ApiError(503,"업무 목록 조회 실패");
@@ -168,6 +219,9 @@ Deno.serve(async (req:Request)=>{
       case "store_get":return send(req,200,await getRow(a,input,false));
       case "store_counts":return send(req,200,await getRow(a,input,true));
       case "store_put":return send(req,200,await putRow(a,input));
+      case "store_put_batch":return send(req,200,await putSafetyBatch(a,input));
+      case "store_education_roster":return send(req,200,await educationRoster(a));
+      case "store_confirm_education":return send(req,200,await confirmEducation(a,input));
       default:throw new ApiError(400,"지원하지 않는 요청입니다.");
     }
   }catch(error){
