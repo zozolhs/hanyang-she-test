@@ -130,6 +130,12 @@ async function logout(){
   try{if(token)await request("auth","logout");}
   finally{reset();}
 }
+async function changePassword(old_password,new_password){
+  await refresh(true);
+  const result=await request("auth","change_password",{old_password,new_password});
+  reset();
+  return result;
+}
 async function users(){
   await refresh(true);
   if(profile?.role!=="super_admin")throw failure("최고관리자 권한이 필요합니다.",403);
@@ -324,7 +330,7 @@ const client=Object.freeze({
 });
 window.SHESEC=Object.freeze({
   client,refresh,guard,login,register,logout,users,setUser,
-  maintenance,registrationStatus,setRegistration,
+  maintenance,registrationStatus,setRegistration,changePassword,
   permit:(p,m)=>permitted(p,m,false),
   canWrite:(p,m)=>permitted(p,m,true),
   get profile(){return profile;},
