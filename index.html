@@ -8791,6 +8791,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
 'use strict';
 const CFG={size:35,modules:['safety','health','roster','education']};
 const state={current:null,authorized:false,view:'portal',pagination:null,listObserver:null,tabTimer:null,maintenance:false};
+let permissionDialog=null, riskRefreshBusy=false, lastRiskRefreshAt=0;
 const $=id=>document.getElementById(id);
 const safeStr=s=>String(s==null?'':s);
 const esc=s=>safeStr(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -8821,6 +8822,8 @@ function reconcileHeader(){
  }
  if($('sheLogoutBtn'))$('sheLogoutBtn').style.display=state.authorized?'':'none';
  if($('sheV24PasswordChange'))$('sheV24PasswordChange').style.display=state.authorized?'':'none';
+if($('sheHeaderAccessLabel'))$('sheHeaderAccessLabel').textContent=state.authorized?'🔐 내 권한 보기':'🔐 접속·가입신청 화면';
+if($('sheRiskRefreshBtn'))$('sheRiskRefreshBtn').style.display=state.authorized&&state.view==='search'&&canSafetyView()?'':'none';
  for(const mod of [...CFG.modules,'admin']){
   const c=document.querySelector(`[data-she-module="${mod}"]`);
   if(c){const yes=mod==='safety'?canSafetyView():mod==='admin'?canControlUsers():hasAccess(mod);
@@ -8901,6 +8904,82 @@ function initLoginForm(){
  };
  $('sheGateMode').addEventListener('change',setMode);setMode();
  $('sheGateForm').addEventListener('submit',onAuthSubmit);
+}
+function el(tag,text,style){
+ const node=document.createElement(tag);
+ if(text!==undefined&&text!==null)node.textContent=String(text);
+ if(style)node.style.cssText=style;
+ return node;
+}
+function closePermissionDialog(){
+ const dlg=permissionDialog;if(!dlg)return;
+ permissionDialog=null;document.removeEventListener('keydown',dlg._esc);dlg.remove();
+}
+async function showCurrentPermissions(){
+ if(!state.authorized)return showGate();
+ if(permissionDialog)return;
+ const dlg=el('div',null,'position:fixed;inset:0;z-index:100080;background:#020617b5;display:flex;align-items:center;justify-content:center;padding:18px;');
+ dlg.setAttribute('role','dialog');dlg.setAttribute('aria-modal','true');dlg.setAttribute('aria-label','내 권한 보기');
+ const box=el('section',null,'background:white;border-radius:18px;width:min(450px,100%);max-height:90vh;overflow:auto;padding:24px;box-shadow:0 20px 60px #02061755');
+ const heading=el('h2','🔐 내 업무 권한','color:#16286e;font-weight:900;font-size:21px;margin:0 0 12px');
+ const content=el('div','서버에서 권한을 확인하는 중입니다.','color:#475569;font-size:13px');
+ const actions=el('div',null,'display:flex;flex-wrap:wrap;gap:8px;margin-top:18px');
+ const close=el('button','닫기','border:1px solid #cbd5e1;border-radius:9px;background:white;color:#334155;padding:9px 15px;font-weight:800;cursor:pointer');
+ close.type='button';close.onclick=closePermissionDialog;actions.append(close);
+ box.append(heading,content,actions);dlg.append(box);document.body.append(dlg);
+ dlg.addEventListener('click',event=>{if(event.target===dlg)closePermissionDialog()});
+ dlg._esc=event=>{if(event.key==='Escape')closePermissionDialog()};
+ document.addEventListener('keydown',dlg._esc);
+ permissionDialog=dlg;close.focus();
+ try{
+  const result=await window.SHESEC.guard('safety_view',true);
+  if(permissionDialog!==dlg)return;
+  if(!result.ok){closePermissionDialog();await checkAccess(true);return;}
+  const p=result.profile;state.current=p;state.authorized=true;state.maintenance=!!p.maintenance;reconcileHeader();
+  const labels={super_admin:'최고관리자',admin:'관리자',viewer_admin:'조회관리자',worker:'일반 사용자'};
+  content.replaceChildren(
+   el('strong',(p.name||p.login_id)+' · '+(labels[p.role]||p.role),'display:block;color:#0f172a;font-size:16px;margin-bottom:4px'),
+   el('div','아이디: '+p.login_id+(p.department?' · 소속: '+p.department:''),'font-size:12px;color:#64748b;margin-bottom:14px')
+  );
+  const grid=el('div',null,'display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px');
+  for(const [mod,label] of [['safety','SAFETY 안전'],['health','HEALTH 보건'],['roster','ROSTER 인원'],['education','EDUCATION 교육'],['admin','ADMIN CONSOLE']]){
+   const read=window.SHESEC.permit(p,mod==='safety'?'safety_view':mod);
+   const write=mod==='admin'?p.role==='super_admin':window.SHESEC.canWrite(p,mod);
+   const card=el('div',null,'border:1px solid #dbe5f4;border-radius:10px;background:#f8fbff;padding:10px 12px');
+   card.append(el('strong',label,'display:block;font-size:12px;color:#16286e;margin-bottom:4px'),
+    el('span',read?(write?'조회 · 수정 가능':'조회 가능'):'권한 없음',
+     'font-size:12px;font-weight:800;color:'+(read?'#15803d':'#64748b')));
+   grid.append(card);
+  }
+  content.append(grid,el('p','현재 승인된 권한을 표시합니다. 업무 데이터 접근과 저장은 서버에서 별도 검증합니다.',
+   'color:#64748b;font-size:11px;margin:12px 0 0;line-height:1.5'));
+  const change=el('button','로그아웃 후 계정 변경·가입','padding:9px 13px;border-radius:9px;border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;font-size:12px;font-weight:800;cursor:pointer');
+  change.type='button';
+  change.onclick=async()=>{change.disabled=true;closePermissionDialog();
+   try{await logout()}catch{showGate('다른 아이디로 다시 로그인해 주세요.')}};
+  actions.prepend(change);
+ }catch(err){
+  if(permissionDialog===dlg)content.textContent='현재 권한을 확인할 수 없습니다. '+(err?.message||'잠시 후 다시 시도해 주세요.');
+ }
+}
+async function refreshSafetyReadOnly(){
+ if(!state.authorized||state.view!=='search'||!canSafetyView()||riskRefreshBusy)return;
+ const status=$('sheSafetySyncStatus');
+ if(Date.now()-lastRiskRefreshAt<10000){if(status)status.textContent='최근 새로고침 완료 · 잠시 후 다시 시도해 주세요.';return;}
+ const button=$('sheRiskRefreshBtn');riskRefreshBusy=true;
+ if(button){button.disabled=true;button.textContent='⏳ 불러오는 중';}
+ try{
+  if(!await checkAccess(true))return;
+  if(typeof window.sheV32?.reloadSafetyDataReadOnly!=='function')throw Error('자료 새로고침을 사용할 수 없습니다.');
+  const count=await window.sheV32.reloadSafetyDataReadOnly();
+  lastRiskRefreshAt=Date.now();
+  if(status){status.textContent='✅ 서버 자료 새로고침 완료 ('+count.toLocaleString('ko-KR')+'건)';status.style.color='#15803d';}
+ }catch(err){
+  if(status){status.textContent='⚠️ '+(err?.message||'자료 조회에 실패했습니다.');status.style.color='#b91c1c';}
+ }finally{
+  riskRefreshBusy=false;
+  if(button){button.disabled=false;button.textContent='🔄 자료 새로고침';}
+ }
 }
 function openPasswordChange(){
  if(!state.authorized)return showGate();
@@ -9234,16 +9313,8 @@ function bindLegacy(){
  };
  window.handleHeaderAdminClick=()=>window.openAdminModal('excel');
  window.resetToHome=()=>applyPortalView('portal');
- window.openWorkerGateModal=()=>{
-  // A sign-up page click must not falsely mark an active session logged out.
-  if(state.authorized){
-   if(confirm('현재 '+(state.current?.name||'사용자')+' 계정으로 로그인되어 있습니다.\n다른 계정 로그인 또는 신규 가입을 위해 로그아웃하시겠습니까?'))
-    void logout();
-   return;
-  }
-  showGate();
- };
- window.openLoginSwitchModal=()=>{if(confirm('로그아웃하고 계정을 변경하시겠습니까?'))logout();};
+ window.openWorkerGateModal=()=>{if(state.authorized)void showCurrentPermissions();else showGate();};
+ window.openLoginSwitchModal=()=>{if(state.authorized)void showCurrentPermissions();else showGate();};
  window.quickSwitchToServerAdmin=()=>alert('관리자 자동 전환은 허용되지 않습니다.');
  window.openServerAdminAuthModal=()=>alert('기존 마스터 비밀번호 로그인은 폐기됐습니다.');
  window.handleWorkerGateSubmit=e=>{e?.preventDefault();showGate();};
@@ -9268,6 +9339,7 @@ function attachEvents(){
  $('sheLogoutBtn')?.addEventListener('click',logout);
  $('sheV24PasswordChange')?.addEventListener('click',openPasswordChange);
  $('sheSearchBackButton')?.addEventListener('click',()=>applyPortalView('portal'));
+$('sheRiskRefreshBtn')?.addEventListener('click',refreshSafetyReadOnly);
  $('sheRefreshAccess')?.addEventListener('click',()=>checkAccess(true));
  window.addEventListener('focus',()=>{if(state.authorized)checkAccess(true);});
  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&state.authorized)checkAccess(true);});
