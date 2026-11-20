@@ -1,0 +1,9 @@
+# HANYANG SHE TEST V24: each API validates an opaque signed-in session internally.
+[functions.she-v24-auth]
+verify_jwt = false
+
+[functions.she-v24-data]
+verify_jwt = false
+
+[functions.she-v24-store]
+verify_jwt = false
