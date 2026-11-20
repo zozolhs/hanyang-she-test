@@ -281,6 +281,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
 <div id="sheHeaderActions" style="display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-left:auto;">
   <button id="sheSearchBackButton" class="she-header-control" type="button" style="display:none">🏠 SHE 메인 포털로</button>
   <button id="sheMaintenanceToggle" class="she-header-control" type="button" style="display:none" aria-pressed="false">🔧 서버점검 OFF</button>
+  <button id="sheV24PasswordChange" class="she-header-control" type="button" style="display:none">🔑 비밀번호 변경</button>
   <button id="sheLogoutBtn" class="she-header-control" type="button" style="display:none">🚪 로그아웃</button>
 </div>
       </div>
@@ -8772,6 +8773,7 @@ function reconcileHeader(){
   $('sheMaintenanceToggle').textContent=state.maintenance?'🔧 서버점검 ON':'🔧 서버점검 OFF';
  }
  if($('sheLogoutBtn'))$('sheLogoutBtn').style.display=state.authorized?'':'none';
+ if($('sheV24PasswordChange'))$('sheV24PasswordChange').style.display=state.authorized?'':'none';
  for(const mod of [...CFG.modules,'admin']){
   const c=document.querySelector(`[data-she-module="${mod}"]`);
   if(c){const yes=mod==='safety'?canSafetyView():mod==='admin'?canControlUsers():hasAccess(mod);
@@ -8848,6 +8850,43 @@ function initLoginForm(){
  };
  $('sheGateMode').addEventListener('change',setMode);setMode();
  $('sheGateForm').addEventListener('submit',onAuthSubmit);
+}
+function openPasswordChange(){
+ if(!state.authorized)return showGate();
+ const backdrop=document.createElement('div');
+ backdrop.className='she-modal-backdrop';backdrop.style.zIndex='100070';
+ backdrop.setAttribute('role','dialog');backdrop.setAttribute('aria-modal','true');
+ backdrop.setAttribute('aria-label','비밀번호 변경');
+ const box=document.createElement('div');box.className='she-gate-box';
+ const title=document.createElement('h2');title.textContent='🔑 비밀번호 변경';
+ const form=document.createElement('form');form.className='she-gate-form';
+ const input=(label,auto)=>{
+  const wrap=document.createElement('label');wrap.append(document.createTextNode(label+' '));
+  const ctrl=document.createElement('input');ctrl.type='password';ctrl.required=true;
+  ctrl.minLength=6;ctrl.maxLength=128;ctrl.autocomplete=auto;wrap.append(ctrl);form.append(wrap);return ctrl;
+ };
+ const old=input('현재 비밀번호','current-password');
+ const pwd=input('새 비밀번호 (최소 6자리)','new-password');
+ const same=input('새 비밀번호 확인','new-password');
+ const buttons=document.createElement('div');
+ buttons.style.cssText='display:flex;gap:8px;margin-top:12px';
+ const save=document.createElement('button');save.type='submit';save.textContent='비밀번호 변경';
+ const close=document.createElement('button');close.type='button';close.textContent='닫기';
+ close.onclick=()=>backdrop.remove();
+ buttons.append(save,close);form.append(buttons);box.append(title,form);backdrop.append(box);
+ document.body.append(backdrop);
+ form.onsubmit=async event=>{
+  event.preventDefault();save.disabled=true;
+  try{
+   if(pwd.value!==same.value)throw Error('새 비밀번호가 서로 다릅니다.');
+   if([...pwd.value].length<6)throw Error('새 비밀번호는 최소 6자리여야 합니다.');
+   await window.SHESEC.changePassword(old.value,pwd.value);
+   backdrop.remove();stopUserTimer();state.authorized=false;state.current=null;
+   showGate('비밀번호가 변경되었습니다. 새 비밀번호로 다시 로그인해 주세요.');
+  }catch(err){alert(err.message||'비밀번호 변경 실패');}
+  finally{save.disabled=false;old.value='';pwd.value='';same.value='';}
+ };
+ old.focus();
 }
 async function logout(){
  await window.SHESEC.logout();
@@ -9139,6 +9178,7 @@ function attachEvents(){
  document.querySelectorAll('[data-she-module]').forEach(el=>el.addEventListener('click',()=>openModule(el.dataset.sheModule)));
  $('sheMaintenanceToggle')?.addEventListener('click',toggleMaintenance);
  $('sheLogoutBtn')?.addEventListener('click',logout);
+ $('sheV24PasswordChange')?.addEventListener('click',openPasswordChange);
  $('sheSearchBackButton')?.addEventListener('click',()=>applyPortalView('portal'));
  $('sheRefreshAccess')?.addEventListener('click',()=>checkAccess(true));
  window.addEventListener('focus',()=>{if(state.authorized)checkAccess(true);});
