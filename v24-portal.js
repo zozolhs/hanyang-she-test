@@ -347,8 +347,26 @@ async function health(){
 }
 async function admin(){
   cleanPanel("최고관리자 · 가입 승인 / 직원별 권한","이 화면에서 회원가입 승인 및 메뉴별 권한을 서버에 저장합니다.");
+  const signup=element("section",null,"member");
+  signup.append(element("h3","신규 회원가입 접수 관리"));
+  const [res, windowState] = await Promise.all([
+    api("auth","users"), api("auth","registration_status")
+  ]);
+  const active=windowState.enabled===true;
+  const expires=windowState.expires_at?new Date(windowState.expires_at).toLocaleString("ko-KR",{timeZone:"Asia/Seoul"}):"없음";
+  signup.append(element("p",active?"현재 가입 신청 접수 중 · 자동 종료: "+expires:"현재 신규 가입 접수 중지","muted"));
+  const toggle=button(active?"신규 가입 접수 닫기":"신규 가입 접수 2시간 열기",async()=>{
+    toggle.disabled=true;
+    try{
+      await api("auth","set_registration",{enabled:!active});
+      show(active?"신규 가입 접수를 종료했습니다.":"신규 가입 접수를 2시간 동안 열었습니다.","ok");
+      await admin();
+    }catch(err){show(err.message,"error");}
+    finally{toggle.disabled=false;}
+  },active?"danger":"primary");
+  signup.append(toggle);
+  panel.append(signup);
   const reload=button("회원 목록 새로고침",()=>admin());panel.append(reload);
-  const res=await api("auth","users");
   for(const u of res.users||[]){
     const card=element("div",null,"member");
     card.append(element("strong",(u.display_name||"이름 없음")+" · "+u.login_id));
