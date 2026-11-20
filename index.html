@@ -4884,7 +4884,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="./she-v24-index.js"></script>
+<script src="./she-v24-index.js?v=20261120-account-delete"></script>
 <script>
 (function() {
   const SUPABASE_URL = "https://ahmqthuympannqsrszvv.supabase.co";
@@ -9128,7 +9128,36 @@ async function refreshUsers(){
      $('sheSecureMsg').textContent=`✅ ${u.name} 계정의 상태·권한이 저장됐습니다.`;
      await refreshUsers();
     }catch(err){$('sheSecureMsg').textContent='⚠️ '+err.message;save.disabled=false;}
-   };cell('').appendChild(save);body.appendChild(row);
+   };
+   const actions=cell('');
+   const group=document.createElement('div');
+   group.style.cssText='display:flex;flex-wrap:wrap;gap:6px;align-items:center';
+   group.appendChild(save);
+   if(!mySelf&&u.role!=='super_admin'){
+    const remove=document.createElement('button');
+    remove.type='button';remove.textContent='🗑 삭제';
+    remove.title=u.login_id+' 계정 영구 삭제';
+    remove.setAttribute('aria-label',u.name+' ('+u.login_id+') 계정 삭제');
+    remove.style.cssText='background:#fff1f2;color:#be123c;border:1px solid #fecdd3;border-radius:7px;padding:7px 10px;font-weight:bold';
+    remove.onclick=async()=>{
+     const typed=prompt('⚠️ 계정을 영구 삭제합니다.\n\n대상: '+u.name+' ('+u.login_id+')\n삭제하면 해당 아이디로 다시 로그인할 수 없으며 기존 세션도 종료됩니다.\n\n삭제하려면 아이디를 정확히 입력하세요:', '');
+     if(typed===null)return;
+     if(typed!==u.login_id){alert('아이디가 일치하지 않아 삭제를 취소했습니다.');return;}
+     if(!confirm(u.login_id+' 계정을 정말 영구 삭제하시겠습니까?\n삭제된 계정은 복구할 수 없습니다.'))return;
+     remove.disabled=true;save.disabled=true;
+     try{
+      await window.SHESEC.deleteUser(u.id,u.login_id);
+      await refreshUsers();
+      $('sheSecureMsg').textContent='✅ '+u.login_id+' 계정이 영구 삭제됐습니다. 기존 로그인 세션도 종료됐습니다.';
+     }catch(err){
+      $('sheSecureMsg').textContent='⚠️ 계정 삭제 실패: '+(err.message||String(err));
+      remove.disabled=false;save.disabled=false;
+     }
+    };
+    group.appendChild(remove);
+   }
+   actions.appendChild(group);
+   body.appendChild(row);
   }
   $('sheSecureMsg').textContent=`서버 회원 ${users.length}명 · 권한 변경 시 즉시 DB 반영`;
  }catch(err){$('sheSecureMsg').textContent='⚠️ 인원 조회 실패: '+err.message;}

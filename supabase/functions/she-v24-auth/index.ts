@@ -246,6 +246,29 @@ async function updateUser(body: Record<string, unknown>) {
   }
   return { message: "계정 권한 변경 완료" };
 }
+async function deleteUser(req: Request, body: Record<string, unknown>) {
+  // The opaque bearer session is freshly validated for super_admin privileges.
+  const { account } = await requireAccount(req, true);
+  const accountId = requiredString(body.account_id, "삭제 계정", 64);
+  const expectedLoginId = requiredString(body.expected_login_id, "확인 아이디", 32);
+  if (!/^[a-f0-9-]{36}$/i.test(accountId) ||
+      !LOGIN_ID.test(expectedLoginId) || accountId === account.id)
+    throw new ApiError(400, "삭제 계정 또는 확인 아이디가 올바르지 않습니다.");
+
+  // Atomic server-only procedure verifies both role and target ID again,
+  // permanently deletes the account, cascades its sessions, and records
+  // a minimal audit entry. No client-provided role or status is trusted.
+  const { data, error } = await db.rpc("she_v24_delete_account", {
+    p_actor_id: account.id,
+    p_target_id: accountId,
+    p_expected_login_id: expectedLoginId,
+  });
+  if (error) throw new ApiError(503, "계정 삭제를 처리할 수 없습니다.");
+  if (data?.status === "forbidden") throw new ApiError(403, "최고관리자 계정만 삭제를 실행할 수 있습니다.");
+  if (data?.status === "not_found") throw new ApiError(409, "계정이 없거나 아이디가 변경되었습니다. 회원 목록을 새로고침하세요.");
+  if (data?.status !== "deleted") throw new ApiError(400, "삭제 요청이 올바르지 않습니다.");
+  return { message: "계정이 삭제되고 기존 로그인 세션이 종료되었습니다.", login_id: data.login_id };
+}
 async function changePassword(req: Request, body: Record<string, unknown>) {
   const { account } = await requireAccount(req);
   const oldPassword = requiredString(body.old_password, "현재 비밀번호", 256);
@@ -306,6 +329,7 @@ Deno.serve(async (req: Request) => {
         await requireAccount(req, true);
         result = await updateUser(body); break;
       }
+      case "delete_user": result = await deleteUser(req, body); break;
       case "set_maintenance": result = await setMaintenance(req, body); break;
       case "registration_status": result = await registrationStatus(req); break;
       case "set_registration": result = await setRegistration(req, body); break;

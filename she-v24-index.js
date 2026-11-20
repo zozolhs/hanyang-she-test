@@ -147,6 +147,14 @@ async function setUser(account_id,role,status,permissions){
   if(profile?.role!=="super_admin")throw failure("최고관리자 권한이 필요합니다.",403);
   return request("auth","set_user",{account_id,role,status,permissions});
 }
+async function deleteUser(account_id,expected_login_id){
+  await refresh(true);
+  if(profile?.role!=="super_admin")throw failure("최고관리자 권한이 필요합니다.",403);
+  if(!/^[0-9a-f-]{36}$/i.test(account_id||"")||
+     !/^[a-z0-9][a-z0-9._-]{3,31}$/.test(expected_login_id||"")||
+     account_id===profile.id)throw failure("삭제할 계정 정보가 올바르지 않습니다.",400);
+  return request("auth","delete_user",{account_id,expected_login_id});
+}
 async function maintenance(enabled){
   await refresh(true);
   if(profile?.role!=="super_admin")throw failure("최고관리자 권한이 필요합니다.",403);
@@ -329,7 +337,7 @@ const client=Object.freeze({
   rpc,channel
 });
 window.SHESEC=Object.freeze({
-  client,refresh,guard,login,register,logout,users,setUser,
+  client,refresh,guard,login,register,logout,users,setUser,deleteUser,
   maintenance,registrationStatus,setRegistration,changePassword,
   permit:(p,m)=>permitted(p,m,false),
   canWrite:(p,m)=>permitted(p,m,true),
