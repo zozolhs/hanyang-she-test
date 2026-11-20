@@ -7,7 +7,7 @@
   <title>한양이엔지 SHE | EDUCATION 통합 교육관리</title>
   <script>document.documentElement.classList.add("edu-locked");</script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="./she-secure.js"></script>
+  <script src="./she-v24-index.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
     :root {
@@ -1088,6 +1088,10 @@
     }
     async function saveSchedule(manual = true) {
       if (!requireAccess()) return false;
+      if (!window.SHESEC.canWrite(state.user,"education")) {
+        notify('조회 관리자에게는 교육 일정 수정 권한이 없습니다.');
+        return false;
+      }
       if (state.saving) { state.queuedSave = true; return false; }
       if (state.savePaused) {
         notify('다른 사용자의 저장과 충돌했습니다. 현재 일정은 브라우저에 남아 있습니다. 담당자와 내용을 비교해 주세요.');
