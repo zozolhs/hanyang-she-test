@@ -194,6 +194,15 @@ async function bootstrap(req: Request, body: Record<string, unknown>) {
   if (error) throw new ApiError(409, "초기 최고관리자 등록 실패");
   return { message: "최고관리자 계정 등록 완료. 초기 등록 비밀값을 즉시 폐기하세요." };
 }
+async function setMaintenance(req: Request, body: Record<string,unknown>) {
+  const {account}=await requireAccount(req,true);
+  if (typeof body.enabled !== "boolean")throw new ApiError(400,"점검 설정 형식 오류");
+  const {error}=await db.from("she_settings")
+    .update({maintenance_mode:body.enabled,updated_by:account.id,updated_at:new Date().toISOString()})
+    .eq("singleton",true);
+  if(error)throw new ApiError(503,"서버 점검 설정 저장 실패");
+  return {enabled:body.enabled,maintenance:body.enabled};
+}
 async function registrationStatus(req: Request) {
   await requireAccount(req,true);
   const { data, error } = await db.from("she_v24_signup_config")
@@ -297,6 +306,7 @@ Deno.serve(async (req: Request) => {
         await requireAccount(req, true);
         result = await updateUser(body); break;
       }
+      case "set_maintenance": result = await setMaintenance(req, body); break;
       case "registration_status": result = await registrationStatus(req); break;
       case "set_registration": result = await setRegistration(req, body); break;
       case "change_password": result = await changePassword(req, body); break;
