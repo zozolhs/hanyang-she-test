@@ -45,12 +45,28 @@
     $("password").value = "";
     message("");
   }
+  function showMyPermissions(account) {
+    const target = $("permissionList");
+    target.replaceChildren();
+    if (!account) return;
+    const permissions = account.permissions;
+    for (const key of MODULES) {
+      const tile = document.createElement("div");
+      tile.className = "permission-tile";
+      makeText(tile, "strong", LABELS[key]);
+      const value = permissions && typeof permissions[key] === "boolean" ? permissions[key] : null;
+      makeText(tile, "span", value === true ? "권한 부여" : value === false ? "권한 미부여" : "설정 확인 불가",
+        value === true ? "permission-yes" : value === false ? "permission-no" : "permission-unknown");
+      target.append(tile);
+    }
+  }
   function signedIn(account) {
     current = account;
     $("guest").hidden = !!account;
     $("signedIn").hidden = !account;
     $("admin").hidden = account?.role !== "super_admin";
     $("usersList").replaceChildren();
+    showMyPermissions(account);
     $("userInfo").textContent = account
       ? account.name + " / " + account.login_id + " / " +
         account.role + " / " + account.status
