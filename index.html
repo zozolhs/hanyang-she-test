@@ -274,7 +274,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
           <span class="text-[11px] text-blue-600 font-semibold underline ml-0.5">전환</span>
         </button>
 
-        <button id="headerAdminBtn" onclick="handleHeaderAdminClick()" class="relative px-4 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-semibold shadow-2xs transition flex items-center gap-1.5">
+        <button id="headerAdminBtn" style="display:none" onclick="handleHeaderAdminClick()" class="relative px-4 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-semibold shadow-2xs transition flex items-center gap-1.5">
           <span id="headerAdminBtnText">⚙️ 엑셀·PDF 업로드 / 서버관리자</span>
           <span id="pendingCountHeaderBadge" class="hidden px-1.5 py-0.5 rounded-full bg-amber-500 text-white text-[10px] font-extrabold leading-none">1</span>
         </button>
@@ -8812,7 +8812,7 @@ function reconcileHeader(){
  const u=state.current;
  if($('currentUserBadge'))$('currentUserBadge').textContent=state.authorized?`접속중: ${u.name}`:'로그인 필요';
  if($('currentUserRoleBadge'))$('currentUserRoleBadge').textContent=isSuper()?'최고관리자':u?.role==='admin'?'관리자':u?.role==='viewer_admin'?'조회관리자':'기술인';
- if($('headerAdminBtn'))$('headerAdminBtn').style.display=hasAccess('safety')?'':'none';
+ if($('headerAdminBtn'))$('headerAdminBtn').style.display=(state.view==='search' && hasAccess('safety'))?'':'none';
  if($('sheMaintenanceToggle')){
   $('sheMaintenanceToggle').style.display=isSuper()?'':'none';
   $('sheMaintenanceToggle').textContent=state.maintenance?'🔧 서버점검 ON':'🔧 서버점검 OFF';
