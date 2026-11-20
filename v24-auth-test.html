@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src https://ahmqthuympannqsrszvv.supabase.co; base-uri 'none'; form-action 'none'; img-src 'none'; object-src 'none'">
+<meta name="referrer" content="no-referrer">
+<title>HANYANG SHE V24 | 로그인·회원가입 TEST</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Malgun Gothic",sans-serif;color:#142544;background:#edf3fa}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh}
+header{background:#172a69;color:white;padding:20px max(20px,calc((100vw - 1050px)/2))}
+header strong{font-size:20px}header p{margin:6px 0 0;color:#dbeafe;font-size:13px}
+main{max-width:1050px;margin:28px auto;padding:0 18px 40px}
+section{background:white;border:1px solid #dce5f1;box-shadow:0 12px 28px #1b2e6212;border-radius:18px;padding:23px;margin-bottom:16px}
+h1{font-size:20px;margin:0 0 9px}h2{font-size:17px;margin:0 0 12px}
+p{line-height:1.6}small,.muted{color:#566780}
+.notice{padding:14px 17px;background:#fff7e6;border:1px solid #e9d5a0;border-radius:12px;line-height:1.7;font-size:13px}
+.tabs{display:flex;gap:8px;margin:20px 0}
+button{cursor:pointer;border:1px solid #bccadd;border-radius:10px;padding:10px 15px;background:white;color:#17346a;font-weight:700}
+button.primary{background:#1c58cb;border-color:#1c58cb;color:white}
+button[disabled]{opacity:.5;cursor:not-allowed}
+.tabs button[aria-selected="true"]{background:#1c58cb;color:white}
+form{display:grid;gap:15px;max-width:480px}
+label{display:grid;gap:6px;font-weight:650;font-size:14px}
+input,select{font:inherit;width:100%;padding:11px 12px;border:1px solid #b9c8db;border-radius:9px;background:white;color:#15294a}
+input:focus-visible,select:focus-visible,button:focus-visible{outline:3px solid #82b5ff;outline-offset:2px}
+[hidden]{display:none!important}
+#message{white-space:pre-wrap;margin:14px 0;min-height:22px;font-weight:600}
+#message[data-kind="error"]{color:#b42318}
+#message[data-kind="ok"]{color:#137041}
+.stat{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.account{padding:14px;border:1px solid #dce5f1;border-radius:12px;margin:10px 0}
+.account .title{font-weight:750;margin-bottom:9px;word-break:break-word}
+.account .meta{font-size:12px;color:#50627c;margin-bottom:12px}
+.account .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+.account .controls label{min-width:115px;flex:1}
+.account .permission{display:flex;align-items:center;gap:5px;font-size:13px;min-width:auto}
+.account .permission input{width:auto}
+@media(max-width:600px){section{padding:17px}header{padding:20px}}
+</style>
+<script src="./v24-auth-test.js" defer></script>
+</head>
+<body>
+<header><strong>HANYANG ENG · SHE V24</strong><p>아이디 인증 / 회원가입 승인 · TEST 전용</p></header>
+<main>
+<div class="notice"><strong>검증 전용 화면입니다.</strong> 기존 안전·보건·근로자 연명부·교육 데이터를 조회하거나 변경하지 않습니다. 인증 서버 연결 및 계정 승인만 시험합니다. 현재 기존 SHE 포털의 업무 메뉴와는 연동되지 않았습니다.</div>
+<section id="guest">
+<h1>아이디로 로그인 / 가입 신청</h1>
+<p class="muted">이메일이나 생년월일을 입력하지 않습니다. 비밀번호는 최소 6자리입니다.</p>
+<div class="tabs" role="tablist" aria-label="인증 작업"><button id="tabLogin" type="button" role="tab" aria-selected="true">로그인</button><button id="tabRegister" type="button" role="tab" aria-selected="false">회원가입 신청</button></div>
+<form id="authForm" autocomplete="on">
+<label>아이디<input id="loginId" name="username" required autocomplete="username" minlength="4" maxlength="32" pattern="[a-z0-9][a-z0-9._-]{3,31}" placeholder="영문 소문자·숫자 4~32자리"></label>
+<label>비밀번호<input id="password" name="password" type="password" required minlength="6" maxlength="128" autocomplete="current-password" placeholder="6자리 이상"></label>
+<div id="registerFields" hidden>
+<label>성명<input id="displayName" name="name" maxlength="100" autocomplete="name"></label>
+<label>소속<input id="department" name="organization" maxlength="80" autocomplete="organization"></label>
+</div>
+<button id="submit" class="primary" type="submit">로그인</button>
+</form>
+</section>
+<section id="signedIn" hidden>
+<h1>로그인 확인</h1>
+<p id="userInfo"></p>
+<p class="muted">인증 확인만 완료되었습니다. 업무 메뉴에 접속하는 기능은 아직 연결되지 않았습니다.</p>
+<div class="stat"><button type="button" id="refreshMe">세션 다시 확인</button><button type="button" id="logout" class="primary">로그아웃</button></div>
+</section>
+<section id="admin" hidden>
+<h2>최고관리자 · 회원 승인 TEST</h2>
+<p class="muted">직원별 역할·상태·메뉴별 권한을 설정할 수 있습니다. 데이터 접근 통합은 아직 미완료입니다.</p>
+<button type="button" id="loadUsers">회원 목록 새로고침</button>
+<div id="usersList"></div>
+</section>
+<p id="message" role="status" aria-live="polite"></p>
+<p class="muted">로그인 토큰은 이 페이지의 메모리에만 보관하며, 페이지를 새로고침하거나 닫으면 로그아웃됩니다. 실제 비밀번호와 토큰을 채팅이나 화면 캡처에 포함하지 마세요.</p>
+</main>
+</body>
+</html>
