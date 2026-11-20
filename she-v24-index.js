@@ -72,9 +72,9 @@ function permitted(p,mod,write=false){
   if(mod==="safety")
     return p.role==="admin"&&p.permissions?.safety===true;
   if(mod==="roster")
-    return !write&&(p.role==="admin"||p.role==="viewer_admin")&&
-      (p.permissions?.roster===true||p.permissions?.education===true) ||
-      write&&p.role==="admin"&&p.permissions?.roster===true;
+    return write
+      ? p.role==="admin"&&p.permissions?.roster===true
+      : (p.role==="admin"||p.role==="viewer_admin")&&p.permissions?.roster===true;
   if(!MODULES.includes(mod))return false;
   if(write)return p.role==="admin"&&p.permissions?.[mod]===true;
   return (p.role==="admin"||p.role==="viewer_admin")&&p.permissions?.[mod]===true;
