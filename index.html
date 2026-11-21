@@ -2173,6 +2173,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       if (search) search.value = "";
       document.getElementById("clearSearchBtn")?.classList.add("hidden");
       renderAll();
+      window.SHEIndex?.recordView?.();
     }
     function syncWorkplaceSubtab() {
       const selected = currentCategory === "작업장 평가";
@@ -2191,8 +2192,13 @@ body:not(.she-portal-active) #shePortal{display:none!important}
         list?.classList.add("hidden");
         const frame = document.getElementById("workplaceOnepageFrame");
         // Load the ONE-PAGE module only after a user explicitly opens its tab.
-        if (frame && !frame.getAttribute("src"))
-          frame.setAttribute("src", "./onepage-integrated.html?v=20261120-v24");
+        if (frame && frame.dataset.onepageLoaded !== "true") {
+          frame.dataset.onepageLoaded = "true";
+          // replace() instead of iframe.src avoids creating an unwanted browser Back entry.
+          const target = new URL("./onepage-integrated.html?v=20261120-v24", location.href).href;
+          try { frame.contentWindow.location.replace(target); }
+          catch (_) { frame.setAttribute("src", target); }
+        }
       }
       const selectedStyle = "px-4 py-2 rounded-lg text-xs font-extrabold bg-blue-600 text-white";
       const otherStyle = "px-4 py-2 rounded-lg text-xs font-bold border border-blue-200 bg-blue-50 text-blue-800";
@@ -2204,6 +2210,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       currentCategory = cat;
       updateCategoryTabStyles();
       renderAll();
+      window.SHEIndex?.recordView?.();
     }
 
     function updateCategoryTabStyles() {
@@ -2252,12 +2259,14 @@ body:not(.she-portal-active) #shePortal{display:none!important}
     function openDocumentItems(docId) {
       selectedDocumentId = docId;
       renderAll();
+      window.SHEIndex?.recordView?.();
       window.scrollTo({ top: 240, behavior: 'smooth' });
     }
 
     function showAllItemsView() {
       selectedDocumentId = 'ALL_SEARCH';
       renderAll();
+      window.SHEIndex?.recordView?.();
     }
 
     function switchToDocumentGrid() {
@@ -2266,6 +2275,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       document.getElementById('searchInput').value = '';
       document.getElementById('clearSearchBtn').classList.add('hidden');
       renderAll();
+      window.SHEIndex?.recordView?.();
     }
 
     function renderAll() {
@@ -8892,6 +8902,78 @@ body:not(.she-portal-active) #shePortal{display:none!important}
 const CFG={size:35,modules:['safety','health','roster','education']};
 const state={current:null,authorized:false,view:'portal',pagination:null,listObserver:null,tabTimer:null,maintenance:false};
 let permissionDialog=null, riskRefreshBusy=false, lastRiskRefreshAt=0;
+let indexNavReady=false, indexNavRestoring=false, indexNavLastRoute='';
+const mobileHistoryMode=()=>window.matchMedia('(max-width:767px)').matches;
+function indexRouteSnapshot(){
+ return {view:state.view,category:currentCategory,subtab:workplaceSubtab,
+         doc:selectedDocumentId||null,query:currentSearchQuery||''};
+}
+function recordIndexView(){
+ if(!indexNavReady || indexNavRestoring || !state.authorized)return;
+ const route=indexRouteSnapshot(), signature=JSON.stringify(route);
+ if(signature===indexNavLastRoute)return;
+ indexNavLastRoute=signature;
+ history.pushState({hySheIndex:'view',route},'',location.href);
+}
+function restoreIndexView(route){
+ if(!state.authorized)return;
+ indexNavRestoring=true;
+ try{
+  const r=route||{};
+  state.view=r.view==='search'?'search':'portal';
+  currentCategory=typeof r.category==='string'?r.category:'전체';
+  workplaceSubtab=r.subtab==='onepage'?'onepage':'documents';
+  selectedDocumentId=r.doc||null;
+  currentSearchQuery=r.query||'';
+  const input=$('searchInput');
+  if(input)input.value=currentSearchQuery;
+  $('clearSearchBtn')?.classList.toggle('hidden',!currentSearchQuery);
+  if(typeof updateCategoryTabStyles==='function')updateCategoryTabStyles();
+  document.body.classList.toggle('she-portal-active',state.view==='portal');
+  if($('sheSearchBackButton'))$('sheSearchBackButton').style.display=state.view==='search'?'':'none';
+  if(typeof renderAll==='function' && state.view==='search')renderAll();
+  if($('sheHeaderToolbar'))$('sheHeaderToolbar').dataset.mobileOpen='false';
+  if($('sheMobileMenuToggle')){
+    $('sheMobileMenuToggle').setAttribute('aria-expanded','false');
+    $('sheMobileMenuToggle').textContent='☰ 메뉴';
+  }
+  reconcileHeader();
+  window.scrollTo(0,0);
+ }finally{
+  indexNavRestoring=false;
+  indexNavLastRoute=JSON.stringify(indexRouteSnapshot());
+ }
+}
+function initializeIndexHistory(){
+ if(indexNavReady || !mobileHistoryMode() || !state.authorized)return;
+ indexNavReady=true;
+ const current=history.state;
+ if(current?.hySheIndex==='view' && current.route){
+   indexNavLastRoute=JSON.stringify(current.route);
+ }else{
+   history.replaceState({hySheIndex:'exit-guard'},'',location.href);
+   const route=indexRouteSnapshot();
+   history.pushState({hySheIndex:'view',route},'',location.href);
+   indexNavLastRoute=JSON.stringify(route);
+ }
+ window.addEventListener('popstate',event=>{
+  if(!indexNavReady)return;
+  if(event.state?.hySheIndex==='view'){
+    restoreIndexView(event.state.route);return;
+  }
+  if(event.state?.hySheIndex==='exit-guard'){
+    // An index opened directly should not close unexpectedly on the first Back.
+    if(state.view!=='portal')restoreIndexView({view:'portal',category:'전체',subtab:'documents'});
+    const leave=window.confirm('SHE 메인 화면입니다. 사이트를 종료하고 이전 페이지로 이동하시겠습니까?');
+    if(leave)history.back();
+    else{
+      const route=indexRouteSnapshot();
+      history.pushState({hySheIndex:'view',route},'',location.href);
+      indexNavLastRoute=JSON.stringify(route);
+    }
+  }
+ });
+}
 const $=id=>document.getElementById(id);
 const safeStr=s=>String(s==null?'':s);
 const esc=s=>safeStr(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -8941,6 +9023,7 @@ function applyPortalView(view){
  if($('sheSearchBackButton'))$('sheSearchBackButton').style.display=view==='search'?'':'none';
  if(view==='portal')window.scrollTo(0,0);
  reconcileHeader();
+ recordIndexView();
 }
 async function checkAccess(force=true){
  const res=await window.SHESEC.guard('safety_view',force);
@@ -8958,7 +9041,8 @@ async function checkAccess(force=true){
    role:res.profile.role,status:'approved',
    birth:'',dept:res.profile.department||'',permissions:res.profile.permissions};}
  catch(_){ }
- applyPortalView(state.view);return true;
+ applyPortalView(state.view);
+ initializeIndexHistory();return true;
 }
 async function onAuthSubmit(e){
  e.preventDefault();
@@ -9453,7 +9537,7 @@ async function init(){
  await checkAccess(true);
 }
 window.SHEIndex=Object.freeze({hasAccess,canControlUsers,checkAccess,logout,
- openModule,showPortal:()=>applyPortalView('portal'),refreshUsers});
+ openModule,showPortal:()=>applyPortalView('portal'),refreshUsers,recordView:recordIndexView});
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
 
