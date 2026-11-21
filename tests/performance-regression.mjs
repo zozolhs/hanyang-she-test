@@ -114,7 +114,7 @@ await test("Successful write updates cache and preserves old CAS workflow",async
  assert.equal(updated.data[0].items[0].id,"changed");
  const latest=await she.client.from("hanyang_safety_store").select("*").eq("id","main_v10_chunk_0").maybeSingle();
  assert.equal(latest.data.items[0].id,"changed");
- const conditional=requests.find(x=>x.action==="store_get");
+ const conditional=requests.filter(x=>x.action==="store_get").at(-1);
  assert.equal(conditional.body.if_updated_at,"2026-11-21T09:00:02.000Z");
 });
 await test("Roster downgrade never reuses full private roster response",async()=>{
