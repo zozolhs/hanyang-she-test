@@ -45,7 +45,7 @@
 
         .control-panel {
             display: grid;
-            grid-template-columns: minmax(240px, 2fr) repeat(5, minmax(145px, 1fr));
+            grid-template-columns: minmax(220px, 2fr) repeat(6, minmax(130px, 1fr));
             gap: 12px;
             margin-bottom: 15px;
             background: #f1f5f9;
@@ -57,6 +57,7 @@
 
         .control-group { display: flex; flex-direction: column; gap: 6px; }
         .control-group label { font-weight: 600; font-size: 13px; color: var(--text-sub); }
+        .roster-hour-filter-help { color:var(--text-sub); font-size:11px; line-height:1.45; }
 
         input, select {
             padding: 10px 12px;
@@ -339,6 +340,16 @@
                 <option value="soon">7일 이내 도래 예정자만 보기</option>
                 <option value="active">만료 교육이 없는 인원</option>
             </select>
+        </div>
+        <div class="control-group">
+            <label for="filterEducationHours">교육시간 필터</label>
+            <select id="filterEducationHours" onchange="filterTable()" title="교육별 등록 시간 기준으로 정확히 2h, 4h 또는 8h인 근로자를 조회합니다.">
+                <option value="">전체 교육시간</option>
+                <option value="2">2h</option>
+                <option value="4">4h</option>
+                <option value="8">8h</option>
+            </select>
+            <small class="roster-hour-filter-help">교육 항목을 체크하면 해당 항목 모두에 선택 시간이 적용됩니다.</small>
         </div>
     </div>
 
@@ -1268,6 +1279,12 @@ function getRowEducationState(row) {
   const rec = rosterView.byId.get(row?.dataset?.uid);
   return rec ? recordState(rec) : {expired:false,soon:false,earliestDue:Number.MAX_SAFE_INTEGER};
 }
+/* 교육시간은 교육별 원본 기록의 정확한 시수로 판단합니다(합산·이상/이하 기준 아님).
+ * 예: 2026-11-18 4h는 4h 선택에만 일치하며 날짜가 없는 기록은 제외합니다. */
+function matchesEducationHours(value, hours) {
+  const match = String(value ?? '').trim().match(/^(\d{4}-\d{2}-\d{2})\s+(\d+(?:\.\d+)?)h$/i);
+  return Boolean(match && Number(match[2]) === hours && strictDate(match[1]));
+}
 /* V14: 먼저 빠른 텍스트 비교를 하고, 필요한 경우에만 교육 상태/날짜를 계산한다.
  * 검색어를 연속으로 입력할 때는 직전 결과만 대상으로 좁혀 검사한다.
  * 필터 변경 또는 데이터 변경 시에는 자동으로 전체 데이터를 다시 검사한다. */
@@ -1280,9 +1297,10 @@ function filterTable(resetPage = true) {
   const process = $('filterProcess').value;
   const resign = $('filterResign').value;
   const due = $('filterDueDate').value;
+  const selectedHour = Number($('filterEducationHours').value) || 0;
   const eduFilters = Array.from(document.querySelectorAll('.edu-filter:checked'))
     .map(el => CLASS_TO_EDU[el.value]).filter(Boolean);
-  const signature = [company, job, process, resign, due, ...eduFilters].join('\u0002');
+  const signature = [company, job, process, resign, due, selectedHour, ...eduFilters].join('\u0002');
   const progressive = Boolean(query && rosterView.lastSearchQuery &&
     query.startsWith(rosterView.lastSearchQuery) &&
     signature === rosterView.lastFilterSignature &&
@@ -1297,14 +1315,23 @@ function filterTable(resetPage = true) {
     if (process && rec.process !== process) continue;
     if (query && !recordSearchText(rec).includes(query)) continue;
     if (checkEducation) {
+      // Multiple selected education types keep their existing AND semantics.
+      // With a time filter, every selected education type must have that exact hour.
       let educationMatch = true;
       for (const key of eduFilters) {
-        if ((key === 'eduCrane' && isWelderJob(rec.job)) || !hasValidEducationEntry(rec[key])) {
+        if ((key === 'eduCrane' && isWelderJob(rec.job)) ||
+            !hasValidEducationEntry(rec[key]) ||
+            (selectedHour && !matchesEducationHours(rec[key],selectedHour))) {
           educationMatch = false;
           break;
         }
       }
       if (!educationMatch) continue;
+    } else if (selectedHour) {
+      // No education type selected: any eligible education column may match.
+      const welding = isWelderJob(rec.job);
+      if (!EDU_KEYS.some(key =>
+          !(welding && key === 'eduCrane') && matchesEducationHours(rec[key],selectedHour))) continue;
     }
     if (checkState) {
       const state = recordState(rec);
@@ -1342,7 +1369,7 @@ function addNewRow() {
   rosterView.filterEpoch++;
   // 신규자 정보 입력을 위해 기존 필터는 해제한다.
   $('searchInput').value='';
-  for (const id of ['filterCompany','filterJob','filterProcess','filterResign','filterDueDate']) $(id).value='';
+  for (const id of ['filterCompany','filterJob','filterProcess','filterResign','filterDueDate','filterEducationHours']) $(id).value='';
   document.querySelectorAll('.edu-filter:checked').forEach(el => el.checked=false);
   updateFilterDropdowns();
   filterTable();
@@ -2036,7 +2063,7 @@ function bindTableEvents() {
     if (['company','process','job'].includes(target.dataset.field)) updateFilterDropdowns();
     // 검색/조건 필터가 켜져 있거나 판정 필드가 바뀐 경우만 결과를 갱신.
     const hasActiveFilter = Boolean($('searchInput').value.trim() ||
-      ['filterCompany','filterJob','filterProcess','filterResign','filterDueDate'].some(id => $(id).value) ||
+      ['filterCompany','filterJob','filterProcess','filterResign','filterDueDate','filterEducationHours'].some(id => $(id).value) ||
       document.querySelector('.edu-filter:checked'));
     if (hasActiveFilter || ['company','job','process'].includes(target.dataset.field)) {
       clearTimeout(rosterView.editFilterTimer);
