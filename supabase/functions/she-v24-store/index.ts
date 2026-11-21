@@ -24,6 +24,9 @@ function headers(req:Request):HeadersInit {
     "Content-Type":"application/json; charset=utf-8",
     "Cache-Control":"no-store",
     "X-Content-Type-Options":"nosniff",
+    "Referrer-Policy":"no-referrer",
+    "X-Frame-Options":"DENY",
+    "Content-Security-Policy":"default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
     "Vary":"Origin"
   };
 }
@@ -302,6 +305,9 @@ Deno.serve(async (req:Request)=>{
   const origin=req.headers.get("Origin");
   if(origin && origin!==ORIGIN)return send(req,403,{error:"허용되지 않은 출처입니다."});
   try {
+    const lengthHeader=req.headers.get("Content-Length");
+    if(lengthHeader && /^\d+$/.test(lengthHeader) && Number(lengthHeader)>MAX_BODY_BYTES)
+      throw new ApiError(413,"요청 크기를 초과했습니다.");
     const raw=await req.text();
     if(enc.encode(raw).length>MAX_BODY_BYTES)throw new ApiError(413,"요청 크기를 초과했습니다.");
     let input:Record<string,unknown>;
