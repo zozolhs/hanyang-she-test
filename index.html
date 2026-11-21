@@ -8972,6 +8972,8 @@ function initializeIndexHistory(){
  const current=history.state;
  if(current?.hySheIndex==='view' && current.route){
    indexNavLastRoute=indexRouteKey(current.route);
+   // On browser reload, restore the displayed view without requesting new business data.
+   restoreIndexView(current.route);
  }else{
    history.replaceState({hySheIndex:'exit-guard'},'',location.href);
    const route=indexRouteSnapshot();
