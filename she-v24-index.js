@@ -15,6 +15,9 @@ const MODULES=["safety","health","roster","education"];
 let token=sessionStorage.getItem(STORAGE_KEY)||null;
 let profile=null,verifiedAt=0,ongoing=null,notifiedToken=null;
 const versions=new Map(),fullRows=new Map();
+// Read caches exist only in this browser tab's memory, never in persistent storage.
+const pendingRows=new Map(),pendingBatches=new Map();
+let sessionEpoch=0,educationRosterCache=null,educationRosterPending=null;
 function clearLegacy(){
   for(const k of LEGACY_KEYS)sessionStorage.removeItem(k);
 }
@@ -60,7 +63,10 @@ function normalize(a){
   };
 }
 function reset(){
+  sessionEpoch++;
   setToken(null);profile=null;verifiedAt=0;notifiedToken=null;versions.clear();fullRows.clear();
+  pendingRows.clear();pendingBatches.clear();
+  educationRosterCache=null;educationRosterPending=null;
   clearLegacy();
 }
 function permitted(p,mod,write=false){
@@ -183,12 +189,39 @@ function selectColumns(row,cols){
   return Object.fromEntries(cols.split(",").map(s=>s.trim()).filter(Boolean)
     .filter(s=>Object.hasOwn(row,s)).map(s=>[s,row[s]]));
 }
+function rememberRow(row){
+  const existing=fullRows.get(row.id);
+  // A slower response must never overwrite a newer successful local save.
+  if(existing && Date.parse(existing.updated_at)>Date.parse(row.updated_at))
+    return existing;
+  fullRows.set(row.id,row);versions.set(row.id,row.updated_at);
+  return row;
+}
 async function fetchRow(id){
-  const res=await request("store","store_get",{id});
-  if(res.row){
-    fullRows.set(id,res.row);versions.set(id,res.row.updated_at);
-  }
-  return res.row;
+  if(pendingRows.has(id))return pendingRows.get(id);
+  const epoch=sessionEpoch,session=token,cached=fullRows.get(id);
+  const task=(async()=>{
+    const data={id};
+    if(cached && typeof cached.updated_at==="string"){
+      data.if_updated_at=cached.updated_at;
+      data.if_view=cached.redacted_for_education===true?"education_redacted":"full";
+    }
+    let res=await request("store","store_get",data);
+    if(sessionEpoch!==epoch||token!==session)throw failure("로그인 세션이 변경되었습니다.",401);
+    if(res.not_modified){
+      const latest=fullRows.get(id);
+      const view=latest?.redacted_for_education===true?"education_redacted":"full";
+      if(latest && latest.updated_at===res.updated_at && view===res.view)return latest;
+      // Session or cache changed while the request was running: re-fetch safely.
+      res=await request("store","store_get",{id});
+      if(sessionEpoch!==epoch||token!==session)throw failure("로그인 세션이 변경되었습니다.",401);
+    }
+    if(!res.row)throw failure("서버에서 업무 자료를 받지 못했습니다.",503);
+    return rememberRow(res.row);
+  })();
+  pendingRows.set(id,task);
+  try{return await task;}
+  finally{if(pendingRows.get(id)===task)pendingRows.delete(id);}
 }
 async function findRows(filter,columns,single=false){
   const id=filter.id;
@@ -202,14 +235,42 @@ async function findRows(filter,columns,single=false){
     }
   }
   if(Array.isArray(id)){
-    const all=await Promise.all(id.map(async key=>{
-      try{return await fetchRow(key);}
-      catch(e){if(e.status===404)return null;throw e;}
-    }).map(p=>p.catch(e=>({error:e}))));
-    const errorRow=all.find(x=>x?.error);
-    if(errorRow)return {data:null,error:errorRow.error};
-    const rows=all.filter(Boolean).map(r=>selectColumns(r,columns));
-    return {data:single?rows[0]||null:rows,error:null};
+    if(id.length===0)return {data:single?null:[],error:null};
+    try{
+      // Typical risk-assessment startup asks for 10 chunk IDs, most absent.
+      // One authorized batch request replaces up to 30 individual requests.
+      if(id.length<=30 && id.every(key=>typeof key==="string")){
+        const ids=[...new Set(id)];
+        const key=ids.join("\u0000");
+        let batch=pendingBatches.get(key);
+        if(!batch){
+          const epoch=sessionEpoch,session=token;
+          batch=(async()=>{
+            const res=await request("store","store_get_batch",{ids});
+            if(sessionEpoch!==epoch||token!==session)
+              throw failure("로그인 세션이 변경되었습니다.",401);
+            const rows=new Map();
+            for(const row of res.rows||[]){
+              if(!ids.includes(row.id))continue;
+              rows.set(row.id,rememberRow(row));
+            }
+            return rows;
+          })();
+          pendingBatches.set(key,batch);
+        }
+        let result;
+        try{result=await batch;}
+        finally{if(pendingBatches.get(key)===batch)pendingBatches.delete(key);}
+        const rows=id.map(key=>result.get(key)).filter(Boolean).map(row=>selectColumns(row,columns));
+        return {data:single?rows[0]||null:rows,error:null};
+      }
+      const all=await Promise.all(id.map(async key=>{
+        try{return await fetchRow(key);}
+        catch(e){if(e.status===404)return null;throw e;}
+      }));
+      const rows=all.filter(Boolean).map(row=>selectColumns(row,columns));
+      return {data:single?rows[0]||null:rows,error:null};
+    }catch(e){return {data:null,error:e};}
   }
   return {data:null,error:failure("데이터 조회 ID가 필요합니다.",400)};
 }
@@ -254,6 +315,7 @@ async function writeOne(raw,expectedFromQuery){
   const updated={...old,documents:next.documents,items:next.items,
     users:next.users,updated_at:res.updated_at};
   fullRows.set(id,updated);versions.set(id,res.updated_at);
+  if(id==="main_v1_roster_master")educationRosterCache=null;
   return updated;
 }
 class StoreQuery {
@@ -314,9 +376,27 @@ function channel(){
 async function rpc(name,args={}){
   if(name==="she_education_roster_v2"){
     try{
-      const res=await request("store","store_education_roster");
-      return {data:res.workers||[],error:null};
+      if(!educationRosterPending){
+        const epoch=sessionEpoch,session=token,cached=educationRosterCache;
+        educationRosterPending=(async()=>{
+          const res=await request("store","store_education_roster",
+            cached?{if_updated_at:cached.updated_at}:{});
+          if(epoch!==sessionEpoch||session!==token)
+            throw failure("로그인 세션이 변경되었습니다.",401);
+          if(res.not_modified && cached && cached.updated_at===res.updated_at)
+            return {data:cached.workers,not_modified:true,error:null};
+          if(res.not_modified){
+            const full=await request("store","store_education_roster");
+            if(epoch!==sessionEpoch||session!==token)
+              throw failure("로그인 세션이 변경되었습니다.",401);
+            educationRosterCache={workers:full.workers||[],updated_at:full.updated_at};
+          }else educationRosterCache={workers:res.workers||[],updated_at:res.updated_at};
+          return {data:educationRosterCache.workers,not_modified:false,error:null};
+        })();
+      }
+      return await educationRosterPending;
     }catch(e){return {data:null,error:e};}
+    finally{educationRosterPending=null;}
   }
   if(name==="she_confirm_education_v2"){
     try{
@@ -324,6 +404,7 @@ async function rpc(name,args={}){
         event_id:args.p_event_id,expected_updated_at:args.p_expected_updated_at,
         attendance:args.p_attendance
       });
+      educationRosterCache=null;
       return {data:res,error:null};
     }catch(e){return {data:null,error:e};}
   }
