@@ -1,0 +1,41 @@
+name: SHE V24 Security Regression
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tests/security-regression.mjs'
+      - '.github/workflows/security-regression.yml'
+      - 'supabase/functions/**'
+      - 'supabase/config.toml'
+      - 'she-v24-index.js'
+      - 'index.html'
+      - 'roster.html'
+      - 'dashboard.html'
+      - 'health_check.html'
+  pull_request:
+    paths:
+      - 'tests/security-regression.mjs'
+      - '.github/workflows/security-regression.yml'
+      - 'supabase/functions/**'
+      - 'supabase/config.toml'
+      - 'she-v24-index.js'
+      - 'index.html'
+      - 'roster.html'
+      - 'dashboard.html'
+      - 'health_check.html'
+
+permissions:
+  contents: read
+
+jobs:
+  security-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify permissions, business workflows and API security
+        run: node tests/security-regression.mjs
