@@ -218,6 +218,30 @@
       .schedule-item { flex-direction: column; }
       .modal-scrim { padding: 9px; }
     }
+  
+    /* 선택한 날짜의 등록 일정 요약창 */
+    .cal-cell { cursor:pointer; }
+    .cal-cell:focus-visible { outline:3px solid #60a5fa; outline-offset:2px; }
+    .day-agenda-dialog { max-width:600px; }
+    .day-agenda-count { color:#64748b; font-size:12px; margin:7px 0 0; font-weight:700; }
+    .day-agenda-list { display:grid; gap:10px; max-height:55dvh; overflow-y:auto; padding:2px 1px 10px; }
+    .day-agenda-event { background:#f8fafc; border:1px solid #dbe5f2; border-radius:12px; padding:14px; min-width:0; }
+    .day-agenda-event-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; }
+    .day-agenda-event h3 { margin:10px 0 8px; font-size:16px; line-height:1.4; color:#0f172a; overflow-wrap:anywhere; }
+    .day-agenda-meta { margin:4px 0; color:#475569; font-size:13px; line-height:1.6; overflow-wrap:anywhere; }
+    .day-agenda-meta strong { color:#334155; }
+    .day-agenda-event button { margin-top:10px; min-height:38px; }
+    .day-agenda-empty { padding:26px 12px; border:1px dashed #cbd5e1; border-radius:12px; background:#f8fafc; color:#64748b; text-align:center; line-height:1.7; }
+    .day-agenda-footer { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; padding-top:14px; border-top:1px solid #e2e8f0; }
+    .day-agenda-footer button { min-height:42px; }
+    @media (max-width:600px) {
+      .day-agenda-dialog { width:100%; max-height:calc(100dvh - 18px); padding:16px 12px; }
+      .day-agenda-event { padding:12px; }
+      .day-agenda-list { max-height:55dvh; }
+      .day-agenda-footer { display:grid; grid-template-columns:1fr; }
+      .day-agenda-footer button { width:100%; }
+    }
+
   </style>
 </head>
 <body>
@@ -265,7 +289,7 @@
           </div>
         </div>
         <div id="calendarGrid" class="calendar-grid" aria-label="월간 교육 일정"></div>
-        <div class="card-footnote">날짜를 클릭하면 해당 날짜의 교육을 등록할 수 있으며, 일정 배지를 클릭하면 내용을 수정할 수 있습니다.</div>
+        <div class="card-footnote">날짜 또는 일정 배지를 누르면 해당 날짜에 등록된 교육·홍채등록을 확인할 수 있습니다. 일정별 상세 확인·수정 및 신규 등록도 가능합니다.</div>
       </section>
 
       <section class="card" aria-labelledby="statsTitle">
@@ -341,6 +365,24 @@
         <div id="batchReportList" class="batch-list"></div>
         <div class="card-footnote">이미 완료 확정된 교육 일정들을 선택하여 차수별 수강자·교육별 이수·취소·연기 메모를 통합 관리합니다.</div>
       </section>
+    </div>
+  </div>
+
+
+  <div id="dayAgendaModal" class="modal-scrim" hidden>
+    <div class="modal-card day-agenda-dialog" role="dialog" aria-modal="true" aria-labelledby="dayAgendaTitle" tabindex="-1">
+      <div class="modal-head">
+        <div>
+          <h2 id="dayAgendaTitle">📅 날짜별 교육 일정</h2>
+          <p id="dayAgendaCount" class="day-agenda-count">교육 일정 확인</p>
+        </div>
+        <button id="dayAgendaCloseBtn" class="btn btn-outline icon-close" type="button" aria-label="날짜별 일정 닫기">×</button>
+      </div>
+      <div id="dayAgendaList" class="day-agenda-list" aria-live="polite"></div>
+      <div class="day-agenda-footer">
+        <button id="dayAgendaAddBtn" class="btn btn-primary" type="button">+ 이 날짜에 교육 등록</button>
+        <button id="dayAgendaDoneBtn" class="btn btn-outline" type="button">닫기</button>
+      </div>
     </div>
   </div>
 
@@ -1293,6 +1335,14 @@
         state.showAllEvents = !state.showAllEvents;
         renderScheduleList();
       });
+      $('dayAgendaCloseBtn').addEventListener('click',closeDayAgenda);
+      $('dayAgendaDoneBtn').addEventListener('click',closeDayAgenda);
+      $('dayAgendaAddBtn').addEventListener('click',() => {
+        const date = dayAgendaSelectedDate;
+        closeDayAgenda();
+        if(date) openEventModal(null,date);
+      });
+      $('dayAgendaModal').addEventListener('click',ev=>{if(ev.target===$('dayAgendaModal'))closeDayAgenda();});
       $('closeEventBtn').addEventListener('click',closeEventModal);
       $('cancelEventBtn').addEventListener('click',closeEventModal);
       $('eventModal').addEventListener('click',event => {
@@ -1313,6 +1363,7 @@
       bindNavigation('expiredLink');
       document.addEventListener('keydown',event => {
         if (event.key !== 'Escape') return;
+        if (!$('dayAgendaModal').hidden) return closeDayAgenda();
         if (!$('batchModal').hidden) return closeBatch();
         if (!$('irisModal').hidden) return closeIris();
         if (!$('confirmModal').hidden) return closeConfirm();
@@ -1610,15 +1661,72 @@
       next.addEventListener('click',()=>{state.schedPage++;renderScheduleList();});
       pager.append(info,prev,next);
     }
+    let dayAgendaSelectedDate = null;
+    let dayAgendaReturnFocus = null;
+    function closeDayAgenda() {
+      const dialog = $('dayAgendaModal');
+      if (dialog.hidden) return;
+      dialog.hidden = true;
+      dayAgendaSelectedDate = null;
+      if (dayAgendaReturnFocus && document.contains(dayAgendaReturnFocus)) dayAgendaReturnFocus.focus();
+      dayAgendaReturnFocus = null;
+    }
+    function openDayAgenda(dateKey) {
+      if (!requireAccess()) return;
+      dayAgendaReturnFocus = document.activeElement;
+      dayAgendaSelectedDate = dateKey;
+      const date = new Date(dateKey + 'T00:00:00');
+      const weekdays = ['일','월','화','수','목','금','토'];
+      $('dayAgendaTitle').textContent = '📅 ' + date.getFullYear() + '년 ' + (date.getMonth()+1) + '월 ' +
+        date.getDate() + '일 (' + weekdays[date.getDay()] + ')';
+      const events = state.events.filter(e => e.date === dateKey).sort(compareEvents);
+      $('dayAgendaCount').textContent = '등록된 일정 ' + events.length + '건 (교육·홍채등록 포함)';
+      const frag = document.createDocumentFragment();
+      if (!events.length) {
+        frag.appendChild(el('div','day-agenda-empty','등록된 일정이 없습니다. 아래 버튼으로 이 날짜에 교육을 등록할 수 있습니다.'));
+      }
+      for (const e of events) {
+        const card = el('article','day-agenda-event');
+        const top = el('div','day-agenda-event-header');
+        top.appendChild(el('strong','day-agenda-meta',e.startTime + ' ~ ' + e.endTime + (e.kind==='iris'?'':' · '+e.hours+'시간')));
+        top.appendChild(el('span','cal-badge ' + eventBadge(e),statusAtTime(e)));
+        card.appendChild(top);
+        card.appendChild(el('h3','',((e.kind==='iris'?'🔐 홍채등록':(CATEGORIES[e.category]||'교육')) + ' | ' + e.title)));
+        const active = e.confirmedKeys || e.attendeeKeys || [];
+        const count = e.kind==='iris' ? (e.attendeeKeys||[]).length : active.length + (e.guests||[]).length;
+        const addDetail = (label,value) => {
+          const p = el('p','day-agenda-meta');
+          p.appendChild(el('strong','',label + ': '));
+          p.appendChild(document.createTextNode(String(value)));
+          card.appendChild(p);
+        };
+        addDetail('장소',e.location || '장소 미정');
+        addDetail(e.kind==='iris'?'인솔자':'강사',e.kind==='iris'?(e.irisGuide||'미입력'):(e.instructor||'미입력'));
+        addDetail(e.kind==='iris'?'홍채등록 대상':'수강 등록',count+'명');
+        if (e.courseKey && e.kind!=='iris') addDetail('교육 항목',COURSE_LABELS[e.courseKey] || e.courseKey);
+        if (e.notes) addDetail('비고',e.notes);
+        const edit = el('button','btn btn-outline btn-sm',e.kind==='iris'?'홍채등록 상세·수정':e.status==='completed'?'교육완료 이력 조회':'일정 상세·수정');
+        edit.type = 'button';
+        edit.addEventListener('click',() => {
+          closeDayAgenda();
+          if (e.kind==='iris') openIris(e.id);
+          else openEventModal(e.id);
+        });
+        card.appendChild(edit);
+        frag.appendChild(card);
+      }
+      $('dayAgendaList').replaceChildren(frag);
+      $('dayAgendaModal').hidden = false;
+      $('dayAgendaCloseBtn').focus();
+    }
     function renderCalendar() {
       const grid=$('calendarGrid'),first=state.calendarMonth,year=first.getFullYear(),month=first.getMonth();
-      $('monthLabel').textContent=`${year}년 ${month+1}월`;
+      $('monthLabel').textContent=year+'년 '+(month+1)+'월';
       const frag=document.createDocumentFragment();
       ['일','월','화','수','목','금','토'].forEach(w=>frag.appendChild(el('div','cal-day-header',w)));
       const from=new Date(year,month,1-first.getDay()),days=Math.ceil((first.getDay()+new Date(year,month+1,0).getDate())/7)*7;
       const firstKey=formatDate(from),lastKey=formatDate(new Date(year,month,days-first.getDay()));
-      const currentTime=kstClock();
-      const byDate=new Map();
+      const currentTime=kstClock(),byDate=new Map();
       for(const e of state.events) {
         if(e.date<firstKey || e.date>lastKey)continue;
         if(!byDate.has(e.date))byDate.set(e.date,[]);
@@ -1626,19 +1734,29 @@
       }
       for(let i=0;i<days;i++) {
         const day=new Date(from.getFullYear(),from.getMonth(),from.getDate()+i),key=formatDate(day);
-        const events=byDate.get(key)||[],cell=el('div','cal-cell');
+        const events=(byDate.get(key)||[]).sort(compareEvents),cell=el('div','cal-cell');
         if(day.getMonth()!==month)cell.classList.add('is-other-month');
         if(events.length)cell.classList.add('has-event');
         if(key===currentTime.date)cell.classList.add('is-today');
+        cell.tabIndex=0;cell.setAttribute('role','group');
+        cell.setAttribute('aria-label',key+' 일정 '+events.length+'건');
+        cell.addEventListener('click',ev=>{if(!ev.target.closest('button'))openDayAgenda(key);});
+        cell.addEventListener('keydown',ev=>{
+          if(ev.target===cell&&(ev.key==='Enter'||ev.key===' ')){ev.preventDefault();openDayAgenda(key);}
+        });
         const dateButton=el('button','cal-date',String(day.getDate()));dateButton.type='button';
-        dateButton.addEventListener('click',()=>openEventModal(null,key));cell.appendChild(dateButton);
+        dateButton.title=key+' 등록 일정 보기';
+        dateButton.setAttribute('aria-label',key+' 일정 '+events.length+'건 보기');
+        dateButton.addEventListener('click',()=>openDayAgenda(key));cell.appendChild(dateButton);
         for(const e of events.slice(0,3)) {
-          const b=el('button','cal-event',`${e.kind==='iris'?'🔐':e.startTime} ${e.title}`);
+          const b=el('button','cal-event',(e.kind==='iris'?'🔐':e.startTime)+' '+e.title);
           if(e.kind==='iris'&&e.irisProgress==='completed'||e.status==='completed')b.classList.add('completed');
           if(e.status==='cancelled')b.classList.add('cancelled');
-          b.title=`${e.title} · ${statusAtTime(e,currentTime)}`;b.addEventListener('click',()=>e.kind==='iris'?openIris(e.id):openEventModal(e.id));cell.appendChild(b);
+          b.title=e.title+' · '+statusAtTime(e);
+          b.addEventListener('click',()=>openDayAgenda(key));
+          cell.appendChild(b);
         }
-        if(events.length>3)cell.appendChild(el('span','cal-more',`+ ${events.length-3}건`));
+        if(events.length>3)cell.appendChild(el('span','cal-more','+ '+(events.length-3)+'건 더 보기'));
         frag.appendChild(cell);
       }
       grid.replaceChildren(frag);
