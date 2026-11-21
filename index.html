@@ -115,6 +115,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
 @media(max-width:620px){.she-modules{grid-template-columns:1fr}.she-module{min-height:175px}.she-portal-search button{padding:9px 14px}.she-risk-top{flex-direction:column;gap:3px}.she-hero{padding:24px 18px}.she-gate-box{padding:24px}}
 </style>
 <script>window.__sheManagedPagination = true;</script>
+<link rel="stylesheet" href="./mobile-main.css?v=20261121a" media="screen">
 </head>
 <body class="min-h-screen flex flex-col she-locked">
 
@@ -9251,7 +9252,7 @@ function setupSecureAdmin(){
  div.innerHTML=`<div style="max-width:1120px;margin:auto;background:white;border-radius:18px;padding:25px;min-height:70vh;color:#16286e">
  <div style="display:flex;align-items:center;justify-content:space-between;gap:15px"><h2 style="font-size:21px;font-weight:850">⚙️ SHE 인원 접속 권한 관리</h2><button id="sheSecureClose" type="button" style="padding:8px 15px;background:#16286e;color:white;border-radius:9px">닫기</button></div>
  <p style="margin:12px 0;font-size:12px;color:#475569">V24 아이디 계정 기반. 가입 승인과 권한은 서버에서 검증합니다.</p>
- <div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:12px;min-width:880px"><thead><tr style="background:#eff6ff;text-align:left"><th>성명</th><th>부서</th><th>역할</th><th>상태</th><th>SAFETY</th><th>HEALTH</th><th>ROSTER</th><th>EDUCATION</th><th>동작</th></tr></thead><tbody id="sheSecureUsers"></tbody></table></div>
+ <div style="overflow-x:auto"><table class="she-admin-mobile-table" style="border-collapse:collapse;width:100%;font-size:12px;min-width:880px"><thead><tr style="background:#eff6ff;text-align:left"><th>성명</th><th>부서</th><th>역할</th><th>상태</th><th>SAFETY</th><th>HEALTH</th><th>ROSTER</th><th>EDUCATION</th><th>동작</th></tr></thead><tbody id="sheSecureUsers"></tbody></table></div>
  <p id="sheSecureMsg" style="font-size:12px;margin-top:10px;color:#64748b"></p></div>`;
  document.body.appendChild(div);
  const signupBar=document.createElement('div');
@@ -9357,6 +9358,9 @@ async function refreshUsers(){
     group.appendChild(remove);
    }
    actions.appendChild(group);
+   // 모바일 카드에서 각 권한 열의 의미를 유지하며 표시합니다.
+   const mobileLabels=['성명','부서','역할','상태','SAFETY','HEALTH','ROSTER','EDUCATION','동작'];
+   Array.from(row.cells).forEach((td,i)=>{td.dataset.mobileLabel=mobileLabels[i]||'권한';});
    body.appendChild(row);
   }
   $('sheSecureMsg').textContent=`서버 회원 ${users.length}명 · 권한 변경 시 즉시 DB 반영`;
