@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'tests/security-regression.mjs'
+      - 'tests/performance-regression.mjs'
       - 'tests/security-live-smoke.mjs'
       - '.github/workflows/security-regression.yml'
       - 'supabase/functions/**'
@@ -17,6 +18,7 @@ on:
   pull_request:
     paths:
       - 'tests/security-regression.mjs'
+      - 'tests/performance-regression.mjs'
       - 'tests/security-live-smoke.mjs'
       - '.github/workflows/security-regression.yml'
       - 'supabase/functions/**'
@@ -43,3 +45,5 @@ jobs:
         run: node tests/security-regression.mjs
       - name: Credential-free negative API security smoke checks
         run: node tests/security-live-smoke.mjs
+      - name: Verify conditional reads, batched initial loads, and Excel save compatibility
+        run: node tests/performance-regression.mjs
