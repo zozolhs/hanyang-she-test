@@ -37,6 +37,15 @@ function headers(req: Request): HeadersInit {
   };
 }
 function reply(req: Request, code: number, data: Record<string, unknown>): Response {
+  // Security telemetry is intentionally sampled and never records bodies, passwords,
+  // session tokens, account IDs, or full URLs. No changes to the client API contract.
+  if (code === 413 || code === 429 ||
+      ([400, 401, 403, 405].includes(code) && Math.random() < 0.05)) {
+    console.warn("SHE_V24_SECURITY", JSON.stringify({
+      service: "auth", event: "request_rejected", code, method: req.method,
+      has_origin: req.headers.has("Origin"),
+    }));
+  }
   return new Response(JSON.stringify(data), { status: code, headers: headers(req) });
 }
 class ApiError extends Error {
@@ -281,6 +290,13 @@ async function deleteUser(req: Request, body: Record<string, unknown>) {
 }
 async function changePassword(req: Request, body: Record<string, unknown>) {
   const { account } = await requireAccount(req);
+  // A stolen session cannot request unlimited PBKDF2 password guesses.
+  // The 30-per-5-minute ceiling applies only to changing a password.
+  const { data: permitted, error: limitError } = await db.rpc("she_v24_allow_password_change", {
+    p_account_id: account.id,
+  });
+  if (limitError) throw new ApiError(503, "비밀번호 변경 보호 기능을 확인할 수 없습니다.");
+  if (permitted !== true) throw new ApiError(429, "비밀번호 변경 요청이 많습니다. 잠시 후 다시 시도하세요.");
   const oldPassword = requiredString(body.old_password, "현재 비밀번호", 256);
   const newPassword = requiredString(body.new_password, "새 비밀번호", 256);
   if ([...newPassword].length < 6 || [...newPassword].length > 128)
@@ -307,8 +323,11 @@ Deno.serve(async (req: Request) => {
   const origin = req.headers.get("Origin");
   if (origin && origin !== ALLOWED_ORIGIN) return reply(req, 403, { error: "허용되지 않은 출처입니다." });
   try {
+    const lengthHint = req.headers.get("Content-Length");
+    if (lengthHint && /^\d+$/.test(lengthHint) && Number(lengthHint) > 8192)
+      throw new ApiError(413, "요청 크기 초과");
     const raw = await req.text();
-    if (raw.length > 8192) throw new ApiError(413, "요청 크기 초과");
+    if (enc.encode(raw).byteLength > 8192) throw new ApiError(413, "요청 크기 초과");
     const body = JSON.parse(raw);
     if (!body || typeof body !== "object" || Array.isArray(body)) throw new ApiError(400, "요청 형식 오류");
     let result: Record<string, unknown>;
