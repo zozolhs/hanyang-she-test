@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Browser-side baseline: does not alter login, account approval, or inline app scripts. -->
+  <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta name="referrer" content="no-referrer">
     <title>한양이엔지 SHE | ROSTER 근로자 연명부 관리</title>
     <!-- 공개키 기반 접속: 로그인 상태는 sessionStorage만 사용 -->
     <script>document.documentElement.classList.add("roster-locked");</script>
