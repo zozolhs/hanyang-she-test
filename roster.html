@@ -2126,12 +2126,14 @@ document.addEventListener('visibilitychange',() => {
 window.addEventListener('pageshow', e => {
   if (e.persisted && rosterState.ready) verifyRosterAccess(true);
 });
-setInterval(() => {
+// Spread permission heartbeat across shift-start users without changing the
+// existing server-side authorization or Excel import/export behavior.
+setTimeout(() => setInterval(() => {
   if (!document.hidden && rosterState.ready) {
     verifyRosterAccess(true);
     if (getTodayDate() !== rosterView.lastDay) filterTable(false);
   }
-}, 45000);
+}, 45000), Math.floor(Math.random() * 12000));
 window.addEventListener('beforeunload',event => {
   if (rosterState.dirty) { event.preventDefault(); event.returnValue = ''; }
 });
