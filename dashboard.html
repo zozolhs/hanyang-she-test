@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Browser-side baseline: does not alter login, account approval, or inline app scripts. -->
+  <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta name="referrer" content="no-referrer">
   <meta name="theme-color" content="#16286e">
   <title>한양이엔지 SHE | EDUCATION 통합 교육관리</title>
   <script>document.documentElement.classList.add("edu-locked");</script>
