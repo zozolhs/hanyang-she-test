@@ -115,7 +115,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
 @media(max-width:620px){.she-modules{grid-template-columns:1fr}.she-module{min-height:175px}.she-portal-search button{padding:9px 14px}.she-risk-top{flex-direction:column;gap:3px}.she-hero{padding:24px 18px}.she-gate-box{padding:24px}}
 </style>
 <script>window.__sheManagedPagination = true;</script>
-<link rel="stylesheet" href="./mobile-main.css?v=20261121b" media="screen">
+<link rel="stylesheet" href="./mobile-main.css?v=20261121c" media="screen">
 </head>
 <body class="min-h-screen flex flex-col she-locked">
 
@@ -2195,7 +2195,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
         if (frame && frame.dataset.onepageLoaded !== "true") {
           frame.dataset.onepageLoaded = "true";
           // replace() instead of iframe.src avoids creating an unwanted browser Back entry.
-          const target = new URL("./onepage-integrated.html?v=20261120-v24", location.href).href;
+          const target = new URL("./onepage-integrated.html?v=20261121-mobileheight", location.href).href;
           try { frame.contentWindow.location.replace(target); }
           catch (_) { frame.setAttribute("src", target); }
         }
@@ -9571,5 +9571,6 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 })();
 
 </script>
+<script src="./onepage-viewport.js?v=20261121c" defer></script>
 </body>
 </html>
