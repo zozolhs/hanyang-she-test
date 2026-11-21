@@ -45,7 +45,13 @@
   #workplaceSubtabs strong { grid-column:1/-1; }
   #workplaceSubtabs button { min-height:42px; white-space:normal; padding:8px 7px; line-height:1.35; }
   #workplaceOnepagePanel > div:first-child { padding:10px 12px; }
-  #workplaceOnepageFrame { width:100%!important; height:78dvh!important; min-height:520px!important; }
+  #workplaceOnepageFrame {
+    width:100%!important;
+    height:1200px!important; /* JS measures the actual ONE-PAGE content after load. */
+    min-height:840px!important;
+    max-height:none!important;
+    overflow:hidden;
+  }
   #documentGridView > div:first-child, #itemListView > div:first-child { padding:13px!important; }
   #documentGridView > div:first-child button, #itemListView > div:first-child button { min-height:38px; white-space:normal; }
   #documentGridView > div:first-child > div:last-child { width:100%; }
