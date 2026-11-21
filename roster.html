@@ -267,6 +267,7 @@
         }
         @media (max-width:440px) { .control-panel {grid-template-columns:1fr;} }
     </style>
+<link rel="stylesheet" href="./mobile-roster.css?v=20261121a" media="screen">
 </head>
 <body>
 
@@ -871,6 +872,23 @@ function createRow(record) {
     row._rosterInputs[f.key] = input;
     if (EDU_KEYS.includes(f.key)) updateInputColor(input);
   }
+  // 기존 입력 필드를 그대로 사용하면서 모바일에서만 상세 항목을 펼칩니다.
+  const headers = Array.from(document.querySelectorAll('#dataTable thead th'));
+  Array.from(row.cells).forEach((td,i) => { td.dataset.mobileLabel = headers[i]?.textContent.trim() || '선택'; });
+  row.dataset.mobileOpen = 'false';
+  const mobileToggle = document.createElement('button');
+  mobileToggle.type = 'button';
+  mobileToggle.className = 'roster-mobile-toggle';
+  mobileToggle.textContent = '상세 보기';
+  mobileToggle.setAttribute('aria-expanded','false');
+  mobileToggle.setAttribute('aria-label', (data.name || data.workerNo || '근로자') + ' 상세 보기');
+  mobileToggle.addEventListener('click', () => {
+    const expanded = row.dataset.mobileOpen !== 'true';
+    row.dataset.mobileOpen = String(expanded);
+    mobileToggle.textContent = expanded ? '접기' : '상세 보기';
+    mobileToggle.setAttribute('aria-expanded', String(expanded));
+  });
+  row.cells[3].appendChild(mobileToggle);
   applyOccupationRulesToRow(row);
   return row;
 }
@@ -939,7 +957,16 @@ function recordState(record) {
 /* V13: 행 재사용(리사이클링). 검색마다 25×25개의 입력 노드를 재생성하지 않는다. */
 function patchRosterRow(row, record) {
   const changedWorker = row.dataset.uid !== record.uid;
-  if (changedWorker) row.dataset.uid = record.uid;
+  if (changedWorker) {
+    row.dataset.uid = record.uid;
+    row.dataset.mobileOpen = 'false';
+    const toggle = row.querySelector('.roster-mobile-toggle');
+    if (toggle) {
+      toggle.textContent = '상세 보기';
+      toggle.setAttribute('aria-expanded','false');
+      toggle.setAttribute('aria-label',(record.name || record.workerNo || '근로자') + ' 상세 보기');
+    }
+  }
   const check = row._rosterCheckbox;
   if (check) {
     const shouldCheck = rosterView.selected.has(record.uid);
