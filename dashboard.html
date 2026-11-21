@@ -1075,8 +1075,14 @@
       if (!force && Date.now() - state.lastRosterFetch < 6000) return true;
       try {
         // 서버 함수에서 교육 최소 정보만 조회. 연명부 원본 접근 불필요.
-        const {data,error} = await state.client.rpc('she_education_roster_v2');
+        const {data,error,not_modified} = await state.client.rpc('she_education_roster_v2');
         if (error) throw error;
+        // Server validated this user's access and confirmed that the worker
+        // roster has not changed: skip costly index rebuild/render work.
+        if (not_modified && state.rosterReady) {
+          state.lastRosterFetch = Date.now();
+          return true;
+        }
         state.roster = Array.isArray(data) ? data.filter(w=>w&&typeof w==='object') : [];
         rebuildWorkerIndex();
         state.rosterReady = true;
@@ -1108,6 +1114,12 @@
         const response = await state.client.from(CONFIG.table)
           .select('id,items,documents,updated_at').eq('id',CONFIG.scheduleRow).maybeSingle();
         if (response.error) throw response.error;
+        // Keep edits, calendar and form state untouched when nothing changed.
+        if (state.ready && state.lastScheduleFetch > 0 &&
+            response.data?.updated_at && response.data.updated_at === state.scheduleTimestamp) {
+          state.lastScheduleFetch = Date.now();
+          return true;
+        }
         state.scheduleExists = Boolean(response.data);
         state.scheduleTimestamp = response.data?.updated_at ?? null;
         state.scheduleDocuments = Array.isArray(response.data?.documents) ? response.data.documents : [];
@@ -1423,12 +1435,15 @@
       }
     });
     // Realtime 미지원 환경에서도 화면이 열려 있을 때만 서버 변경을 확인합니다.
-    setInterval(async () => {
+    // Spread scheduled polls across users who arrive at the same shift time.
+    // Retain the original 60-second cadence and all permission checks.
+    const pollEducation = async () => {
       if (document.hidden || !state.ready || state.saving) return;
       if (!(await verifyAccess(true))) return;
       await fetchRoster(true);
       if (!state.dirty) await fetchSchedule(true);
-    },60000);
+    };
+    setTimeout(() => setInterval(pollEducation, 60000), Math.floor(Math.random() * 15000));
     window.addEventListener('beforeunload',event => {
       if (!state.dirty) return;
       event.preventDefault();
