@@ -4,6 +4,8 @@
   'use strict';
   const frame=document.getElementById('workplaceOnepageFrame');
   if(!frame)return;
+  const originalHeight=frame.style.getPropertyValue('height');
+  const originalHeightPriority=frame.style.getPropertyPriority('height');
   const isMobile=()=>window.matchMedia('(max-width:767px)').matches;
   let resizeObserver=null,mutationObserver=null,observedDocument=null,pending=false;
   function disconnect(){
@@ -12,7 +14,7 @@
   }
   function syncHeight(){
     if(!isMobile()){
-      frame.style.removeProperty('height');
+      frame.style.setProperty('height',originalHeight,originalHeightPriority);
       frame.removeAttribute('data-mobile-auto-height');
       return;
     }
@@ -41,6 +43,7 @@
     window.requestAnimationFrame(()=>{pending=false;syncHeight();});
   }
   function bindDocument(){
+    if(!isMobile())return;
     let doc;
     try{doc=frame.contentDocument;}catch(_){return;}
     if(!doc?.body)return;
@@ -63,8 +66,10 @@
   }
   frame.addEventListener('load',bindDocument);
   window.addEventListener('resize',()=>{
-    if(!isMobile())disconnect();
-    else if(!observedDocument)bindDocument();
+    if(!isMobile()){
+      disconnect();syncHeight();return;
+    }
+    if(!observedDocument)bindDocument();
     scheduleSync();
   });
   window.addEventListener('message',event=>{
