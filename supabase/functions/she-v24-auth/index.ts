@@ -30,6 +30,9 @@ function headers(req: Request): HeadersInit {
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "no-store",
     "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    "X-Frame-Options": "DENY",
+    "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
     "Vary": "Origin",
   };
 }
@@ -139,6 +142,13 @@ async function register(body: Record<string, unknown>) {
 }
 async function login(body: Record<string, unknown>) {
   const { loginId, password } = credentials(body);
+  // Atomic server-side throttling is applied BEFORE expensive PBKDF2 work.
+  // Existing username/password, approval and 8-hour session behavior are unchanged.
+  const { data: allowed, error: limitError } = await db.rpc("she_v24_allow_login", {
+    p_login_id: loginId,
+  });
+  if (limitError) throw new ApiError(503, "로그인 보호 기능을 확인할 수 없습니다.");
+  if (allowed !== true) throw new ApiError(429, "로그인 요청이 많습니다. 잠시 후 다시 시도하세요.");
   const { data: account, error } = await db.from(TABLE)
     .select("id,login_id,display_name,department,role,status,permissions,pwd_salt,pwd_hash,pwd_iterations,failed_attempts,locked_until")
     .eq("login_id", loginId).maybeSingle();
