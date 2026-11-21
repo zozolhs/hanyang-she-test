@@ -31,6 +31,15 @@ function headers(req:Request):HeadersInit {
   };
 }
 function send(req:Request,status:number,body:Record<string,unknown>) {
+  // Sample suspicious traffic without persisting tokens or request data.
+  // Normal authorized workbook uploads/downloads are never rate-limited here.
+  if(status===413||status===429||
+     ([400,401,403,405].includes(status)&&Math.random()<0.05)) {
+    console.warn("SHE_V24_SECURITY",JSON.stringify({
+      service:"store",event:"request_rejected",code:status,method:req.method,
+      has_origin:req.headers.has("Origin")
+    }));
+  }
   return new Response(JSON.stringify(body), {status,headers:headers(req)});
 }
 async function hashToken(raw:string):Promise<string> {
@@ -267,6 +276,10 @@ async function getRow(a:Account,input:Record<string,unknown>,counts=false) {
   // its birth dates, phone numbers, blood type, employee IDs or notes.
   const scoped=scope==="roster" && a.role!=="super_admin" &&
     a.permissions?.roster!==true ? educationRosterView(row) : row;
+  if (!counts && (scope==="roster"||scope==="health"))
+    console.info("SHE_V24_AUDIT",JSON.stringify({
+      event:"sensitive_data_read",scope,account_id:a.id
+    }));
   if (counts)return {
     id:scoped.id, scope, updated_at:scoped.updated_at,
     documents_count:scoped.documents.length,
@@ -296,6 +309,9 @@ async function putRow(a:Account,input:Record<string,unknown>) {
   if (data?.status==="conflict")throw new ApiError(409,"다른 사용자가 먼저 수정했습니다. 다시 불러온 뒤 저장하세요.");
   if (data?.status==="not_found")throw new ApiError(404,"저장할 데이터가 없습니다.");
   if (data?.status!=="ok")throw new ApiError(400,"데이터 저장 요청이 유효하지 않습니다.");
+  if(scope==="roster"||scope==="health")console.info("SHE_V24_AUDIT",JSON.stringify({
+    event:"sensitive_data_write",scope,account_id:a.id
+  }));
   return {status:"ok",id,updated_at:data.updated_at};
 }
 Deno.serve(async (req:Request)=>{
@@ -308,13 +324,15 @@ Deno.serve(async (req:Request)=>{
     const lengthHeader=req.headers.get("Content-Length");
     if(lengthHeader && /^\d+$/.test(lengthHeader) && Number(lengthHeader)>MAX_BODY_BYTES)
       throw new ApiError(413,"요청 크기를 초과했습니다.");
+    // Validate the session BEFORE parsing potentially large workbook-save JSON.
+    // Authorized requests retain the original 1.5 MB body allowance.
+    const a=await authenticate(req);
     const raw=await req.text();
     if(enc.encode(raw).length>MAX_BODY_BYTES)throw new ApiError(413,"요청 크기를 초과했습니다.");
     let input:Record<string,unknown>;
     try {input=JSON.parse(raw);} catch{throw new ApiError(400,"JSON 형식 오류");}
     if (!input || typeof input!=="object" || Array.isArray(input))
       throw new ApiError(400,"요청 형식 오류");
-    const a=await authenticate(req);
     switch(input.action){
       case "store_list":return send(req,200,await listRows(a));
       case "store_get":return send(req,200,await getRow(a,input,false));
