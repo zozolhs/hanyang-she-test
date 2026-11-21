@@ -1,0 +1,97 @@
+/* SHE 통합포털: 스마트폰 세로모드 전용 레이아웃. 데스크톱 기능 및 데이터 구조는 유지합니다. */
+@media screen and (max-width: 767px) {
+  html { -webkit-text-size-adjust:100%; }
+  body { max-width:100%; overflow-x:hidden; }
+  body, body * { box-sizing:border-box; }
+  :where(input, select, textarea, button) { max-width:100%; }
+  :where(input, select, textarea) { font-size:16px!important; }
+  :where(button, a, select) { touch-action:manipulation; }
+  :where(#shePortal, main, .she-module, .she-hero, #documentGridView, #itemListView, #itemCardsContainer) { min-width:0; }
+  header > div { padding:10px 14px!important; gap:8px!important; }
+  header #defaultHeaderLogoSvg span { font-size:19px!important; }
+  header #defaultHeaderLogoSvg svg { width:27px; height:25px; }
+  header > div > div:last-child { width:100%; min-width:0; }
+  #sheHeaderActions { margin-left:0!important; width:100%; justify-content:flex-start; gap:6px!important; }
+  #sheHeaderActions button { min-height:36px; white-space:normal!important; padding:7px 9px!important; }
+  #currentUserBadge { overflow-wrap:anywhere; white-space:normal!important; }
+  #shePortal { width:calc(100% - 24px)!important; margin:14px auto 44px; }
+  .she-hero { border-radius:17px; padding:22px 17px!important; }
+  .she-kicker { letter-spacing:.6px; font-size:10px; margin-bottom:8px; }
+  .she-hero h1 { font-size:clamp(22px,6vw,28px); line-height:1.3; letter-spacing:-.7px; }
+  .she-hero h1 small { font-size:13px; line-height:1.5; }
+  .she-portal-search { display:grid; grid-template-columns:minmax(0,1fr); margin-top:18px; padding:7px; border-radius:13px; gap:7px; }
+  .she-portal-search input { min-width:0; width:100%; padding:12px 10px; font-size:16px!important; }
+  .she-portal-search button { min-height:44px; padding:10px 12px; width:100%; font-size:14px; }
+  .she-section-heading { font-size:18px; margin:23px 3px 12px; }
+  .she-modules { display:grid; grid-template-columns:minmax(0,1fr)!important; gap:9px; }
+  .she-module { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px 10px; min-height:0!important; padding:13px 14px; border-radius:15px; align-items:center; }
+  .she-module > div:first-child { min-width:0; display:grid; grid-template-columns:38px minmax(0,1fr); column-gap:10px; align-items:center; }
+  .she-module-icon { font-size:29px; grid-row:span 2; }
+  .she-module-label { font-size:14px; line-height:1.25; margin-top:0; overflow-wrap:anywhere; }
+  .she-module-sub { font-size:12px; line-height:1.5; letter-spacing:0; }
+  .she-module button { align-self:center; width:auto; max-width:112px; margin-top:0; padding:9px 8px; font-size:11px; line-height:1.45; min-height:40px; }
+  main { width:100%; padding:14px 12px 56px!important; }
+  main > .hero-banner-bg { margin-bottom:20px!important; border-radius:15px; }
+  main > .hero-banner-bg .grid > div:first-child { padding:22px 15px!important; }
+  main > .hero-banner-bg .grid > div:last-child { display:none!important; }
+  main > .hero-banner-bg h1 { font-size:22px!important; }
+  main > .hero-banner-bg p { margin-bottom:15px!important; }
+  main > .hero-banner-bg form { padding:5px!important; }
+  main > .hero-banner-bg form input { width:100%; min-width:0; padding:9px 4px!important; }
+  main > .hero-banner-bg form button[type=submit] { padding:11px 13px!important; }
+  #categoryTabs { display:flex; flex-wrap:nowrap!important; gap:7px!important; overflow-x:auto; scrollbar-width:thin; padding:2px 2px 10px; margin-right:-12px; margin-bottom:12px!important; scroll-snap-type:x proximity; -webkit-overflow-scrolling:touch; }
+  #categoryTabs .cat-tab { flex:0 0 auto; white-space:nowrap; padding:10px 13px; scroll-snap-align:start; min-height:41px; }
+  #workplaceSubtabs > div { display:grid; grid-template-columns:1fr 1fr; gap:7px; }
+  #workplaceSubtabs strong { grid-column:1/-1; }
+  #workplaceSubtabs button { min-height:42px; white-space:normal; padding:8px 7px; line-height:1.35; }
+  #workplaceOnepagePanel > div:first-child { padding:10px 12px; }
+  #workplaceOnepageFrame { width:100%!important; height:78dvh!important; min-height:520px!important; }
+  #documentGridView > div:first-child, #itemListView > div:first-child { padding:13px!important; }
+  #documentGridView > div:first-child button, #itemListView > div:first-child button { min-height:38px; white-space:normal; }
+  #documentGridView > div:first-child > div:last-child { width:100%; }
+  #documentGridView > div:first-child > div:last-child button { flex:1 1 145px; }
+  #itemListView > div:first-child > div:last-child { width:100%; min-width:0; }
+  #itemSortFieldSelect { width:100%; min-width:0; }
+  #itemListView > div:first-child > div:last-child > div:first-child { width:100%; flex-wrap:wrap; }
+  #itemCardsContainer > *, #documentCardsContainer > * { min-width:0; overflow-wrap:anywhere; }
+  .she-risk-top { gap:4px; }
+  .she-risk-top h4 { font-size:15px; }
+  .she-risk-top > span { white-space:normal; }
+  .she-risk-badges { gap:5px; margin:10px 0; }
+  .she-measure { padding:11px; }
+  .she-measure p { font-size:14px; line-height:1.7; overflow-wrap:anywhere; }
+  .she-risk-meta { align-items:flex-start; justify-content:flex-start; gap:6px 12px; }
+  #shePaginationBar { padding:12px 3px; gap:10px; }
+  #sheLoadMore { width:100%; min-height:44px; }
+  #itemDetailModal, #docEditModal, #adminModal { padding:8px!important; align-items:flex-start; }
+  #itemDetailModal > div, #docEditModal > div, #adminModal > div { max-height:calc(100dvh - 16px)!important; margin:0!important; overflow-y:auto!important; padding:16px 13px!important; border-radius:15px; }
+  #itemDetailModal > div > div:first-child { flex-wrap:wrap; align-items:flex-start; gap:10px; }
+  #itemDetailModal > div > div:first-child > div:last-child { width:100%; justify-content:space-between; }
+  #itemDetailModal h2 { font-size:20px; line-height:1.4; overflow-wrap:anywhere; }
+  #modalEditForm { padding:12px!important; }
+  #modalEditForm > div:first-child, #modalEditForm > div:last-child { flex-wrap:wrap; gap:9px; }
+  #modalEditForm > div:last-child > div:last-child { flex-wrap:wrap; }
+  .she-modal-backdrop { padding:9px!important; }
+  .she-gate-box { max-height:calc(100dvh - 18px); padding:18px!important; border-radius:15px; }
+  #sheSecureAdmin { padding:10px!important; }
+  #sheSecureAdmin > div { padding:14px!important; border-radius:14px!important; min-height:0!important; }
+  #sheSecureAdmin > div > div:first-child { align-items:flex-start!important; flex-wrap:wrap; }
+  #sheSecureAdmin h2 { font-size:18px!important; overflow-wrap:anywhere; }
+  #sheSecureAdmin > div > div:has(> table.she-admin-mobile-table) { overflow-x:visible!important; }
+  #sheSecureAdmin .she-admin-mobile-table { min-width:0!important; width:100%!important; display:block; border:0!important; }
+  #sheSecureAdmin .she-admin-mobile-table thead { display:none!important; }
+  #sheSecureAdmin .she-admin-mobile-table tbody { display:grid; grid-template-columns:minmax(0,1fr); gap:12px; }
+  #sheSecureAdmin .she-admin-mobile-table tbody tr { display:grid; grid-template-columns:minmax(0,1fr); gap:0; padding:9px 11px; border:1px solid #dbe5f1!important; border-radius:12px; background:#fff; box-shadow:0 2px 7px #16286e0d; }
+  #sheSecureAdmin .she-admin-mobile-table td { display:grid; grid-template-columns:minmax(88px,34%) minmax(0,1fr); gap:7px; align-items:center; padding:7px 0!important; border-bottom:1px solid #eef2f7; min-width:0; overflow-wrap:anywhere; }
+  #sheSecureAdmin .she-admin-mobile-table td:last-child { border-bottom:0; }
+  #sheSecureAdmin .she-admin-mobile-table td::before { content:attr(data-mobile-label); font-size:12px; font-weight:800; color:#64748b; }
+  #sheSecureAdmin .she-admin-mobile-table td > select { width:100%; min-width:0; padding:7px 5px; border:1px solid #cbd5e1; border-radius:8px; background:#fff; }
+  #sheSecureAdmin .she-admin-mobile-table td > input[type=checkbox] { width:20px; height:20px; }
+  #sheSecureAdmin .she-admin-mobile-table td > div { min-width:0; }
+  .she-permission-chips { min-width:0; }
+}
+@media screen and (max-width:360px) {
+  .she-module { grid-template-columns:1fr; }
+  .she-module button { max-width:none; width:100%; min-height:36px; }
+  .she-portal-search input { font-size:15px!important; }
+}
