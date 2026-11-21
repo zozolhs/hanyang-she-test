@@ -1,0 +1,50 @@
+/* ONE-PAGE 위험성평가: 스마트폰에서는 작업 건별 정보와 체크 상태를 세로로 확인. 인쇄 양식은 변경하지 않음. */
+@media screen and (max-width:600px) {
+  body { overflow-x:hidden; font-size:14px; }
+  .top { flex-wrap:wrap!important; overflow-x:visible!important; gap:6px; padding:10px 9px; }
+  .top h1 { width:100%; flex:1 1 100%!important; min-width:0!important; font-size:16px!important; line-height:1.4; }
+  .top h1 small { display:block!important; }
+  .top .btn { flex:1 1 auto!important; min-width:0; min-height:39px; padding:9px 8px!important; font-size:12px; white-space:normal; }
+  .months { padding:8px 9px; }
+  .months button { min-height:41px; }
+  .sum { padding:10px 9px; gap:6px; }
+  .sum .chip { flex:1 1 42%; min-width:0; text-align:center; padding:8px 6px!important; overflow-wrap:anywhere; }
+  .sum label { min-height:40px; }
+  .wrap { padding:5px 9px 12px; overflow-x:hidden; }
+  .list { gap:10px; }
+  .rl { display:flex!important; flex-wrap:wrap!important; padding:12px 10px; gap:8px!important; min-height:0; }
+  .rl .no { flex:0 0 37px; min-width:37px; }
+  .rl .rd { flex:1 1 100px; min-width:0; font-size:14px; }
+  .rl .tin { flex:1 1 100px; min-width:0; }
+  .rl .tbdg { flex:1 1 98px; min-width:0; padding:9px 5px; }
+  .rl .rcw { flex:1 1 100%!important; min-width:0; order:2; }
+  .rl .rc { display:block!important; -webkit-line-clamp:unset!important; overflow:visible!important; flex:1 1 100%!important; font-size:14px; white-space:pre-wrap; word-break:break-word; line-height:1.55; }
+  .rl .rce { font-size:16px; }
+  .rl .rmx { flex:1 1 100%; display:flex!important; flex-wrap:wrap; justify-content:flex-start!important; gap:5px; order:3; }
+  .rl .rkw { flex:1 1 100%; order:4; }
+  .rl .rk { display:grid!important; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; width:100%; }
+  .rl .ci { min-width:0; display:flex; justify-content:flex-start!important; font-size:13px; padding:9px 6px; white-space:normal; }
+  .rl .ci input { flex-shrink:0; }
+  .rl .rp { order:5; flex:1 1 100%; min-width:0; min-height:0; flex-wrap:wrap; }
+  .rl .rp img { width:82px; height:68px; }
+  .rl .rb { order:6; min-height:38px; margin-left:auto; }
+  .rl .rkw .rq { flex-wrap:wrap; }
+  .rl .rkw .rq input { min-width:0; flex:1 1 150px; font-size:16px; }
+  .g6 { grid-template-columns:repeat(2,minmax(0,1fr))!important; }
+  .g4 { grid-template-columns:minmax(0,1fr)!important; }
+  .rdt { padding:10px; }
+  .row input[type=text],.row input[type=date],.row textarea { font-size:16px!important; }
+  .pager { flex-wrap:wrap; gap:7px; padding:10px 8px calc(10px + env(safe-area-inset-bottom)); }
+  .pager .btn { min-width:0; flex:1 1 25%; padding:11px 8px; }
+  .pager span { flex:1 1 100%; order:-1; }
+  .fab { width:48px; height:48px; right:11px; }
+  .mdl .box { max-height:95dvh; }
+  .mdl .hd { flex-wrap:wrap; padding:10px; }
+  .mdl .bd { padding:10px; }
+  .lb .lt { padding:8px; gap:5px; }
+  .lb .lt .btn { padding:10px 14px!important; font-size:15px!important; }
+  .lb .lt input { flex:1 1 100%; }
+  .pvt { flex-wrap:wrap!important; overflow-x:visible!important; }
+  .pvt .btn { padding:8px 10px; }
+}
+@media print { /* 프린트 레이아웃은 기존 A4 가로 설정 유지 */ }
