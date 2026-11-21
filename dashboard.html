@@ -1335,6 +1335,12 @@
         state.showAllEvents = !state.showAllEvents;
         renderScheduleList();
       });
+      window.addEventListener('popstate',() => {
+        if(!$('dayAgendaModal').hidden){
+          dayAgendaPopClosing=true;
+          try{closeDayAgenda();}finally{dayAgendaPopClosing=false;}
+        }
+      });
       $('dayAgendaCloseBtn').addEventListener('click',closeDayAgenda);
       $('dayAgendaDoneBtn').addEventListener('click',closeDayAgenda);
       $('dayAgendaAddBtn').addEventListener('click',() => {
@@ -1663,6 +1669,7 @@
     }
     let dayAgendaSelectedDate = null;
     let dayAgendaReturnFocus = null;
+    let dayAgendaPopClosing = false;
     function closeDayAgenda() {
       const dialog = $('dayAgendaModal');
       if (dialog.hidden) return;
@@ -1670,6 +1677,8 @@
       dayAgendaSelectedDate = null;
       if (dayAgendaReturnFocus && document.contains(dayAgendaReturnFocus)) dayAgendaReturnFocus.focus();
       dayAgendaReturnFocus = null;
+      // Close the modal's browser-history entry without reloading the dashboard.
+      if (!dayAgendaPopClosing && history.state?.hySheEduModal==='day-agenda')history.back();
     }
     function openDayAgenda(dateKey) {
       if (!requireAccess()) return;
@@ -1717,6 +1726,9 @@
       }
       $('dayAgendaList').replaceChildren(frag);
       $('dayAgendaModal').hidden = false;
+      if(window.matchMedia('(max-width:767px)').matches){
+        history.pushState({hySheEduModal:'day-agenda'},'',location.href);
+      }
       $('dayAgendaCloseBtn').focus();
     }
     function renderCalendar() {
