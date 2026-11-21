@@ -48,3 +48,21 @@
   .pvt .btn { padding:8px 10px; }
 }
 @media print { /* 프린트 레이아웃은 기존 A4 가로 설정 유지 */ }
+
+/* 모바일 포털 내 ONE-PAGE 높이 문제: 페이지 본문을 자연 높이로 표시.
+   iframe 높이는 부모 SHE 포털에서 실제 본문 높이로 동기화합니다. */
+@media screen and (max-width:600px) {
+  html, body { height:auto!important; min-height:0!important; }
+  body { display:flex; flex-direction:column; overflow-y:visible!important; }
+  .wrap {
+    flex:0 0 auto!important;
+    height:auto!important; min-height:280px!important;
+    overflow:visible!important; padding-bottom:18px!important;
+  }
+  .wrap .list, .wrap .row { max-height:none; }
+  .pager {
+    flex:0 0 auto!important; position:relative;
+    margin-top:0; min-height:86px;
+  }
+  .top, .months, .sum { flex-shrink:0; }
+}
