@@ -109,17 +109,26 @@ function educationRosterView(row:Record<string,unknown>) {
     items, users:[], redacted_for_education:true
   };
 }
-async function educationRoster(a:Account) {
+async function educationRoster(a:Account,input:Record<string,unknown>={}) {
   if (!canRead(a,"education"))throw new ApiError(403,"교육 연명부 조회 권한이 없습니다.");
+  // Check only the version on repeat polls. Permissions are checked above on every call.
+  const {data:revision,error:revisionError}=await db.from("hanyang_safety_store")
+    .select("updated_at").eq("id","main_v1_roster_master").maybeSingle();
+  if (revisionError)throw new ApiError(503,"교육 연명부 버전 확인 실패");
+  if (!revision)throw new ApiError(503,"교육 연명부가 없습니다.");
+  if (typeof input.if_updated_at==="string" && input.if_updated_at.length<=64 &&
+      input.if_updated_at===revision.updated_at)
+    return {not_modified:true,updated_at:revision.updated_at};
   const {data:row,error}=await db.from("hanyang_safety_store")
-    .select("items").eq("id","main_v1_roster_master").maybeSingle();
+    .select("items,updated_at").eq("id","main_v1_roster_master").maybeSingle();
   if (error)throw new ApiError(503,"교육 연명부 조회 실패");
   if (!row || !Array.isArray(row.items))throw new ApiError(503,"교육 연명부가 없습니다.");
   const safe=new Set(["uid","workerNo","name","company","job","resignDate","samsungStartDate",
     "eduCommon","edu13ho","edu38ho","edu4ho","edu35ho","eduClosed",
     "eduMsds","edu2ho","eduCrane"]);
   return {workers:row.items.map((r:Record<string,unknown>)=>
-    Object.fromEntries(Object.entries(r).filter(([k])=>safe.has(k))))};
+    Object.fromEntries(Object.entries(r).filter(([k])=>safe.has(k)))),
+    updated_at:row.updated_at};
 }
 async function confirmEducation(a:Account,input:Record<string,unknown>) {
   if (!canWrite(a,"education"))throw new ApiError(403,"교육 확정 권한이 없습니다.");
@@ -255,6 +264,29 @@ async function onepagePhotoDelete(a:Account,input:Record<string,unknown>){
   if(error)throw new ApiError(503,"ONE-PAGE 사진 삭제 실패");
   return {status:"ok",id};
 }
+// A single authenticated read replaces repeated per-chunk API calls.
+// Missing recovery chunks remain omitted, exactly as with individual 404s.
+async function getBatch(a:Account,input:Record<string,unknown>) {
+  const ids=input.ids;
+  if(!Array.isArray(ids)||ids.length<1||ids.length>30 ||
+     ids.some(id=>typeof id!=="string") || new Set(ids).size!==ids.length)
+    throw new ApiError(400,"일괄 조회 자료 ID 오류");
+  const checks=ids.map(id=>requireId(id));
+  if(checks.some(({scope})=>!canRead(a,scope)))
+    throw new ApiError(403,"일괄 조회 권한이 없습니다.");
+  const {data,error}=await db.from("hanyang_safety_store")
+    .select("id,documents,items,users,updated_at").in("id",ids);
+  if(error)throw new ApiError(503,"일괄 자료 조회 실패");
+  const rows=(data||[]).map(row=>{
+    if(![row.documents,row.items,row.users].every(Array.isArray))
+      throw new ApiError(503,"저장 자료 형식 오류");
+    const scope=scopeOf(row.id);
+    return scope==="roster" && a.role!=="super_admin" &&
+      a.permissions?.roster!==true ? educationRosterView(row) : row;
+  });
+  // Do not include any privileged data unless every requested ID was authorized.
+  return {rows};
+}
 async function listRows(a:Account) {
   const {data,error}=await db.from("hanyang_safety_store").select("id,updated_at").order("id");
   if (error)throw new ApiError(503,"업무 목록 조회 실패");
@@ -266,6 +298,19 @@ async function listRows(a:Account) {
 async function getRow(a:Account,input:Record<string,unknown>,counts=false) {
   const {id,scope}=requireId(input.id);
   if (!canRead(a,scope))throw new ApiError(403,"해당 데이터 조회 권한이 없습니다.");
+  // A cached row may be reused ONLY after checking its current server revision
+  // AND its data representation. Prevent a downgraded roster viewer from
+  // reusing an older, unredacted roster cache.
+  const view=scope==="roster" && a.role!=="super_admin" &&
+    a.permissions?.roster!==true ? "education_redacted" : "full";
+  if(!counts && typeof input.if_updated_at==="string" &&
+     input.if_updated_at.length<=64 && input.if_view===view){
+    const {data:revision,error:versionError}=await db.from("hanyang_safety_store")
+      .select("updated_at").eq("id",id).maybeSingle();
+    if(versionError)throw new ApiError(503,"업무 버전 확인 실패");
+    if(revision && revision.updated_at===input.if_updated_at)
+      return {not_modified:true,id,updated_at:revision.updated_at,view};
+  }
   const {data:row,error}=await db.from("hanyang_safety_store")
     .select("id,documents,items,users,updated_at").eq("id",id).maybeSingle();
   if (error)throw new ApiError(503,"업무 데이터 조회 실패");
@@ -336,10 +381,11 @@ Deno.serve(async (req:Request)=>{
     switch(input.action){
       case "store_list":return send(req,200,await listRows(a));
       case "store_get":return send(req,200,await getRow(a,input,false));
+      case "store_get_batch":return send(req,200,await getBatch(a,input));
       case "store_counts":return send(req,200,await getRow(a,input,true));
       case "store_put":return send(req,200,await putRow(a,input));
       case "store_put_batch":return send(req,200,await putSafetyBatch(a,input));
-      case "store_education_roster":return send(req,200,await educationRoster(a));
+      case "store_education_roster":return send(req,200,await educationRoster(a,input));
       case "store_confirm_education":return send(req,200,await confirmEducation(a,input));
       case "onepage_get":return send(req,200,await onepageGet(a));
       case "onepage_put":return send(req,200,await onepagePut(a,input));
