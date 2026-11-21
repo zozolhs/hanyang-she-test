@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'tests/security-regression.mjs'
+      - 'tests/security-live-smoke.mjs'
       - '.github/workflows/security-regression.yml'
       - 'supabase/functions/**'
       - 'supabase/config.toml'
@@ -16,6 +17,7 @@ on:
   pull_request:
     paths:
       - 'tests/security-regression.mjs'
+      - 'tests/security-live-smoke.mjs'
       - '.github/workflows/security-regression.yml'
       - 'supabase/functions/**'
       - 'supabase/config.toml'
@@ -39,3 +41,5 @@ jobs:
           node-version: '22'
       - name: Verify permissions, business workflows and API security
         run: node tests/security-regression.mjs
+      - name: Credential-free negative API security smoke checks
+        run: node tests/security-live-smoke.mjs
