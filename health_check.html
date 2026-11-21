@@ -621,9 +621,11 @@
 
     // 점검 모드·권한 회수에 대응. 비활성 탭에서는 불필요한 폴링을 하지 않음.
     hcVerifyAccess();
-    setInterval(() => {
+    // Spread routine checks across concurrent viewers. Access to actual data
+    // is still authorized by the server on every request.
+    setTimeout(() => setInterval(() => {
       if (!document.hidden && !hcAccess.checking) hcVerifyAccess(true);
-    }, 45000);
+    }, 45000), Math.floor(Math.random() * 12000));
     document.addEventListener("visibilitychange", () => {
       if (!document.hidden && Date.now() - hcAccess.lastChecked > 12000) hcVerifyAccess(true);
     });
