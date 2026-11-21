@@ -8908,10 +8908,17 @@ function indexRouteSnapshot(){
  return {view:state.view,category:currentCategory,subtab:workplaceSubtab,
          doc:selectedDocumentId||null,query:currentSearchQuery||''};
 }
+function indexRouteKey(route){
+ return JSON.stringify({view:route.view,category:route.category,subtab:route.subtab,doc:route.doc});
+}
 function recordIndexView(){
  if(!indexNavReady || indexNavRestoring || !state.authorized)return;
- const route=indexRouteSnapshot(), signature=JSON.stringify(route);
- if(signature===indexNavLastRoute)return;
+ const route=indexRouteSnapshot(), signature=indexRouteKey(route);
+ if(signature===indexNavLastRoute){
+   // Search wording is not a separate screen; replace the current snapshot.
+   if(history.state?.hySheIndex==='view')history.replaceState({hySheIndex:'view',route},'',location.href);
+   return;
+ }
  indexNavLastRoute=signature;
  history.pushState({hySheIndex:'view',route},'',location.href);
 }
@@ -8941,7 +8948,7 @@ function restoreIndexView(route){
   window.scrollTo(0,0);
  }finally{
   indexNavRestoring=false;
-  indexNavLastRoute=JSON.stringify(indexRouteSnapshot());
+  indexNavLastRoute=indexRouteKey(indexRouteSnapshot());
  }
 }
 function initializeIndexHistory(){
@@ -8949,12 +8956,12 @@ function initializeIndexHistory(){
  indexNavReady=true;
  const current=history.state;
  if(current?.hySheIndex==='view' && current.route){
-   indexNavLastRoute=JSON.stringify(current.route);
+   indexNavLastRoute=indexRouteKey(current.route);
  }else{
    history.replaceState({hySheIndex:'exit-guard'},'',location.href);
    const route=indexRouteSnapshot();
    history.pushState({hySheIndex:'view',route},'',location.href);
-   indexNavLastRoute=JSON.stringify(route);
+   indexNavLastRoute=indexRouteKey(route);
  }
  window.addEventListener('popstate',event=>{
   if(!indexNavReady)return;
@@ -8969,7 +8976,7 @@ function initializeIndexHistory(){
     else{
       const route=indexRouteSnapshot();
       history.pushState({hySheIndex:'view',route},'',location.href);
-      indexNavLastRoute=JSON.stringify(route);
+      indexNavLastRoute=indexRouteKey(route);
     }
   }
  });
