@@ -185,7 +185,7 @@ body.editing .row{border-color:#facc15;box-shadow:0 0 0 1px #fde68a}
  .mdl{padding:0;align-items:flex-end}.mdl .box{max-height:94dvh;border-radius:18px 18px 0 0}
 }
 </style>
-<link rel="stylesheet" href="./mobile-onepage.css?v=20261121a" media="screen">
+<link rel="stylesheet" href="./mobile-onepage.css?v=20261121b" media="screen">
 </head>
 <body data-v24-ready="false">
 <div class="top">
@@ -387,9 +387,25 @@ function photoBox(r,ed){ const n=(PH.counts[r.id]||0); return `<div class="phh">
 function rowThumbs(id){ const L=(PT[id]||[]).filter(t=>t.url); if(!L.length) return '<span class="pn">사진 없음</span>'; return `<span class="th1"><img src="${L[0].url}" data-act="pthumb" data-id="${id}" data-i="0">${L.length>1?`<b class="thn" data-act="pview" data-id="${id}">+${L.length-1}</b>`:''}</span>`; }
 function refreshStrip(id){ const r=D.rows.find(x=>x.id===id), c=document.querySelector(`[data-row="${id}"]`); if(!r||!c) return; c.querySelector('.pbox').innerHTML=photoBox(r,canEdit()); c.querySelector('.rp').innerHTML=rowThumbs(id); }
 let pg=0, PSZ=8, openIds=new Set();
-function calcPS(){ const w=$('wrap'); const mob=window.innerWidth<=900; const rowH=mob?(300+8):(98+8); return Math.max(mob?2:3,Math.floor((w.clientHeight-8)/rowH)); }
+function calcPS(){
+  // 모바일 자연 높이 레이아웃에서는 컨테이너 높이에 따라 페이지 수가 변하지 않게 2건 고정.
+  if(window.innerWidth<=600) return 2;
+  const w=$('wrap'),mob=window.innerWidth<=900,rowH=mob?308:106;
+  return Math.max(mob?2:3,Math.floor((w.clientHeight-8)/rowH));
+}
 function renderPager(total,pages,from,to){ const pgr=$('pager'); if(!total){ pgr.innerHTML=''; pgr.style.display='none'; return; } pgr.style.display='flex'; pgr.innerHTML=`<button class="btn" id="pgPrev" ${pg<=0?'disabled':''}>◀ 이전</button><span>${pg+1} / ${pages} 쪽<small>${from}–${to} / 총 ${total}건</small></span><button class="btn" id="pgNext" ${pg>=pages-1?'disabled':''}>다음 ▶</button>`; $('pgPrev').onclick=()=>goPg(pg-1); $('pgNext').onclick=()=>goPg(pg+1); }
-function goPg(n){ pg=n; renderTable(); $('wrap').scrollTop=0; }
+function goPg(n){
+  pg=n;renderTable();$('wrap').scrollTop=0;
+  // 부모 포털의 전체 페이지를 평가 내용 시작 위치로 이동합니다(서버 요청 없음).
+  if(window.innerWidth<=600 && window.parent!==window){
+    requestAnimationFrame(()=>{
+      window.parent.postMessage({
+        type:'she:onepage:page-change',
+        offset:Math.max(0,Math.round($('wrap').getBoundingClientRect().top))
+      },location.origin);
+    });
+  }
+}
 function renderTable(){
   const all=visibleRows(), ed=canEdit(), dis=ed?'':'disabled';
   if(!all.length){ $('wrap').innerHTML=`<div class="empty">${onlyMiss?'미비점이 있는 항목이 없습니다. 👍':'등록된 항목이 없습니다.'}${canWrite()?'<br><br><button class="btn pri" id="addBtn2">＋ 항목 추가</button>':''}</div>`; const b=$('addBtn2'); if(b) b.onclick=addRow; renderPager(0); return; }
