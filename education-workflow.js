@@ -128,7 +128,7 @@ function preventConflicts(event){
  const conflicts=findConflicts();
  if(!conflicts.length)return;
  const txt=conflicts.slice(0,5).map(c=>
-  c.title+(c.location?" · 교육장 중복":"")+(c.workers?" · 수강자 "+c.workers+"명 중복":"")).join("\n");
+  c.title+(c.location?" · 교육장 중복":"")+(c.workers?" · 수강자 "+c.workers+"명 중복":"")+(c.sameCourse?" · 동일 과정 중복":"")).join("\n");
  const ok=window.confirm("같은 시간대의 일정과 중복이 있습니다.\n"+txt+
   "\n\n중복을 확인했고 그래도 저장하시겠습니까?");
  if(!ok){event.preventDefault();event.stopImmediatePropagation();}
