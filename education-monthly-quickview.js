@@ -117,7 +117,8 @@ function render(){
   (status==="all"||(status==="completed"&&p.completed)||(status==="pending"&&!p.completed))&&
   (!search||[p.workerNo,p.name,p.company,p.birth].some(value=>normalize(value).includes(search)))
  );
- found.sort((a,b)=>Number(b.completed)-Number(a.completed)||
+ // Uncompleted workers first, completed workers last; stable company/worker-number ordering within each group.
+ found.sort((a,b)=>Number(a.completed)-Number(b.completed)||
   a.company.localeCompare(b.company,"ko")||
   a.workerNo.localeCompare(b.workerNo,"ko",{numeric:true}));
  const pages=Math.max(1,Math.ceil(found.length/perPage));page=Math.max(0,Math.min(page,pages-1));
