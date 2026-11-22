@@ -85,3 +85,28 @@ body.she-roster-smart .bottom-action-bar{display:none !important}
 .she-attendee-table th{position:sticky;top:0;background:#f1f5f9;z-index:1;font-weight:700}
 .she-attendee-close{border:1px solid #cbd5e1;background:white;border-radius:7px;padding:8px 12px;cursor:pointer;font:inherit}
 @media(max-width:640px){.she-attendee-panel{padding:14px}.she-attendee-top h2{font-size:17px}.she-attendee-overview-header>button{width:100%}}
+
+
+/* Monthly regular education quick view */
+.she-regular-card-header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+.she-regular-card-header h3{margin:0}
+.she-regular-quick-overlay{position:fixed;inset:0;z-index:12500;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.64);padding:14px}
+.she-regular-quick-overlay[hidden]{display:none!important}
+.she-regular-quick-dialog{width:min(1050px,100%);max-height:94dvh;overflow:auto;background:#fff;border-radius:14px;box-shadow:0 20px 70px #0004;padding:20px;color:#0f172a}
+.she-regular-quick-head{display:flex;align-items:start;justify-content:space-between;gap:12px}
+.she-regular-quick-head h2{font-size:19px;margin:0 0 4px;line-height:1.45}
+.she-regular-quick-note{font-size:12px;color:#64748b;margin:6px 0}
+.she-regular-quick-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:16px 0 10px}
+.she-regular-quick-toolbar strong{font-size:17px;min-width:130px;text-align:center}
+.she-regular-quick-stats{font-weight:700;font-size:13px;margin:10px 0}
+.she-regular-quick-filters{display:grid;grid-template-columns:minmax(0,1fr) 155px;gap:9px;margin:10px 0}
+.she-regular-quick-filters input,.she-regular-quick-filters select{width:100%;min-width:0;font:inherit;border:1px solid #cbd5e1;border-radius:8px;padding:10px;background:#fff;color:#0f172a}
+.she-regular-quick-filters input:focus-visible,.she-regular-quick-filters select:focus-visible{outline:3px solid #60a5fa}
+.she-regular-quick-table-wrap{max-height:54dvh;overflow:auto;border:1px solid #dbe2ea;border-radius:9px}
+.she-regular-quick-table{border-collapse:collapse;min-width:750px;width:100%;text-align:left}
+.she-regular-quick-table th,.she-regular-quick-table td{padding:11px 12px;border-bottom:1px solid #e6ebf2;font-size:13px}
+.she-regular-quick-table th{position:sticky;top:0;z-index:1;background:#f1f5f9;font-weight:700}
+.she-regular-quick-done{font-weight:700;color:#15803d}
+.she-regular-quick-pending{font-weight:700;color:#b45309}
+.she-regular-quick-footer{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-top:11px;font-size:12px;color:#475569}
+@media(max-width:640px){.she-regular-quick-dialog{padding:13px}.she-regular-quick-head h2{font-size:16px}.she-regular-quick-toolbar strong{min-width:105px}.she-regular-quick-filters{grid-template-columns:minmax(0,1fr)}.she-regular-card-header>button{min-width:100px}}
