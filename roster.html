@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="./mobile-spreadsheet-export.css?v=20261122-1">
-  <link rel="stylesheet" href="./she-ux2026.css?v=20261123-values-grey2">
+  <link rel="stylesheet" href="./she-ux2026.css?v=20261123-duewindows1">
   <script src="./mobile-export-guard.js?v=20261122-1"></script>
   <!-- Browser-side baseline: does not alter login, account approval, or inline app scripts. -->
   <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'; form-action 'self'">
@@ -328,6 +328,8 @@
         <button type="button" class="she-ux-chip" data-she-roster-quick="active" aria-pressed="true">재직자</button>
         <button type="button" class="she-ux-chip" data-she-roster-quick="expired" aria-pressed="false">교육 만료</button>
         <button type="button" class="she-ux-chip" data-she-roster-quick="soon" aria-pressed="false">7일 내 도래</button>
+        <button type="button" class="she-ux-chip" data-she-roster-quick="month1" aria-pressed="false">1개월 내 도래</button>
+        <button type="button" class="she-ux-chip" data-she-roster-quick="month2" aria-pressed="false">2개월 내 도래</button>
         <button type="button" class="she-ux-chip" data-she-roster-quick="incomplete" aria-pressed="false">필수교육 미이수</button>
         <button type="button" class="she-ux-chip" data-she-roster-quick="resigned" aria-pressed="false">퇴사자</button>
       </div>
@@ -383,6 +385,8 @@
                 <option value="">전체 인원보기</option>
                 <option value="expired">2개월 경과 만료자만 보기 (빠른순)</option>
                 <option value="soon">7일 이내 도래 예정자만 보기</option>
+                <option value="month1">1개월 이내 도래 예정자만 보기</option>
+                <option value="month2">2개월 이내 도래 예정자만 보기</option>
                 <option value="active">만료 교육이 없는 인원</option>
             </select>
         </div>
@@ -994,6 +998,10 @@ function recordState(record) {
   if (existing) return existing;
   const welding = isWelderJob(record.job);
   let expired = false, soon = false, earliestDue = Number.MAX_SAFE_INTEGER;
+  let month1 = false, month2 = false, earliestUpcomingDue = Number.MAX_SAFE_INTEGER;
+  const today = rosterView.todayDate || strictDate(getTodayDate());
+  const oneMonthEnd = today ? addCalendarMonths(today,1).getTime() : null;
+  const twoMonthsEnd = today ? addCalendarMonths(today,2).getTime() : null;
   for (const key of EDU_KEYS) {
     if (welding && key === 'eduCrane') continue;
     const edu = parseEducation(record[key]);
@@ -1002,13 +1010,23 @@ function recordState(record) {
       if (edu.soon) soon = true;
       if (edu.dueDate) earliestDue = Math.min(earliestDue, edu.dueDate.getTime());
     }
+    // Upcoming-only windows: overdue or 8h-completed courses are excluded.
+    // Calendar months are clamped (e.g. Jan 31 + 1 month -> Feb 28/29).
+    if (!edu.completed && edu.dueDate && today && edu.dueDate > today) {
+      const due = edu.dueDate.getTime();
+      if (due <= oneMonthEnd) month1 = true;
+      if (due <= twoMonthsEnd) {
+        month2 = true;
+        earliestUpcomingDue = Math.min(earliestUpcomingDue,due);
+      }
+    }
   }
   const resignedDate = strictDate(record.resignDate);
   const rehireDate = strictDate(record.rehireDate);
   const resigned = Boolean(resignedDate && (!rehireDate || rehireDate < resignedDate));
   const cached = {
     search: recordSearchText(record),
-    resigned, expired, soon, earliestDue, welding
+    resigned, expired, soon, month1, month2, earliestDue, earliestUpcomingDue, welding
   };
   rosterView.cache.set(record.uid, cached);
   return cached;
@@ -1390,12 +1408,15 @@ function filterTable(resetPage = true) {
       if (resign === 'resigned' && !state.resigned) continue;
       if (due === 'expired' && !state.expired) continue;
       if (due === 'soon' && !state.soon) continue;
+      if (due === 'month1' && !state.month1) continue;
+      if (due === 'month2' && !state.month2) continue;
       if (due === 'active' && state.expired) continue;
     }
     matches.push(rec);
   }
-  if (due === 'expired' || due === 'soon') {
-    matches.sort((a,b) => recordState(a).earliestDue - recordState(b).earliestDue);
+  if (['expired','soon','month1','month2'].includes(due)) {
+    const dateField = due === 'month1' || due === 'month2' ? 'earliestUpcomingDue' : 'earliestDue';
+    matches.sort((a,b) => recordState(a)[dateField] - recordState(b)[dateField]);
   }
   rosterView.filtered = matches;
   rosterView.selectedFilteredCount = matches.reduce((count, rec) => count + Number(rosterView.selected.has(rec.uid)), 0);
@@ -2195,7 +2216,7 @@ window.addEventListener('beforeunload',event => {
 });
 
 </script>
-<script src="./roster-smart-view.js?v=20261123-values-grey2"></script>
+<script src="./roster-smart-view.js?v=20261123-duewindows1"></script>
 <script src="./mobile-back.js?v=20261121" defer></script>
 </body>
 </html>
