@@ -110,7 +110,7 @@ function render(){
  q("sheRegularQuickStats").textContent=
   "재직 "+people.length.toLocaleString("ko-KR")+"명 · 이수 "+complete.toLocaleString("ko-KR")+
   "명 · 미이수 "+(people.length-complete).toLocaleString("ko-KR")+"명"+
-  " · 이수율 "+(people.length?((complete/people.length)*100).toFixed(1):"0.0")+"%";
+  " · 이수율 "+(people.length?((complete/people.length)*100).toFixed(1):"0.0")+"% · 미이수 우선 정렬";
  const search=normalize(q("sheRegularQuickSearch").value);
  const status=q("sheRegularQuickStatus").value;
  const found=people.filter(p=>
