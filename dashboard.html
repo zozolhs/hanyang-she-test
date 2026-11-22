@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="./mobile-spreadsheet-export.css?v=20261122-1">
-  <link rel="stylesheet" href="./she-ux2026.css?v=20261122-ux2">
+  <link rel="stylesheet" href="./she-ux2026.css?v=20261123-regular1">
   <script src="./mobile-export-guard.js?v=20261122-1"></script>
   <!-- Browser-side baseline: does not alter login, account approval, or inline app scripts. -->
   <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'; form-action 'self'">
@@ -332,7 +332,10 @@
           </div>
         </div>
         <div class="regular-card" aria-live="polite">
-          <h3 id="regularPeriodTitle">정기안전교육 완료 현황</h3>
+          <div class="she-regular-card-header">
+            <h3 id="regularPeriodTitle">정기안전교육 완료 현황</h3>
+            <button type="button" id="sheRegularQuickBtn" class="btn btn-outline btn-sm">👥 간편 보기</button>
+          </div>
           <div class="regular-numbers">
             <strong id="regularCompleted">—명</strong>
             <span id="regularPending">미완료 —명</span>
@@ -2551,6 +2554,7 @@
   </script>
 <script src="./education-workflow.js?v=20261122-ux1"></script>
 <script src="./education-attendee-view.js?v=20261122-2"></script>
+<script src="./education-monthly-quickview.js?v=20261123-regular1"></script>
 <script src="./mobile-back.js?v=20261121" defer></script>
 </body>
 </html>
