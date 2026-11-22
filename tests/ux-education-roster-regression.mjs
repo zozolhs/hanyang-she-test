@@ -51,7 +51,7 @@ test("Original education calendar, attendance confirmation, export and save rema
    assert.ok(education.includes(keyword),keyword);
  }
  assert.match(education,/commitConfirmBtn.*addEventListener\('click',commitConfirm\)/);
- assert.match(education,/she-v24-index\\.js/);
+  assert.ok(education.includes('she-v24-index.js'));
 });
 test("Smart roster has worker detail, filters and original-view switch",()=>{
  for(const id of ["sheSmartRoster","sheSmartMode","sheFullMode","sheRosterDetail",
