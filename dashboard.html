@@ -970,6 +970,11 @@
         edit.type = 'button';
         edit.addEventListener('click',() => openEventModal(event.id));
         actions.appendChild(edit);
+        if(event.kind==='education'){
+          const view=el('button','btn btn-outline btn-sm','수강자 전체 보기');
+          view.type='button';view.addEventListener('click',()=>window.SHEEducationAttendees?.open(event.id));
+          actions.appendChild(view);
+        }
         card.append(info,actions);
         fragment.appendChild(card);
       }
@@ -1786,6 +1791,12 @@
           else openEventModal(e.id);
         });
         card.appendChild(edit);
+        if(e.kind==='education'){
+          const view=el('button','btn btn-outline btn-sm','수강자 전체 보기');
+          view.type='button';view.addEventListener('click',()=>{
+            closeDayAgenda();window.SHEEducationAttendees?.open(e.id);
+          });card.appendChild(view);
+        }
         frag.appendChild(card);
       }
       $('dayAgendaList').replaceChildren(frag);
@@ -2517,6 +2528,7 @@
 
   </script>
 <script src="./education-workflow.js?v=20261122-ux1"></script>
+<script src="./education-attendee-view.js?v=20261122-1"></script>
 <script src="./mobile-back.js?v=20261121" defer></script>
 </body>
 </html>
