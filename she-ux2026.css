@@ -193,3 +193,45 @@ body.she-roster-smart .bottom-action-bar{display:none !important}
   border-color:#94a3b8!important;
   background-color:#e4e7eb!important;
 }
+
+
+/* EDUCATION dashboard: two in-page, read-only roster lookups. */
+.she-lookup-overlay{position:fixed;inset:0;z-index:13000;background:rgba(15,23,42,.68);display:flex;align-items:center;justify-content:center;padding:16px}
+.she-lookup-overlay[hidden]{display:none!important}
+.she-lookup-dialog{background:#fff;color:#14253e;width:min(1190px,100%);max-height:94dvh;overflow:auto;border-radius:16px;box-shadow:0 24px 75px #0004;padding:22px}
+.she-lookup-header{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+.she-lookup-header h2{font-size:21px;font-weight:800;line-height:1.4;margin:0}
+.she-lookup-note{font-size:12px;color:#64748b;line-height:1.55;margin:8px 0}
+.she-lookup-filters{display:flex;gap:7px;flex-wrap:wrap;margin:16px 0 12px}
+.she-lookup-filter{font:inherit;font-weight:700;font-size:12px;border:1px solid #cad5e3;border-radius:8px;background:#fff;color:#334155;cursor:pointer;padding:9px 12px}
+.she-lookup-filter[aria-pressed="true"]{background:#1e40af;color:#fff;border-color:#1e40af}
+.she-lookup-filter:hover:not([aria-pressed="true"]){background:#f1f5f9}
+.she-lookup-search input{width:100%;padding:12px 14px;font:inherit;border:1px solid #bfccde;border-radius:9px;color:#0f172a;background:#fff}
+.she-lookup-search input:focus-visible,.she-lookup-filter:focus-visible{outline:3px solid #93c5fd;outline-offset:1px}
+.she-lookup-summary{font-size:13px;font-weight:700;margin:13px 0;color:#15336c}
+.she-lookup-table-wrap{border:1px solid #dae3ef;border-radius:10px;overflow:auto;max-height:57dvh}
+.she-lookup-table{width:100%;min-width:970px;border-collapse:separate;border-spacing:0;white-space:nowrap;font-size:12px;text-align:center}
+.she-lookup-table th,.she-lookup-table td{padding:11px 12px;border-right:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0}
+.she-lookup-table th{position:sticky;top:0;background:#e9f0f9;color:#163462;font-weight:800;z-index:2}
+.she-lookup-table tr:nth-child(even) td{background:#f8fafc}
+.she-lookup-table tbody tr:hover td{background:#eff6ff}
+.she-lookup-table td:nth-child(1),.she-lookup-table td:nth-child(2){font-weight:700}
+.she-lookup-table th:first-child,.she-lookup-table td:first-child{position:sticky;left:0;z-index:3;min-width:105px;background:#fff}
+.she-lookup-table th:first-child{z-index:5;background:#e9f0f9}
+.she-lookup-table tbody tr:nth-child(even) td:first-child{background:#f8fafc}
+.she-lookup-table tr.she-lookup-retired td{background:#e2e8f0!important;color:#64748b!important}
+.she-lookup-table tr.she-lookup-retired .she-lookup-pill{background:#d1d5db!important;border-color:#b7c0cc!important;color:#64748b!important}
+.she-lookup-pill{display:inline-flex;justify-content:center;align-items:center;min-width:64px;border-radius:7px;border:1px solid;padding:5px 7px;white-space:nowrap;font-size:11px;font-weight:800}
+.she-lookup-pill.done{background:#dcfce7;border-color:#86efac;color:#166534}
+.she-lookup-pill.partial{background:#fff7ed;border-color:#fdba74;color:#9a3412}
+.she-lookup-pill.expired,.she-lookup-pill.urgent{background:#fee2e2;border-color:#fca5a5;color:#991b1b}
+.she-lookup-pill.none{background:#f1f5f9;border-color:#cbd5e1;color:#64748b}
+.she-lookup-footer{display:flex;align-items:center;justify-content:flex-end;gap:9px;font-size:12px;color:#475569;margin-top:12px}
+.she-lookup-empty{padding:24px!important;color:#64748b;text-align:center}
+@media(max-width:640px){
+ .she-lookup-overlay{padding:8px}
+ .she-lookup-dialog{padding:13px;max-height:97dvh;border-radius:12px}
+ .she-lookup-header h2{font-size:17px}
+ .she-lookup-header button{flex-shrink:0}
+ .she-lookup-table th,.she-lookup-table td{padding:9px 8px}
+}
