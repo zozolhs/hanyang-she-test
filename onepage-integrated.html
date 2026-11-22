@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <link rel="stylesheet" href="./mobile-spreadsheet-export.css?v=20261122-1">
   <!-- Browser-side baseline: does not alter login, account approval, or inline app scripts. -->
   <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta name="referrer" content="no-referrer">
@@ -198,7 +199,7 @@ body.editing .row{border-color:#facc15;box-shadow:0 0 0 1px #fde68a}
   <button class="btn pri" id="bNew" hidden>＋ 신규 생성</button>
   <button class="btn dk" id="bDone" hidden>✔ 수정완료</button>
   <button class="btn" id="bImport">📥 엑셀 가져오기</button>
-  <button class="btn" id="bExport">📤 엑셀 내보내기</button>
+  <button class="btn" id="bExport" data-mobile-spreadsheet-export>📤 엑셀 내보내기</button>
   <button class="btn" id="bUnsavedBackup" type="button" hidden>📥 미저장 기록 백업</button>
   <button class="btn" id="bPhotoPdf">📄 월 사진 PDF</button>
   <button class="btn dk" id="bView">🖥 월 한페이지 보기</button>
