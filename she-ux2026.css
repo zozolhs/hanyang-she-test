@@ -110,3 +110,43 @@ body.she-roster-smart .bottom-action-bar{display:none !important}
 .she-regular-quick-pending{font-weight:700;color:#b45309}
 .she-regular-quick-footer{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-top:11px;font-size:12px;color:#475569}
 @media(max-width:640px){.she-regular-quick-dialog{padding:13px}.she-regular-quick-head h2{font-size:16px}.she-regular-quick-toolbar strong{min-width:105px}.she-regular-quick-filters{grid-template-columns:minmax(0,1fr)}.she-regular-card-header>button{min-width:100px}}
+
+
+/* Resignation-date visual state in roster (not a change to the employment-status filter).
+   Keep records editable, including after pagination and mobile layout changes. */
+#dataTable tbody tr.she-roster-resigned,
+#dataTable tbody tr.she-roster-resigned:hover{
+  background:#d7dce3!important;
+  color:#475569!important;
+}
+#dataTable tbody tr.she-roster-resigned>td{
+  background:#d7dce3!important;
+  color:#475569!important;
+}
+#dataTable tbody tr.she-roster-resigned td input[type="text"],
+#dataTable tbody tr.she-roster-resigned td input[type="date"]{
+  background:#e9edf1!important;
+  color:#64748b!important;
+}
+#dataTable tbody tr.she-roster-resigned td input:focus{
+  outline:2px solid #64748b;
+  outline-offset:1px;
+}
+#dataTable tbody tr.she-roster-resigned td input.roster-invalid{
+  border-color:#dc2626!important;
+}
+#dataTable tbody tr.she-roster-resigned td .roster-mobile-toggle{
+  background:#d4dae2;
+  border-color:#b6c0cb;
+  color:#334155;
+}
+#dataTable tbody tr.she-roster-resigned td::before{color:#64748b}
+.she-smart-person.she-roster-resigned{
+  background:#d7dce3!important;
+  border-color:#b7c1ce;
+}
+.she-smart-person.she-roster-resigned .she-smart-person-main strong,
+.she-smart-person.she-roster-resigned .she-smart-person-main span,
+.she-smart-person.she-roster-resigned .she-smart-person-main small{
+  color:#64748b!important;
+}
