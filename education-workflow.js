@@ -114,7 +114,12 @@ function findConflicts(){
   if(first===null||last===null||start>=last||end<=first)continue;
   const sameLocation=Boolean(location&&String(e.location||"").trim().toLowerCase()===location);
   const duplicated=(e.attendeeKeys||[]).filter(key=>attendees.has(key)).length;
-  if(sameLocation||duplicated)conflicts.push({title:e.title,location:sameLocation,workers:duplicated});
+  const sameCourse=Boolean(
+    $id("eventCourse").value && e.courseKey===$id("eventCourse").value &&
+    String(e.title||"").trim().toLowerCase()===$id("eventTitle").value.trim().toLowerCase()
+  );
+  if(sameLocation||duplicated||sameCourse)
+    conflicts.push({title:e.title,location:sameLocation,workers:duplicated,sameCourse});
  }
  return conflicts;
 }
