@@ -46,6 +46,8 @@ function matches(rec,term,company){
  if(quick==="resigned"&&!st.resigned)return false;
  if(quick==="expired"&&(!st.expired||st.resigned))return false;
  if(quick==="soon"&&(!st.soon||st.resigned))return false;
+ if(quick==="month1"&&(!st.month1||st.resigned))return false;
+ if(quick==="month2"&&(!st.month2||st.resigned))return false;
  if(quick==="incomplete"&&(st.resigned||must.every(k=>parseEducation(rec[k]).completed)))return false;
  return true;
 }
