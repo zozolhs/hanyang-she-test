@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="./mobile-spreadsheet-export.css?v=20261122-1">
+  <script src="./mobile-export-guard.js?v=20261122-1"></script>
   <!-- Browser-side baseline: does not alter login, account approval, or inline app scripts. -->
   <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta name="referrer" content="no-referrer">
@@ -362,7 +363,7 @@
         <summary id="rosterImportAuditSummary">엑셀 업로드 결과</summary>
         <div class="roster-audit-actions">
             <span>동일 근로번호 우선, 근로번호 누락 시 성명+생년월일 확인 / 기존 값 보호</span>
-            <button type="button" id="rosterImportReportDownload" class="btn btn-primary" onclick="downloadRosterImportReport()" data-mobile-spreadsheet-export>📄 중복·충돌 보고서 CSV 저장</button>
+            <button type="button" id="rosterImportReportDownload" class="btn btn-primary" onclick="downloadRosterImportReport()" data-mobile-spreadsheet-export data-mobile-export-key="roster_audit_csv">📄 중복·충돌 보고서 CSV 저장</button>
         </div>
         <pre id="rosterImportAuditDetails" aria-live="polite"></pre>
     </details>
@@ -463,7 +464,7 @@
     </div>
 
     <div class="bottom-action-bar">
-        <button type="button" id="excelDownloadButton" class="btn btn-success" onclick="exportRosterExcel()" data-mobile-spreadsheet-export>📥 엑셀 다운로드</button>
+        <button type="button" id="excelDownloadButton" class="btn btn-success" onclick="exportRosterExcel()" data-mobile-spreadsheet-export data-mobile-export-key="roster_excel">📥 엑셀 다운로드</button>
     </div>
     <div class="roster-helper">
         ※ 엑셀 업로드는 열 제목·병합 제목·교육별 DATE를 자동 인식합니다. 같은 근로번호는 중복 추가하지 않고 기존 빈칸만 보완하며, 기존 값과 다른 입력은 충돌 보고서에 기록하고 보존합니다. 교육 0/0h/0.0은 적용하지 않습니다. 날짜를 확인할 수 없는 1~8h 시수는 잘못 저장하지 않고 업로드를 중단합니다. 교육입력 예: <b>2026-11-18 8h</b>. 8h 이상은 이수 완료(초록), 8h 미만이며 교육일 + 2개월 경과 시 만료(빨강)로 표시됩니다.
@@ -1442,7 +1443,7 @@ function formatRosterDownloadSheet(sheet,numberOfWorkers){
   // One range / three rules, not a per-cell 5,000 x 9 styling loop.
   sheet.addConditionalFormatting({ref:`Q2:Y${Math.max(numberOfWorkers+1,2)}`,rules:rosterExcelConditionalRules()});
 }
-async function exportRosterExcel() {
+async function exportRosterExcel() { if (window.SHEMobileExportGuard?.block("roster_excel")) return;
   if(!requireAccess()) return;
   const button=$('excelDownloadButton');
   if(!window.ExcelJS) return alert('서식이 포함된 엑셀 다운로드 라이브러리를 불러오지 못했습니다. 네트워크를 확인하세요.');
@@ -1935,7 +1936,7 @@ function showRosterImportReport(report,applied) {
        (report.entries.length>80?`\n…나머지 ${report.entries.length-80}건은 CSV 보고서를 다운로드하여 확인하세요.`:'')
     : '동일 근로자 자동 중복 등록 방지 및 기존 데이터 보존 규칙을 적용했습니다. 확인이 필요한 충돌은 없습니다.';
 }
-function downloadRosterImportReport() {
+function downloadRosterImportReport() { if (window.SHEMobileExportGuard?.block("roster_audit_csv")) return;
   if(!lastRosterImportReport) return alert('현재 다운로드할 업로드 보고서가 없습니다.');
   const escapeCsv=value=>{
     let v=String(value??'');
