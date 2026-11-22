@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="./mobile-spreadsheet-export.css?v=20261122-1">
   <!-- Browser-side baseline: does not alter login, account approval, or inline app scripts. -->
   <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta name="referrer" content="no-referrer">
@@ -464,7 +465,7 @@
         <div class="hc-action-group">
           <input type="text" id="hcSearchInput" class="hc-search-input" placeholder="🔎 성명·병원·비고 검색..." />
           <button type="button" class="hc-reset-btn" id="hcResetBtn">🗑️ 목록 초기화</button>
-          <button type="button" class="hc-download-btn" id="hcDownloadExcelBtn">📥 사내 업로드용 엑셀 다운로드</button>
+          <button type="button" class="hc-download-btn" id="hcDownloadExcelBtn" data-mobile-spreadsheet-export>📥 사내 업로드용 엑셀 다운로드</button>
         </div>
       </div>
 
