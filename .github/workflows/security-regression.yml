@@ -7,6 +7,9 @@ on:
       - 'tests/security-regression.mjs'
       - 'tests/performance-regression.mjs'
       - 'tests/mobile-spreadsheet-export.mjs'
+      - 'tests/mobile-export-guard.mjs'
+      - 'mobile-export-guard.js'
+      - 'supabase/migrations/20261122_mobile_export_incident_guard.sql'
       - 'mobile-spreadsheet-export.css'
       - 'onepage-integrated.html'
       - 'tests/security-live-smoke.mjs'
@@ -23,6 +26,9 @@ on:
       - 'tests/security-regression.mjs'
       - 'tests/performance-regression.mjs'
       - 'tests/mobile-spreadsheet-export.mjs'
+      - 'tests/mobile-export-guard.mjs'
+      - 'mobile-export-guard.js'
+      - 'supabase/migrations/20261122_mobile_export_incident_guard.sql'
       - 'mobile-spreadsheet-export.css'
       - 'onepage-integrated.html'
       - 'tests/security-live-smoke.mjs'
@@ -55,3 +61,5 @@ jobs:
         run: node tests/performance-regression.mjs
       - name: Verify mobile Excel and CSV download buttons are hidden, desktop unaffected
         run: node tests/mobile-spreadsheet-export.mjs
+      - name: Verify authenticated mobile forced-export detection and account safeguards
+        run: node tests/mobile-export-guard.mjs
