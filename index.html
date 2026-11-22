@@ -9227,10 +9227,13 @@ async function refreshUsers(){
    cell(u.name);cell(u.department);
    const mySelf=u.id===state.current.id;
    const role= document.createElement('select');
-   for(const v of ['worker','viewer_admin','admin',...(u.role==='super_admin'?['super_admin']:[])])role.add(new Option(v,v));
+   // 한글 표시는 선택지의 label에만 적용하고 서버로 전달하는 value는 유지합니다.
+   const roleLabels={worker:'일반 사용자',viewer_admin:'조회관리자',admin:'관리자',super_admin:'최고관리자'};
+   for(const v of ['worker','viewer_admin','admin',...(u.role==='super_admin'?['super_admin']:[])])role.add(new Option(roleLabels[v]||v,v));
    role.value=u.role;role.disabled=mySelf;cell('').appendChild(role);
    const status=document.createElement('select');
-   for(const v of ['pending','approved','blocked','rejected'])status.add(new Option(v,v));
+   const statusLabels={pending:'승인 대기',approved:'승인 완료',blocked:'접속 차단',rejected:'승인 거절'};
+   for(const v of ['pending','approved','blocked','rejected'])status.add(new Option(statusLabels[v]||v,v));
    status.value=u.status;status.disabled=mySelf;cell('').appendChild(status);
    const checks={};
    for(const m of CFG.modules){
