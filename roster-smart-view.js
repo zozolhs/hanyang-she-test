@@ -63,8 +63,11 @@ function detail(uid){
  const [tag,kind]=status(rec);side.append(node("span","she-smart-state "+kind,tag));
  const general=[["근로번호",rec.workerNo],["업체",rec.company],["직종",rec.job],
    ["공종",rec.process],["재직 상태",recordState(rec).resigned?"퇴사":"재직"],
-   ["생년월일",rec.birth],["전화번호",rec.phone],["물산입사일",rec.samsungStartDate],
-   ["퇴사일",rec.resignDate],["비고",rec.notes]];
+   ["성별",rec.gender],["생년월일",rec.birth],["혈액형",rec.blood],
+   ["연락처",rec.phone],["교육구분",rec.educationType],
+   ["물산입사일",rec.samsungStartDate],["퇴사일",rec.resignDate],
+   ["재입사",rec.rehireDate],["정기교육",rec.eduRegular],
+   ["직변",rec.employeeId],["비고",rec.notes]];
  const sections=[["기본 정보",general],["교육별 이수 현황",eduFields.map(([key,label])=>{
   const e=parseEducation(rec[key]);
   const value=String(rec[key]||"").trim()||"미이수";
