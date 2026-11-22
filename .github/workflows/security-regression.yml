@@ -6,6 +6,9 @@ on:
     paths:
       - 'tests/security-regression.mjs'
       - 'tests/performance-regression.mjs'
+      - 'tests/mobile-spreadsheet-export.mjs'
+      - 'mobile-spreadsheet-export.css'
+      - 'onepage-integrated.html'
       - 'tests/security-live-smoke.mjs'
       - '.github/workflows/security-regression.yml'
       - 'supabase/functions/**'
@@ -19,6 +22,9 @@ on:
     paths:
       - 'tests/security-regression.mjs'
       - 'tests/performance-regression.mjs'
+      - 'tests/mobile-spreadsheet-export.mjs'
+      - 'mobile-spreadsheet-export.css'
+      - 'onepage-integrated.html'
       - 'tests/security-live-smoke.mjs'
       - '.github/workflows/security-regression.yml'
       - 'supabase/functions/**'
@@ -47,3 +53,5 @@ jobs:
         run: node tests/security-live-smoke.mjs
       - name: Verify conditional reads, batched initial loads, and Excel save compatibility
         run: node tests/performance-regression.mjs
+      - name: Verify mobile Excel and CSV download buttons are hidden, desktop unaffected
+        run: node tests/mobile-spreadsheet-export.mjs
