@@ -150,3 +150,46 @@ body.she-roster-smart .bottom-action-bar{display:none !important}
 .she-smart-person.she-roster-resigned .she-smart-person-main small{
   color:#64748b!important;
 }
+
+/* All field VALUES for a worker with a nonempty resignation-date field are grey.
+   Includes education completion/expiry colors, warning text, mobile widgets,
+   and the smart roster detail pane; data/editability remain unchanged. */
+#dataTable tbody tr.she-roster-resigned,
+#dataTable tbody tr.she-roster-resigned td,
+#dataTable tbody tr.she-roster-resigned td *,
+.she-smart-person.she-roster-resigned,
+.she-smart-person.she-roster-resigned *,
+.she-smart-detail.she-roster-resigned,
+.she-smart-detail.she-roster-resigned *{
+  color:#626d7b!important;
+}
+#dataTable tbody tr.she-roster-resigned td input,
+#dataTable tbody tr.she-roster-resigned td select,
+#dataTable tbody tr.she-roster-resigned td textarea,
+#dataTable tbody tr.she-roster-resigned td .roster-crane-na,
+#dataTable tbody tr.she-roster-resigned td .roster-required-warning{
+  color:#626d7b!important;
+  background-color:#e4e7eb!important;
+  border-color:#b9c1ca!important;
+}
+#dataTable tbody tr.she-roster-resigned td input::placeholder{
+  color:#858e99!important;
+}
+#dataTable tbody tr.she-roster-resigned td input:focus,
+#dataTable tbody tr.she-roster-resigned td select:focus{
+  outline:2px solid #94a3b8;
+  outline-offset:1px;
+}
+.she-smart-detail.she-roster-resigned{
+  background-color:#e4e7eb!important;
+  border-color:#b9c1ca!important;
+}
+.she-smart-person.she-roster-resigned .she-smart-state,
+.she-smart-detail.she-roster-resigned .she-smart-state{
+  background-color:#d0d5dc!important;
+  border-color:#b9c1ca!important;
+}
+#dataTable tbody tr.she-roster-resigned .roster-invalid{
+  border-color:#94a3b8!important;
+  background-color:#e4e7eb!important;
+}
