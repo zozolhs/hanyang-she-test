@@ -8,6 +8,10 @@ on:
       - 'tests/performance-regression.mjs'
       - 'tests/mobile-spreadsheet-export.mjs'
       - 'tests/mobile-export-guard.mjs'
+      - 'tests/ux-education-roster-regression.mjs'
+      - 'roster-smart-view.js'
+      - 'education-workflow.js'
+      - 'she-ux2026.css'
       - 'mobile-export-guard.js'
       - 'supabase/migrations/20261122_mobile_export_incident_guard.sql'
       - 'mobile-spreadsheet-export.css'
@@ -27,6 +31,10 @@ on:
       - 'tests/performance-regression.mjs'
       - 'tests/mobile-spreadsheet-export.mjs'
       - 'tests/mobile-export-guard.mjs'
+      - 'tests/ux-education-roster-regression.mjs'
+      - 'roster-smart-view.js'
+      - 'education-workflow.js'
+      - 'she-ux2026.css'
       - 'mobile-export-guard.js'
       - 'supabase/migrations/20261122_mobile_export_incident_guard.sql'
       - 'mobile-spreadsheet-export.css'
@@ -63,3 +71,5 @@ jobs:
         run: node tests/mobile-spreadsheet-export.mjs
       - name: Verify authenticated mobile forced-export detection and account safeguards
         run: node tests/mobile-export-guard.mjs
+      - name: Verify reversible education and roster UX without breaking permissions or saves
+        run: node tests/ux-education-roster-regression.mjs
