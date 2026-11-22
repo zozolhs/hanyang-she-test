@@ -63,3 +63,25 @@ body.she-roster-smart .bottom-action-bar{display:none !important}
  .she-ux-panel{padding:12px}
  .she-ux-title{font-size:16px}
 }
+
+
+/* Education attendee overview: current enrolled members vs. add/edit. */
+.she-attendee-overview{padding:14px;margin:0 0 13px;border:1px solid #93c5fd;background:#eff6ff;border-radius:12px;color:#172554}
+.she-attendee-overview-header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:7px}
+.she-attendee-overview-header strong{font-size:15px}
+.she-attendee-overview-header .field-hint{margin-top:5px}
+.she-attendee-overlay{position:fixed;inset:0;z-index:12000;background:rgba(15,23,42,.7);display:flex;align-items:center;justify-content:center;padding:14px}
+.she-attendee-overlay[hidden]{display:none!important}
+.she-attendee-panel{background:#fff;color:#0f172a;width:min(980px,100%);max-height:93dvh;overflow:auto;border-radius:14px;padding:22px;box-shadow:0 20px 65px #0004}
+.she-attendee-top{display:flex;justify-content:space-between;align-items:start;gap:16px}
+.she-attendee-top h2{margin:0 0 8px;font-size:20px;line-height:1.4}
+.she-attendee-meta{color:#526178;margin:8px 0 14px}
+.she-attendee-search{width:100%;padding:12px;border:1px solid #94a3b8;border-radius:8px;margin:8px 0 14px;font:inherit}
+.she-attendee-search:focus-visible{outline:3px solid #60a5fa;outline-offset:2px}
+.she-attendee-summary{font-weight:600;margin:7px 0 12px}
+.she-attendee-table-wrap{overflow:auto;max-height:52dvh;border:1px solid #dce3ed;border-radius:8px}
+.she-attendee-table{width:100%;border-collapse:collapse;min-width:650px;text-align:left}
+.she-attendee-table th,.she-attendee-table td{padding:11px 13px;border-bottom:1px solid #e5eaf1}
+.she-attendee-table th{position:sticky;top:0;background:#f1f5f9;z-index:1;font-weight:700}
+.she-attendee-close{border:1px solid #cbd5e1;background:white;border-radius:7px;padding:8px 12px;cursor:pointer;font:inherit}
+@media(max-width:640px){.she-attendee-panel{padding:14px}.she-attendee-top h2{font-size:17px}.she-attendee-overview-header>button{width:100%}}
