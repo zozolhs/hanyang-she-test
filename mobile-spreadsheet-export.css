@@ -1,0 +1,11 @@
+/* SHE V24 - hide spreadsheet export actions on mobile / touch devices.
+   This is a presentation-only rule and does not alter login, roles, Excel
+   imports, automatic saves, desktop exports, PDF/photo downloads, or backups.
+   Apply the marker only to Excel / CSV export controls. */
+@media screen and (max-width: 900px), screen and (hover: none) and (pointer: coarse) {
+  [data-mobile-spreadsheet-export] {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
+}
