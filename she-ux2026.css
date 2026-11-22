@@ -1,0 +1,65 @@
+/* SHE UX 2026: additive, reversible front-end only. */
+.she-ux-panel{margin:14px 0 18px;padding:18px;border:1px solid #d9e3ef;border-radius:16px;background:#fff;box-shadow:0 5px 20px rgba(14,36,77,.04);color:#14243c}
+.she-ux-top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.she-ux-title{font-size:18px;font-weight:800;color:#15336c}
+.she-ux-muted{font-size:12px;color:#64748b}
+.she-ux-modes{display:flex;gap:6px;flex-wrap:wrap}
+.she-ux-modes button,.she-ux-chip,.she-smart-action{padding:8px 12px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;color:#263c59;cursor:pointer;font-weight:700;font-size:13px}
+.she-ux-modes button[aria-pressed="true"],.she-ux-chip[aria-pressed="true"],.she-smart-action.primary{background:#1d6ce0;color:#fff;border-color:#1d6ce0}
+.she-ux-chip:focus-visible,.she-smart-action:focus-visible,.she-ux-modes button:focus-visible{outline:3px solid #90c5fa;outline-offset:2px}
+.she-smart-controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:16px 0}
+.she-smart-controls input,.she-smart-controls select{padding:10px 12px;min-height:41px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;color:#1e293b}
+.she-smart-controls input{flex:2 1 220px;max-width:100%}
+.she-smart-controls select{flex:1 1 160px;max-width:100%}
+.she-smart-quick{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.she-smart-body{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,330px);gap:12px}
+.she-smart-people{display:grid;align-content:start;gap:6px;max-height:620px;overflow:auto;padding-right:4px}
+.she-smart-person{display:flex;align-items:center;gap:10px;border:1px solid #e2e8f0;border-radius:11px;padding:9px 10px;background:#f9fbff;min-width:0}
+.she-smart-person-main{flex:1;min-width:0;background:transparent;text-align:left;border:0;cursor:pointer;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center}
+.she-smart-person-main strong{font-size:14px;color:#102c56}
+.she-smart-person-main span{font-size:12px;color:#334155}
+.she-smart-person-main small{flex-basis:100%;font-size:11px;color:#64748b}
+.she-smart-state{font-size:11px;font-weight:700;white-space:nowrap;border-radius:99px;padding:5px 8px;background:#e2e8f0;color:#475569}
+.she-smart-state.success{background:#dcfce7;color:#166534}
+.she-smart-state.warning{background:#fef3c7;color:#92400e}
+.she-smart-state.danger{background:#fee2e2;color:#991b1b}
+.she-smart-detail{border:1px solid #d5e1ed;border-radius:12px;background:#fff;padding:15px;max-height:620px;overflow:auto}
+.she-smart-detail[hidden]{display:block;visibility:hidden}
+.she-smart-detail-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.she-smart-detail-head h3{font-size:18px;font-weight:800;margin:0}
+.she-smart-detail-title{margin:16px 0 7px;font-size:13px;color:#163e73}
+.she-smart-detail-list{display:grid;grid-template-columns:105px minmax(0,1fr);gap:7px;font-size:12px;margin:0}
+.she-smart-detail-list dt{color:#64748b}.she-smart-detail-list dd{margin:0;overflow-wrap:anywhere;color:#1e293b}
+.she-smart-pager{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:12px}
+.she-smart-empty{padding:28px;text-align:center;color:#64748b}
+#sheSmartRoster{display:none}
+body.she-roster-smart #sheSmartRoster{display:block}
+body.she-roster-smart .control-panel,
+body.she-roster-smart .quick-tool-box,
+body.she-roster-smart .status-filter-box,
+body.she-roster-smart .action-bar,
+body.she-roster-smart .roster-pagination,
+body.she-roster-smart .table-container,
+body.she-roster-smart .bottom-action-bar{display:none !important}
+.she-roster-modes{margin:10px 0;display:flex;gap:6px}
+.she-edu-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:13px 0}
+.she-edu-stat{border:1px solid #e2e8f0;border-radius:12px;padding:12px;background:#f9fbff;cursor:pointer;text-align:left}
+.she-edu-stat strong{display:block;font-size:24px;color:#1d3b71}.she-edu-stat span{font-size:12px;color:#475569}
+.she-edu-pending{display:grid;gap:7px;margin:6px 0 0}
+.she-edu-pending-item{display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid #fde68a;background:#fffbeb;border-radius:9px;flex-wrap:wrap}
+.she-edu-pending-item .she-edu-pending-text{flex:1;min-width:190px}
+.she-edu-pending-item strong{display:block;font-size:13px}
+.she-edu-pending-item small{font-size:11px;color:#78611b}
+.she-edu-pending-item button{padding:7px 11px;border-radius:8px;border:1px solid #d97706;background:#fff7ed;color:#92400e;font-weight:700;cursor:pointer}
+.she-edu-preset{margin:10px 0;padding:10px;border-radius:12px;border:1px dashed #9cbee5;background:#f4f8ff}
+.she-edu-preset select{width:100%;max-width:430px;border:1px solid #bfcee4;border-radius:8px;padding:9px;color:#1e293b;background:#fff}
+.she-edu-preset small{display:block;color:#64748b;margin-top:5px}
+#sheRosterHandoffHint{padding:8px 12px;margin:6px 0;border:1px solid #b6d9fc;background:#eff6ff;color:#1e40af;border-radius:9px}
+@media(max-width:900px){
+ .she-smart-body{grid-template-columns:minmax(0,1fr)}
+ .she-smart-detail{max-height:none}
+ .she-smart-detail[hidden]{display:none}
+ .she-edu-cards{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .she-ux-panel{padding:12px}
+ .she-ux-title{font-size:16px}
+}
