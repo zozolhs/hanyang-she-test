@@ -339,7 +339,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
   <h2 class="she-section-heading">통합 업무 모듈</h2>
   <div class="she-modules">
     <article class="she-module" data-she-module="safety"><div><div class="she-module-icon">🛡️</div><h3 class="she-module-label">SAFETY</h3><div class="she-module-sub">위험성평가</div></div><button type="button">바로 접속하기 →</button></article>
-    <article class="she-module" data-she-module="health"><div><div class="she-module-icon">🏥</div><h3 class="she-module-label">HEALTH</h3><div class="she-module-sub">건강검진 자동화</div></div><button type="button">시스템 열기 🔒 →</button></article>
+    <article class="she-module" data-she-module="health"><div><div class="she-module-icon">🏥</div><h3 class="she-module-label">HEALTH</h3><div class="she-module-sub">보건</div></div><button type="button">시스템 열기 🔒 →</button></article>
     <article class="she-module" data-she-module="roster"><div><div class="she-module-icon">📋</div><h3 class="she-module-label">ROSTER</h3><div class="she-module-sub">근로자 연명부 리스트</div></div><button type="button">명부 관리 열기 →</button></article>
     <article class="she-module" data-she-module="education"><div><div class="she-module-icon">🎓</div><h3 class="she-module-label">EDUCATION</h3><div class="she-module-sub">교육관리 및 일정</div></div><button type="button">교육 리스트 열기 →</button></article>
     <article class="she-module" data-she-module="admin"><div><div class="she-module-icon">⚙️</div><h3 class="she-module-label">ADMIN CONSOLE</h3><div class="she-module-sub">서버 및 접속 권한 통합 관리</div></div><button type="button">관리자 설정 열기 →</button></article>
@@ -8710,7 +8710,7 @@ function restoreIndexView(route){
   $('clearSearchBtn')?.classList.toggle('hidden',!currentSearchQuery);
   if(typeof updateCategoryTabStyles==='function')updateCategoryTabStyles();
   document.body.classList.toggle('she-portal-active',state.view==='portal');
-  if($('sheSearchBackButton'))$('sheSearchBackButton').style.display=state.view==='search'?'':'none';
+  if($('sheSearchBackButton'))$('sheSearchBackButton').style.display=state.view==='search'?'inline-flex':'none';
   if(typeof renderAll==='function' && state.view==='search')renderAll();
   $('itemDetailModal')?.classList.add('hidden');
   currentEditingItemId=null;
@@ -8792,13 +8792,18 @@ function reconcileHeader(){
  if($('currentUserRoleBadge'))$('currentUserRoleBadge').textContent=isSuper()?'최고관리자':u?.role==='admin'?'관리자':u?.role==='viewer_admin'?'조회관리자':'기술인';
  if($('headerAdminBtn'))$('headerAdminBtn').style.display=(state.view==='search' && hasAccess('safety'))?'':'none';
  if($('sheMaintenanceToggle')){
-  $('sheMaintenanceToggle').style.display=isSuper()?'':'none';
+  // The base .she-header-control CSS is display:none, so clearing the
+  // inline style ('') leaves it hidden on desktop. Explicitly display
+  // only for the authenticated top-level administrator.
+  $('sheMaintenanceToggle').style.display=isSuper()?'inline-flex':'none';
   $('sheMaintenanceToggle').textContent=state.maintenance?'🔧 서버점검 ON':'🔧 서버점검 OFF';
+  $('sheMaintenanceToggle').setAttribute('aria-pressed',String(!!state.maintenance));
+  $('sheMaintenanceToggle').classList.toggle('is-on',!!state.maintenance);
  }
- if($('sheLogoutBtn'))$('sheLogoutBtn').style.display=state.authorized?'':'none';
- if($('sheV24PasswordChange'))$('sheV24PasswordChange').style.display=state.authorized?'':'none';
+ if($('sheLogoutBtn'))$('sheLogoutBtn').style.display=state.authorized?'inline-flex':'none';
+ if($('sheV24PasswordChange'))$('sheV24PasswordChange').style.display=state.authorized?'inline-flex':'none';
 if($('sheHeaderAccessLabel'))$('sheHeaderAccessLabel').textContent=state.authorized?'🔐 내 권한 보기':'🔐 접속·가입신청 화면';
-if($('sheRiskRefreshBtn'))$('sheRiskRefreshBtn').style.display=state.authorized&&state.view==='search'&&canSafetyView()?'':'none';
+if($('sheRiskRefreshBtn'))$('sheRiskRefreshBtn').style.display=state.authorized&&state.view==='search'&&canSafetyView()?'inline-flex':'none';
  for(const mod of [...CFG.modules,'admin']){
   const c=document.querySelector(`[data-she-module="${mod}"]`);
   if(c){const yes=mod==='safety'?canSafetyView():mod==='admin'?canControlUsers():hasAccess(mod);
@@ -8813,7 +8818,7 @@ if($('sheRiskRefreshBtn'))$('sheRiskRefreshBtn').style.display=state.authorized&
 function applyPortalView(view){
  if(!state.authorized)return;
  state.view=view;document.body.classList.toggle('she-portal-active',view==='portal');
- if($('sheSearchBackButton'))$('sheSearchBackButton').style.display=view==='search'?'':'none';
+ if($('sheSearchBackButton'))$('sheSearchBackButton').style.display=view==='search'?'inline-flex':'none';
  if(view==='portal')window.scrollTo(0,0);
  reconcileHeader();
  recordIndexView();
