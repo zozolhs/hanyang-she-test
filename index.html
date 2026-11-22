@@ -1562,45 +1562,6 @@ body:not(.she-portal-active) #shePortal{display:none!important}
        애플리케이션 핵심 데이터 및 동작 스크립트
   ========================================================== -->
   <script>
-    function createWorkplaceAssessmentImageUri(title, zone, revDate, hazard, measure, codeNo) {
-      const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="780" viewBox="0 0 1200 780">
-        <rect width="1200" height="780" fill="#f8fafc"/>
-        <rect x="24" y="24" width="1152" height="732" rx="16" fill="#ffffff" stroke="#16286e" stroke-width="3"/>
-        <rect x="24" y="24" width="1152" height="86" rx="14" fill="#16286e"/>
-        <text x="56" y="76" fill="#ffffff" font-family="Pretendard, sans-serif" font-size="28" font-weight="900">HANYANG ENG | 작업장 위험성평가 원본 시트 (${codeNo})</text>
-        <text x="1140" y="74" text-anchor="end" fill="#93c5fd" font-family="Pretendard, sans-serif" font-size="20" font-weight="700">작업구역: ${zone} · 평가일: ${revDate}</text>
-        <rect x="56" y="136" width="1088" height="68" rx="10" fill="#eff6ff" stroke="#bfdbfe" stroke-width="2"/>
-        <text x="80" y="178" fill="#1e3a8a" font-family="Pretendard, sans-serif" font-size="24" font-weight="800">평가 대상 작업: ${title}</text>
-        <rect x="56" y="226" width="560" height="360" rx="12" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
-        <text x="80" y="262" fill="#334155" font-family="Pretendard, sans-serif" font-size="18" font-weight="800">[현장 작업장 레이아웃 및 위험 통제 구역도]</text>
-        <line x1="80" y1="280" x2="590" y2="280" stroke="#cbd5e1" stroke-width="1.5"/>
-        <rect x="95" y="305" width="210" height="125" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="2.5"/>
-        <text x="200" y="365" text-anchor="middle" fill="#1e40af" font-family="Pretendard, sans-serif" font-size="18" font-weight="800">공조기(AHU) 설치 구역</text>
-        <text x="200" y="392" text-anchor="middle" fill="#1d4ed8" font-family="Pretendard, sans-serif" font-size="14" font-weight="700">상부 개구부 추락주의</text>
-        <rect x="345" y="305" width="240" height="125" rx="8" fill="#fef2f2" stroke="#dc2626" stroke-width="2.5" stroke-dasharray="8 5"/>
-        <text x="465" y="360" text-anchor="middle" fill="#b91c1c" font-family="Pretendard, sans-serif" font-size="18" font-weight="800">⚠️ 중량물 양중 통제구역</text>
-        <text x="465" y="388" text-anchor="middle" fill="#dc2626" font-family="Pretendard, sans-serif" font-size="14" font-weight="700">신호수 배치 · 하부 출입금지</text>
-        <rect x="95" y="455" width="490" height="105" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="2"/>
-        <text x="340" y="500" text-anchor="middle" fill="#065f46" font-family="Pretendard, sans-serif" font-size="17" font-weight="800">안전 이동 통로 (조도 150Lux 이상 확보 · 자재 적재 금지)</text>
-        <text x="340" y="530" text-anchor="middle" fill="#047857" font-family="Pretendard, sans-serif" font-size="14" font-weight="600">소화기 비치 지점 / 비상 대피로 연결</text>
-        <rect x="640" y="226" width="504" height="360" rx="12" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
-        <text x="668" y="266" fill="#1e293b" font-family="Pretendard, sans-serif" font-size="20" font-weight="800">■ 핵심 위험요인 (Hazard)</text>
-        <rect x="668" y="282" width="448" height="74" rx="8" fill="#fef2f2" stroke="#fecaca"/>
-        <text x="688" y="326" fill="#dc2626" font-family="Pretendard, sans-serif" font-size="18" font-weight="800">${hazard}</text>
-        <text x="668" y="396" fill="#1e293b" font-family="Pretendard, sans-serif" font-size="20" font-weight="800">■ 현장 안전대책 및 개선조치</text>
-        <rect x="668" y="412" width="448" height="150" rx="8" fill="#f0fdf4" stroke="#bbf7d0"/>
-        <text x="688" y="455" fill="#065f46" font-family="Pretendard, sans-serif" font-size="16" font-weight="700">${measure.slice(0, 36)}</text>
-        <text x="688" y="485" fill="#065f46" font-family="Pretendard, sans-serif" font-size="16" font-weight="700">${measure.slice(36, 72)}</text>
-        <text x="688" y="515" fill="#065f46" font-family="Pretendard, sans-serif" font-size="16" font-weight="700">${measure.slice(72, 110)}</text>
-        <rect x="56" y="612" width="1088" height="112" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5"/>
-        <text x="84" y="655" fill="#334155" font-family="Pretendard, sans-serif" font-size="17" font-weight="800">현장 점검 확인: HANYANG ENG 안전환경팀 (승인 완료)</text>
-        <text x="84" y="690" fill="#64748b" font-family="Pretendard, sans-serif" font-size="15">※ 본 작업장 평가 원본 이미지는 현장 TBM 및 작업 전 안전점검 시 원본 크기로 확대하여 활용하시기 바랍니다.</text>
-        <rect x="960" y="632" width="156" height="72" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
-        <text x="1038" y="675" text-anchor="middle" fill="#1d4ed8" font-family="Pretendard, sans-serif" font-size="20" font-weight="900">안전점검 필</text>
-      </svg>`;
-      return 'data:image/svg+xml;utf8,' + encodeURIComponent(svgContent);
-    }
-
     // 1. 초기 문서 목록 데이터
     let documentsData = [
       {
@@ -1669,19 +1630,6 @@ body:not(.she-portal-active) #shePortal{display:none!important}
           { revNo: 'Rev.0 (최초)', revDate: '2026-07-20', fileName: '(P4) 클린룸 천장 배관 및 행거 설치_최초 위험성 평가.xlsx', note: '최초 제정' }
         ]
       },
-      {
-        id: 'doc-6',
-        title: '공조기(AHU) 케이싱 반입 및 조립 작업장 위험성평가',
-        evalType: '작업장 평가',
-        areaTag: 'FAB동',
-        displayCount: 2,
-        fileName: '(FAB) 공조기 케이싱 반입 및 조립_작업장평가_원본이미지.png',
-        revNo: 'Rev.2',
-        revDate: '2026-11-04',
-        revHistory: [
-          { revNo: 'Rev.2', revDate: '2026-11-04', fileName: '(FAB) 공조기 케이싱 반입 및 조립_작업장평가_원본이미지.png', note: '양중 작업장 평가 원본 이미지 등록' }
-        ]
-      }
     ];
 
     // 2. 초기 상세 위험성평가 항목 데이터
@@ -1838,62 +1786,6 @@ body:not(.she-portal-active) #shePortal{display:none!important}
         revInfo: 'Rev.0 (최초)',
         approvalDate: '2026-07-20'
       },
-      {
-        id: 'item-9',
-        docId: 'doc-6',
-        docName: '공조기(AHU) 케이싱 반입 및 조립 작업장 위험성평가',
-        evalType: '작업장 평가',
-        areaTag: 'FAB동',
-        taskTitle: '대형 공조기 케이싱 지게차/대차 반입 (작업장 평가 원본 이미지)',
-        causeObj: '중량물 / 지게차',
-        hazardText: '협착 / 충돌 / 전도',
-        measureText: '중량물 반입 동선 신호수 전후방 배치, 작업 반경 내 출입통제선(라바콘) 설치 및 지게차 포크 하부 출입 엄금',
-        itemNo: '1번 항목',
-        pageNo: '1페이지',
-        duplicateInfo: '',
-        fileName: '(FAB) 공조기 케이싱 반입_작업장평가_시트01.png',
-        sheetName: '작업장평가_원본이미지',
-        rowNo: '1행',
-        revInfo: 'Rev.2',
-        approvalDate: '2026-11-04',
-        imageFileName: '(FAB) 공조기 케이싱 반입_작업장평가_시트01.png',
-        imageUrl: createWorkplaceAssessmentImageUri(
-          '대형 공조기 케이싱 지게차 및 대차 반입',
-          'FAB동 3층 클린룸 반입구',
-          '2026-11-04',
-          '중량물 반입 중 작업자 협착(끼임) 및 대차 전도 위험',
-          '1. 반입 동선 전후방 전담 신호수 2인 배치  2. 작업 반경 라바콘 통제선 설치  3. 지게차 포크 하부 진입 절대 금지',
-          'WP-FAB-001'
-        )
-      },
-      {
-        id: 'item-10',
-        docId: 'doc-6',
-        docName: '공조기(AHU) 케이싱 반입 및 조립 작업장 위험성평가',
-        evalType: '작업장 평가',
-        areaTag: 'FAB동',
-        taskTitle: '공조기 내부 팬(Fan) 모터 정렬 및 볼트 체결 (작업장 평가 원본 이미지)',
-        causeObj: '회전체 / 수공구',
-        hazardText: '끼임 / 근골격계 부담',
-        measureText: '공조기 전원 차단 후 LOTO(잠금장치 및 표지판) 설치 철저, 협소공간 2인 1조 작업 및 내부 조명 150Lux 이상 확보',
-        itemNo: '2번 항목',
-        pageNo: '2페이지',
-        duplicateInfo: '',
-        fileName: '(FAB) 공조기 팬모터 조립_작업장평가_시트02.png',
-        sheetName: '작업장평가_원본이미지',
-        rowNo: '2행',
-        revInfo: 'Rev.2',
-        approvalDate: '2026-11-04',
-        imageFileName: '(FAB) 공조기 팬모터 조립_작업장평가_시트02.png',
-        imageUrl: createWorkplaceAssessmentImageUri(
-          '공조기 내부 팬(Fan) 모터 정렬 및 볼트 체결',
-          'FAB동 공조기실 AHU-04호기',
-          '2026-11-04',
-          '분전반 오조작으로 인한 회전체 끼임 및 협소공간 충돌',
-          '1. 작업 전 주전원 차단 및 LOTO 잠금장치 체결  2. 내부 조도 150Lux 이상 확보  3. 2인 1조 작업 및 안전모 착용 철저',
-          'WP-FAB-002'
-        )
-      }
     ];
 
     // 3. 접속 권한 관리용 인원 데이터
@@ -3030,105 +2922,11 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       event.target.value = '';
     }
 
-    function handleImageFilesUpload(files) {
-      const customTitle = document.getElementById('uploadTargetDocTitle').value.trim();
-      const targetArea = document.getElementById('uploadTargetAreaTag').value.trim() || 'HANYANG';
-      const targetRevNo = document.getElementById('uploadTargetRevNo').value.trim() || 'Rev.1';
-      const targetRevDate = document.getElementById('uploadTargetRevDate').value || '2026-11-11';
-
-      document.getElementById('uploadTargetEvalType').value = '작업장 평가';
-
-      const parsedItems = [];
-      let loadedCount = 0;
-
-      files.forEach((file, idx) => {
-        const reader = new FileReader();
-        reader.onload = function (e) {
-          const baseTitle = file.name.replace(/\.[^/.]+$/, '');
-          parsedItems.push({
-            evalType: '작업장 평가',
-            areaTag: targetArea,
-            taskTitle: `${baseTitle} (작업장 평가 원본 이미지)`,
-            causeObj: '작업장 환경/설비',
-            hazardText: '작업장 위험요인 (원본 이미지 참조)',
-            measureText: `첨부된 작업장 평가 원본 이미지(${file.name})의 안전대책 및 현장 점검 기준을 준수하여 작업 진행`,
-            itemNo: `${idx + 1}번 항목`,
-            pageNo: `${idx + 1}페이지`,
-            duplicateInfo: '',
-            fileName: file.name,
-            sheetName: '작업장평가_원본이미지',
-            rowNo: `${idx + 1}행`,
-            revInfo: targetRevNo,
-            approvalDate: targetRevDate,
-            imageFileName: file.name,
-            imageUrl: e.target.result
-          });
-
-          loadedCount++;
-          if (loadedCount === files.length) {
-            const docDefaultTitle = customTitle || `${files[0].name.replace(/\.[^/.]+$/, '')} 작업장 위험성평가`;
-            applyUploadedItemsByMode({
-              fileName: files[0].name,
-              defaultDocTitle: docDefaultTitle,
-              evalType: '작업장 평가',
-              areaTag: targetArea,
-              revNo: targetRevNo,
-              revDate: targetRevDate,
-              newItems: parsedItems
-            });
-          }
-        };
-        reader.readAsDataURL(file);
-      });
-    }
-
-    function simulateSampleWorkplaceImageUpload() {
-      if (!requireServerAdmin()) return;
-      const customTitle = document.getElementById('uploadTargetDocTitle').value.trim();
-      const targetArea = document.getElementById('uploadTargetAreaTag').value.trim() || 'FAB동';
-      const targetRevNo = document.getElementById('uploadTargetRevNo').value.trim() || 'Rev.3';
-      const targetRevDate = document.getElementById('uploadTargetRevDate').value || '2026-11-11';
-      const sampleFileName = 'HANYANG_작업장평가_고소배관용접_원본시트.png';
-
-      document.getElementById('uploadTargetEvalType').value = '작업장 평가';
-
-      const sampleItems = [
-        {
-          evalType: '작업장 평가',
-          areaTag: targetArea,
-          taskTitle: '클린룸 상부 고소배관 용접 및 불티비산 방지 (작업장 평가 원본 이미지)',
-          causeObj: '용접기 / 고소작업대',
-          hazardText: '화재(불티 비산) / 추락',
-          measureText: '용접 불티 비산방지포 3중 보양, 하부 화재감시자 전담 배치 및 ABC 소화기 2대 비치 완료',
-          itemNo: '1번 항목',
-          pageNo: '1페이지',
-          duplicateInfo: '',
-          fileName: sampleFileName,
-          sheetName: '작업장평가_원본이미지',
-          rowNo: '1행',
-          revInfo: targetRevNo,
-          approvalDate: targetRevDate,
-          imageFileName: sampleFileName,
-          imageUrl: createWorkplaceAssessmentImageUri(
-            '클린룸 상부 고소배관 용접 및 불티비산 방지',
-            `${targetArea} 4층 배관 샤프트`,
-            targetRevDate,
-            '용접 불티 하부 비산으로 인한 화재 및 고소작업대 추락 위험',
-            '1. 방화포(불티비산방지포) 3중 밀폐 보양  2. 하부 전담 화재감시자 배치  3. 안전대 2점식 체결 확인',
-            'WP-HY-104'
-          )
-        }
-      ];
-
-      applyUploadedItemsByMode({
-        fileName: sampleFileName,
-        defaultDocTitle: customTitle || '공조기(AHU) 케이싱 반입 및 조립 작업장 위험성평가',
-        evalType: '작업장 평가',
-        areaTag: targetArea,
-        revNo: targetRevNo,
-        revDate: targetRevDate,
-        newItems: sampleItems
-      });
+    // The legacy standalone workplace-image upload route is retired.
+    // Keep an explicit safe fallback for stale browser actions.
+    function handleImageFilesUpload() {
+      alert('기존 작업장 평가서 업로드 기능은 종료됐습니다. ONE-PAGE 수시 위험성평가에서 등록해 주세요.');
+      return false;
     }
 
     function applyUploadedItemsByMode({ fileName, defaultDocTitle, evalType, areaTag, revNo, revDate, newItems }) {
