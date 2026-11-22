@@ -5,6 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="./mobile-spreadsheet-export.css?v=20261122-1">
+  <script src="./mobile-export-guard.js?v=20261122-1"></script>
   <!-- Browser-side baseline: does not alter login, account approval, or inline app scripts. -->
   <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta name="referrer" content="no-referrer">
@@ -1286,7 +1287,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
             <button onclick="simulateSamplePdfUpload()" class="px-4 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs sm:text-sm shadow-xs transition">
               📄 샘플 PDF 파일 자동 파싱 체험
             </button>
-            <button onclick="downloadTemplateExcel()" class="px-4 py-2.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-semibold text-xs sm:text-sm transition" data-mobile-spreadsheet-export>
+            <button onclick="downloadTemplateExcel()" class="px-4 py-2.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-semibold text-xs sm:text-sm transition" data-mobile-spreadsheet-export data-mobile-export-key="risk_template_excel">
               📥 표준 엑셀 양식 다운로드 (.xlsx)
             </button>
           </div>
@@ -4131,7 +4132,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       openSmartExcelMapperWithWorkbook(wb, 'P5 FAB1-Ph1(FAB) 폐수배관 설치 최초위험성평가 승인본.xls');
     }
 
-    function downloadTemplateExcel() {
+    function downloadTemplateExcel() { if (window.SHEMobileExportGuard?.block("risk_template_excel")) return;
       const sampleSheetData = [
         {
           '문서명': 'SUP 덕트 설치 작업 정기 위험성평가',
