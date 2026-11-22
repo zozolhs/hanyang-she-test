@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="./mobile-spreadsheet-export.css?v=20261122-1">
+  <link rel="stylesheet" href="./she-ux2026.css?v=20261122-ux1">
   <script src="./mobile-export-guard.js?v=20261122-1"></script>
   <!-- Browser-side baseline: does not alter login, account approval, or inline app scripts. -->
   <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'; form-action 'self'">
@@ -304,6 +305,45 @@
             <input type="file" id="excelUpload" style="display:none;" accept=".xlsx,.xls,.csv">
         </div>
     </div>
+
+    <!-- V24: additive smart view; original 27-column editor remains below. -->
+    <div class="she-roster-modes she-ux-modes" aria-label="연명부 보기 방식">
+      <button type="button" id="sheSmartMode" aria-pressed="false">간편 조회</button>
+      <button type="button" id="sheFullMode" aria-pressed="true">전체 연명부 표</button>
+      <span class="she-ux-muted" style="align-self:center">조회 전용 계정도 동일한 최신 서버 자료를 표시합니다.</span>
+    </div>
+    <section id="sheSmartRoster" class="she-ux-panel" aria-label="근로자 스마트 조회">
+      <div class="she-ux-top">
+        <div><div class="she-ux-title">👥 근로자 스마트 연명부</div>
+          <div id="sheSmartCounters" class="she-ux-muted">재직 및 교육 현황을 불러오는 중…</div>
+        </div>
+        <button type="button" id="sheSmartTransfer" class="she-smart-action primary" hidden disabled>선택 0명 교육일정으로 보내기</button>
+      </div>
+      <div class="she-smart-controls">
+        <input id="sheSmartSearch" type="search" autocomplete="off" placeholder="성명 · 근로번호 · 업체 · 직종 검색" aria-label="근로자 검색">
+        <select id="sheSmartCompany" aria-label="업체 선택"><option value="">전체 업체</option></select>
+      </div>
+      <div class="she-smart-quick" aria-label="근로자 상태 간편 필터">
+        <button type="button" class="she-ux-chip" data-she-roster-quick="all" aria-pressed="false">전체</button>
+        <button type="button" class="she-ux-chip" data-she-roster-quick="active" aria-pressed="true">재직자</button>
+        <button type="button" class="she-ux-chip" data-she-roster-quick="expired" aria-pressed="false">교육 만료</button>
+        <button type="button" class="she-ux-chip" data-she-roster-quick="soon" aria-pressed="false">7일 내 도래</button>
+        <button type="button" class="she-ux-chip" data-she-roster-quick="incomplete" aria-pressed="false">필수교육 미이수</button>
+        <button type="button" class="she-ux-chip" data-she-roster-quick="resigned" aria-pressed="false">퇴사자</button>
+      </div>
+      <div id="sheSmartSummary" class="she-ux-muted" role="status" aria-live="polite">조회 준비 중</div>
+      <div class="she-smart-body">
+        <div>
+          <div id="sheSmartList" class="she-smart-people" aria-label="간편 조회 목록"></div>
+          <div class="she-smart-pager">
+            <button type="button" class="she-smart-action" id="sheSmartPrev">◀ 이전</button>
+            <span id="sheSmartPage" class="she-ux-muted">1 / 1 페이지</span>
+            <button type="button" class="she-smart-action" id="sheSmartNext">다음 ▶</button>
+          </div>
+        </div>
+        <aside id="sheRosterDetail" class="she-smart-detail" aria-label="근로자 상세정보" hidden></aside>
+      </div>
+    </section>
 
     <!-- 자동 연동 필터 영역 -->
     <div class="control-panel">
@@ -1359,6 +1399,7 @@ function filterTable(resetPage = true) {
   if (resetPage) rosterView.page = 0;
   rosterView.lastFilterMs = performance.now() - began;
   showRosterPage();
+  document.dispatchEvent(new Event("she:roster-view-updated"));
 }
 
 function debounceRosterSearch() {
@@ -2141,7 +2182,7 @@ window.addEventListener('beforeunload',event => {
 });
 
 </script>
-
+<script src="./roster-smart-view.js?v=20261122-ux1"></script>
 <script src="./mobile-back.js?v=20261121" defer></script>
 </body>
 </html>
