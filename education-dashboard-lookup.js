@@ -152,7 +152,7 @@ function renderHistory(){
  title.textContent="교육이력관리 상세보기";
  description.textContent="근로자별 교육 항목의 8h 이수·진행·만료·미이수 상태를 한눈에 확인합니다.";
  buildHistoryFilters();
- setColumns(["근로자번호","이름","업체","생년월일",...COURSE_FIELDS.map(([,label])=>label),"정기교육(최근)"]);
+ setColumns(["근로자번호","이름","업체","생년월일",...COURSE_FIELDS.map(([,label])=>label)]);
  const visible=pageRows(people),frag=document.createDocumentFragment();
  for(const w of visible){
   const tr=e("tr",textVal(w.resignDate)?"she-lookup-retired":"");
@@ -160,15 +160,15 @@ function renderHistory(){
   for(const [key] of COURSE_FIELDS){
    const td=e("td");td.append(badge(statusOf(w,key,today)));tr.append(td);
   }
-  tr.append(e("td","",textVal(w.eduRegular)||"—"));frag.append(tr);
+  frag.append(tr);
  }
- if(!people.length)renderEmpty("해당 조건에 맞는 근로자가 없습니다.",14);
+ if(!people.length)renderEmpty("해당 조건에 맞는 근로자가 없습니다.",4+COURSE_FIELDS.length);
  else tableBody.replaceChildren(frag);
  const retired=all.filter(w=>Boolean(textVal(w.resignDate))).length;
  summary.textContent="전체 "+all.length.toLocaleString("ko-KR")+"명 · 재직 "+(all.length-retired).toLocaleString("ko-KR")+
  "명 · 퇴사 "+retired.toLocaleString("ko-KR")+"명 · 검색 "+people.length.toLocaleString("ko-KR")+"명";
  document.getElementById("sheLookupFootnote").textContent=
-  "교육별 8h 이수 기준이며, 만료는 기존 연명부 규칙(교육일 + 2개월, 8h 미만)을 따릅니다. 정기교육 칸은 가장 최근 날짜로 월별 이수 판정과 구분됩니다. 퇴사일 입력자는 회색 표시합니다.";
+  "교육별 8h 이수 기준이며, 만료는 기존 연명부 규칙(교육일 + 2개월, 8h 미만)을 따릅니다. 정기교육 월별 이수 현황은 상단의 정기안전교육 완료 현황 ‘간편 보기’에서 확인할 수 있습니다. 퇴사일 입력자는 회색 표시합니다.";
 }
 function expiryEntries(today){
  const items=[];
