@@ -54,7 +54,9 @@ function detail(uid){
  if(!rosterState.authorized)return;
  const rec=rosterView.byId.get(uid);if(!rec)return;
  openUid=uid;
- const side=q("sheRosterDetail");side.replaceChildren();
+ const side=q("sheRosterDetail");
+ side.classList.toggle("she-roster-resigned",Boolean(String(rec.resignDate||"").trim()));
+ side.replaceChildren();
  const head=node("div","she-smart-detail-head");
  const title=node("h3","",rec.name||"성명 미입력");
  const close=node("button","she-smart-action","닫기");
