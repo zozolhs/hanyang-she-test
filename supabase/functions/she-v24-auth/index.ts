@@ -288,6 +288,31 @@ async function deleteUser(req: Request, body: Record<string, unknown>) {
   if (data?.status !== "deleted") throw new ApiError(400, "삭제 요청이 올바르지 않습니다.");
   return { message: "계정이 삭제되고 기존 로그인 세션이 종료되었습니다.", login_id: data.login_id };
 }
+// Report only observed use of application-owned export paths. A browser signal
+// is not cryptographic proof of device identity; never issue a permanent ban.
+async function mobileExportAttempt(req: Request, body: Record<string, unknown>) {
+  const { account, session } = await requireAccount(req);
+  const key = requiredString(body.export_key, "다운로드 기능", 48);
+  const ua = req.headers.get("User-Agent") || "";
+  const chMobile = req.headers.get("sec-ch-ua-mobile") === "?1";
+  const looksMobile = /Android|iPhone|iPad|iPod|Mobile|Tablet|Windows Phone/i.test(ua) || chMobile;
+  // Window resizing, desktop responsive mode and touch-enabled PCs must not
+  // suspend a legitimate user's account.
+  if (!looksMobile) return { status:"desktop_ignored", enforced:false };
+  const {data,error}=await db.rpc("she_v24_report_mobile_export", {
+    p_account_id:account.id, p_session_id:session.id, p_export_key:key
+  });
+  if(error)throw new ApiError(503,"모바일 다운로드 보호 기록에 실패했습니다.");
+  if(!data || !["session_revoked","locked"].includes(data.status))
+    throw new ApiError(409,"모바일 다운로드 보호 상태를 확인할 수 없습니다.");
+  console.warn("SHE_V24_MOBILE_EXPORT_GUARD",JSON.stringify({
+    event:"mobile_spreadsheet_export_attempt",
+    account_id:account.id,export_key:key,attempts:data.count,
+    result:data.status
+  }));
+  return {status:data.status,enforced:true,count:data.count,
+    locked_until:data.locked_until||null};
+}
 async function changePassword(req: Request, body: Record<string, unknown>) {
   const { account } = await requireAccount(req);
   // A stolen session cannot request unlimited PBKDF2 password guesses.
@@ -363,6 +388,7 @@ Deno.serve(async (req: Request) => {
       case "registration_status": result = await registrationStatus(req); break;
       case "set_registration": result = await setRegistration(req, body); break;
       case "change_password": result = await changePassword(req, body); break;
+      case "mobile_export_attempt": result = await mobileExportAttempt(req, body); break;
       default: throw new ApiError(400, "지원하지 않는 요청입니다.");
     }
     return reply(req, 200, result);
