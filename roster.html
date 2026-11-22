@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="./mobile-spreadsheet-export.css?v=20261122-1">
-  <link rel="stylesheet" href="./she-ux2026.css?v=20261122-ux1">
+  <link rel="stylesheet" href="./she-ux2026.css?v=20261123-resign1">
   <script src="./mobile-export-guard.js?v=20261122-1"></script>
   <!-- Browser-side baseline: does not alter login, account approval, or inline app scripts. -->
   <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'; form-action 'self'">
@@ -903,6 +903,9 @@ function createRow(record) {
   const data = record;
   const row = document.createElement('tr');
   row.dataset.uid = data.uid;
+  // De-emphasize the entire row whenever a resignation date is entered.
+  // The row remains fully editable; visual state never changes server data.
+  row.classList.toggle('she-roster-resigned',Boolean(String(data.resignDate || '').trim()));
   const checkCell = row.insertCell();
   const checkbox = document.createElement('input');
   checkbox.type = 'checkbox';
@@ -1012,6 +1015,9 @@ function recordState(record) {
 }
 /* V13: 행 재사용(리사이클링). 검색마다 25×25개의 입력 노드를 재생성하지 않는다. */
 function patchRosterRow(row, record) {
+  // Rows are recycled during pagination/search, so reset the resignation style
+  // for each current worker, not only when constructing a fresh table row.
+  row.classList.toggle('she-roster-resigned',Boolean(String(record.resignDate || '').trim()));
   const changedWorker = row.dataset.uid !== record.uid;
   if (changedWorker) {
     row.dataset.uid = record.uid;
@@ -2082,6 +2088,10 @@ function bindTableEvents() {
       markDirty();
     }
     if (target.classList.contains('edu-input')) updateInputColor(target);
+    if (key === 'resignDate') {
+      const row = target.closest('tr');
+      if (row) row.classList.toggle('she-roster-resigned',Boolean(String(value).trim()));
+    }
     if (key === 'job' || key === 'eduClosed') applyOccupationRulesToRow(target.closest('tr'));
   });
   tbody.addEventListener('change', event => {
@@ -2107,6 +2117,9 @@ function bindTableEvents() {
       markDirty();
     }
     if (['company','process','job'].includes(target.dataset.field)) updateFilterDropdowns();
+    if (target.dataset.field === 'resignDate' && row) {
+      row.classList.toggle('she-roster-resigned',Boolean(String(target.value).trim()));
+    }
     // 검색/조건 필터가 켜져 있거나 판정 필드가 바뀐 경우만 결과를 갱신.
     const hasActiveFilter = Boolean($('searchInput').value.trim() ||
       ['filterCompany','filterJob','filterProcess','filterResign','filterDueDate','filterEducationHours'].some(id => $(id).value) ||
