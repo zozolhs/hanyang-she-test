@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="./mobile-spreadsheet-export.css?v=20261122-1">
-  <link rel="stylesheet" href="./she-ux2026.css?v=20261123-regular1">
+  <link rel="stylesheet" href="./she-ux2026.css?v=20261123-lookup1">
   <script src="./mobile-export-guard.js?v=20261122-1"></script>
   <!-- Browser-side baseline: does not alter login, account approval, or inline app scripts. -->
   <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'; form-action 'self'">
@@ -366,8 +366,8 @@
           </div>
         </div>
         <div class="quick-link-list">
-          <a href="roster.html" id="rosterLink" class="quick-link-item"><span>👥 근로자 연명부 및 교육 이력 관리</span><span>›</span></a>
-          <a href="roster.html?filter=expired" id="expiredLink" class="quick-link-item"><span>⚠️ 2개월 경과 교육 만료자 바로 확인</span><span>›</span></a>
+          <button type="button" id="rosterLink" class="quick-link-item"><span>👥 교육이력관리 상세보기</span><span>›</span></button>
+          <button type="button" id="expiredLink" class="quick-link-item"><span>⚠️ 만료일자 바로 확인</span><span>›</span></button>
           <button type="button" id="openCompanyReport" class="quick-link-item"><span>📊 협력사별 8h 이수율 통계 보고서</span><span>›</span></button>
         </div>
         <div class="card-footnote">※ 8h 이수 완료자는 <strong>공통·13호 운반·38호 화재·4호 인화·35호 허가 각 항목 8h 이상</strong>인 근로자만 집계합니다. 교육 일정은 <strong>종료 후 완료 확정</strong> 시에만 서버 연명부에 반영됩니다.</div>
@@ -1439,8 +1439,9 @@
         if (event.target === $('reportModal')) $('reportModal').hidden = true;
       });
       $('exportReportBtn').addEventListener('click',exportReport);
-      bindNavigation('rosterLink');
-      bindNavigation('expiredLink');
+      // Detailed education/expiry lists open in this module instead of navigating to ROSTER.
+      $('rosterLink').addEventListener('click',() => window.SHEEducationLookup?.open('history'));
+      $('expiredLink').addEventListener('click',() => window.SHEEducationLookup?.open('expiry'));
       document.addEventListener('keydown',event => {
         if (event.key !== 'Escape') return;
         if (!$('dayAgendaModal').hidden) return closeDayAgenda();
@@ -2555,6 +2556,7 @@
 <script src="./education-workflow.js?v=20261122-ux1"></script>
 <script src="./education-attendee-view.js?v=20261122-2"></script>
 <script src="./education-monthly-quickview.js?v=20261123-pendingfirst1"></script>
+<script src="./education-dashboard-lookup.js?v=20261123-lookup1"></script>
 <script src="./mobile-back.js?v=20261121" defer></script>
 </body>
 </html>
