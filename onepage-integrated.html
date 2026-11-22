@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <link rel="stylesheet" href="./mobile-spreadsheet-export.css?v=20261122-1">
+  <script src="./mobile-export-guard.js?v=20261122-1"></script>
   <!-- Browser-side baseline: does not alter login, account approval, or inline app scripts. -->
   <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta name="referrer" content="no-referrer">
@@ -199,7 +200,7 @@ body.editing .row{border-color:#facc15;box-shadow:0 0 0 1px #fde68a}
   <button class="btn pri" id="bNew" hidden>＋ 신규 생성</button>
   <button class="btn dk" id="bDone" hidden>✔ 수정완료</button>
   <button class="btn" id="bImport">📥 엑셀 가져오기</button>
-  <button class="btn" id="bExport" data-mobile-spreadsheet-export>📤 엑셀 내보내기</button>
+  <button class="btn" id="bExport" data-mobile-spreadsheet-export data-mobile-export-key="onepage_excel">📤 엑셀 내보내기</button>
   <button class="btn" id="bUnsavedBackup" type="button" hidden>📥 미저장 기록 백업</button>
   <button class="btn" id="bPhotoPdf">📄 월 사진 PDF</button>
   <button class="btn dk" id="bView">🖥 월 한페이지 보기</button>
@@ -597,7 +598,7 @@ $('fx').onchange=async e=>{ const f=e.target.files[0]; e.target.value=''; if(!f)
     if(!got.length) return toast('가져올 행이 없습니다.'); if(!confirm(`엑셀에서 ${got.length}건을 읽었습니다. (이미 있는 ${got.length-add.length}건 제외)\n${add.length}건을 추가할까요?`)) return;
     D.rows.push(...add); save(); renderAll(); toast(`${add.length}건을 가져왔습니다.`);
   }catch(err){ toast('엑셀을 읽지 못했습니다.'); } };
-$('bExport').onclick=()=>{ if(!window.XLSX) return toast('엑셀 라이브러리를 불러오지 못했습니다.'); const rows=sortedRows().filter(r=>!isBlank(r)); const aoa=[[],['','ONE - PAGE 수시 위험성평가 실시 현황'],[],['','번호','분류','위험성평가 실시일','공종','위험성평가 실시 내용','팀리더','기술인','공사관리자','물산공사','물산안전','추가 참여자','위험성평가 제안','원본 사무실 제출','작업 예정일','현장이행 사진공유','비고','메일송부','완료일','제출','완료일','위험성평가 적용','미비점']];
+$('bExport').onclick=()=>{ if (window.SHEMobileExportGuard?.block('onepage_excel')) return;  if(!window.XLSX) return toast('엑셀 라이브러리를 불러오지 못했습니다.'); const rows=sortedRows().filter(r=>!isBlank(r)); const aoa=[[],['','ONE - PAGE 수시 위험성평가 실시 현황'],[],['','번호','분류','위험성평가 실시일','공종','위험성평가 실시 내용','팀리더','기술인','공사관리자','물산공사','물산안전','추가 참여자','위험성평가 제안','원본 사무실 제출','작업 예정일','현장이행 사진공유','비고','메일송부','완료일','제출','완료일','위험성평가 적용','미비점']];
   rows.forEach((r,i)=>aoa.push(['',(r.no!=null&&String(r.no).trim())||i+1,r.cls,dShort(r.date),r.trade,r.content,r.tl||'-',r.tech||'-',r.mgr||'-',r.ssc||'-',r.sss||'-',r.extra||'-',(r.propOK?(subGuess(r.proposal)?r.proposal:'제안등록 완료'):(subGuess(r.proposal)?'':r.proposal)),r.orig?'O':'',r.plan,r.photoOK?'O':(r.photoNote||(r.photoNA?'해당없음':'')),r.note||'-',r.mail?'O':'',r.mailDate,r.subOK?'O':'',r.submit,r.apply,missOf(r).map(k=>MLAB[k]).join(', ')]));
   const ws=XLSX.utils.aoa_to_sheet(aoa); ws['!cols']=[{wch:2},{wch:6},{wch:11},{wch:12},{wch:10},{wch:60},{wch:9},{wch:12},{wch:10},{wch:9},{wch:9},{wch:10},{wch:14},{wch:10},{wch:11},{wch:16},{wch:16},{wch:8},{wch:12},{wch:8},{wch:14},{wch:16},{wch:18}]; const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'현장수시'); XLSX.writeFile(wb,`ONE-PAGE_수시위험성평가_${new Date().toISOString().slice(0,10)}.xlsx`); };
 
