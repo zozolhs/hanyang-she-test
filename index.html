@@ -486,16 +486,6 @@ body:not(.she-portal-active) #shePortal{display:none!important}
         </button>
       </div>
 
-      <!-- 작업장 평가: 기존 문서와 ONE-PAGE를 같은 탭 안의 하위 메뉴로 관리 -->
-      <div id="workplaceSubtabs" class="hidden bg-white border border-blue-200 rounded-xl p-3 mb-4 shadow-sm">
-        <div class="flex flex-wrap gap-2 items-center">
-          <strong class="text-xs font-extrabold text-blue-900 mr-1">작업장 평가</strong>
-          <button id="workplaceDocumentsBtn" type="button" onclick="switchWorkplaceSubtab('documents')"
-            class="px-4 py-2 rounded-lg text-xs font-extrabold bg-blue-600 text-white">기존 작업장 평가서</button>
-          <button id="workplaceOnepageBtn" type="button" onclick="switchWorkplaceSubtab('onepage')"
-            class="px-4 py-2 rounded-lg text-xs font-bold border border-blue-200 bg-blue-50 text-blue-800">📋 ONE-PAGE 수시 위험성평가</button>
-        </div>
-      </div>
       <div id="workplaceOnepagePanel" class="hidden bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm mb-4">
         <div class="px-4 py-3 bg-blue-50 border-b border-blue-100 flex justify-between gap-2 flex-wrap">
           <div><strong class="text-sm text-blue-950">ONE-PAGE 수시 위험성평가 실시 현황</strong>
@@ -757,7 +747,6 @@ body:not(.she-portal-active) #shePortal{display:none!important}
               <option value="정기 평가">정기 평가</option>
               <option value="수시 평가">수시 평가</option>
               <option value="최초 평가">최초 평가</option>
-              <option value="작업장 평가">작업장 평가</option>
             </select>
           </div>
           <div>
@@ -873,7 +862,6 @@ body:not(.she-portal-active) #shePortal{display:none!important}
               <option value="정기 평가">정기 평가</option>
               <option value="수시 평가">수시 평가</option>
               <option value="최초 평가">최초 평가</option>
-              <option value="작업장 평가">작업장 평가</option>
             </select>
           </div>
           <div>
@@ -1132,7 +1120,6 @@ body:not(.she-portal-active) #shePortal{display:none!important}
               <option value="정기 평가">정기 평가</option>
               <option value="수시 평가">수시 평가</option>
               <option value="최초 평가">최초 평가</option>
-              <option value="작업장 평가">작업장 평가</option>
             </select>
           </div>
           <div class="sm:col-span-1">
@@ -1281,9 +1268,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
             <button onclick="simulateUserPhotoExcelUpload()" class="px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs sm:text-sm shadow-xs transition">
               📸 P5 폐수배관 엑셀 양식(B~AD열 모눈병합·단계별 작업명) 반영 체험
             </button>
-            <button onclick="simulateSampleWorkplaceImageUpload()" class="px-4 py-2.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs sm:text-sm shadow-xs transition">
-              🖼️ 샘플 작업장 평가 이미지 등록 체험
-            </button>
+            
             <button onclick="simulateSamplePdfUpload()" class="px-4 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs sm:text-sm shadow-xs transition">
               📄 샘플 PDF 파일 자동 파싱 체험
             </button>
@@ -1312,7 +1297,6 @@ body:not(.she-portal-active) #shePortal{display:none!important}
                 <option value="정기 평가">정기 평가</option>
                 <option value="수시 평가">수시 평가</option>
                 <option value="최초 평가">최초 평가</option>
-                <option value="작업장 평가">작업장 평가</option>
               </select>
             </div>
           </div>
@@ -1993,7 +1977,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
     }
 
     let currentCategory = '전체';
-    let workplaceSubtab = 'documents';
+    let workplaceSubtab = 'onepage';
     let currentSearchQuery = '';
     let selectedDocumentId = null;
     let currentEditingItemId = null;
@@ -2163,55 +2147,35 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       renderAll();
     }
 
-    function switchWorkplaceSubtab(mode) {
-      if (currentCategory !== "작업장 평가") return;
-      if (mode !== "documents" && mode !== "onepage") return;
-      if (mode === "onepage" &&
-          (!window.SHEIndex || !window.SHEIndex.hasAccess("safety_view"))) {
+    // The retired workplace document pane is no longer selectable.
+    function syncWorkplaceSubtab() {
+      const selected = currentCategory === "작업장 평가";
+      const panel = document.getElementById("workplaceOnepagePanel");
+      const grid = document.getElementById("documentGridView");
+      const list = document.getElementById("itemListView");
+      if (!panel) return;
+      const show = selected && window.SHEIndex?.hasAccess?.("safety_view") === true;
+      panel.classList.toggle("hidden", !show);
+      if (!selected) return;
+      grid?.classList.add("hidden");
+      list?.classList.add("hidden");
+      if (!show) return;
+      const frame = document.getElementById("workplaceOnepageFrame");
+      // Load ONE-PAGE only after a user opens this category.
+      if (frame && frame.dataset.onepageLoaded !== "true") {
+        frame.dataset.onepageLoaded = "true";
+        const target = new URL("./onepage-integrated.html?v=20261121-mobileheight", location.href).href;
+        try { frame.contentWindow.location.replace(target); }
+        catch (_) { frame.setAttribute("src", target); }
+      }
+    }
+    function selectCategory(cat) {
+      if (cat === "작업장 평가" && window.SHEIndex?.hasAccess?.("safety_view") !== true) {
         alert("로그인 후 안전 자료 조회 권한을 확인하세요.");
         return;
       }
-      workplaceSubtab = mode;
+      workplaceSubtab = "onepage";
       selectedDocumentId = null;
-      currentSearchQuery = "";
-      const search = document.getElementById("searchInput");
-      if (search) search.value = "";
-      document.getElementById("clearSearchBtn")?.classList.add("hidden");
-      renderAll();
-      window.SHEIndex?.recordView?.();
-    }
-    function syncWorkplaceSubtab() {
-      const selected = currentCategory === "작업장 평가";
-      const tabs = document.getElementById("workplaceSubtabs");
-      const panel = document.getElementById("workplaceOnepagePanel");
-      const a = document.getElementById("workplaceDocumentsBtn");
-      const b = document.getElementById("workplaceOnepageBtn");
-      const grid = document.getElementById("documentGridView");
-      const list = document.getElementById("itemListView");
-      if (!tabs || !panel) return;
-      tabs.classList.toggle("hidden", !selected);
-      const show = selected && workplaceSubtab === "onepage";
-      panel.classList.toggle("hidden", !show);
-      if (show) {
-        grid?.classList.add("hidden");
-        list?.classList.add("hidden");
-        const frame = document.getElementById("workplaceOnepageFrame");
-        // Load the ONE-PAGE module only after a user explicitly opens its tab.
-        if (frame && frame.dataset.onepageLoaded !== "true") {
-          frame.dataset.onepageLoaded = "true";
-          // replace() instead of iframe.src avoids creating an unwanted browser Back entry.
-          const target = new URL("./onepage-integrated.html?v=20261121-mobileheight", location.href).href;
-          try { frame.contentWindow.location.replace(target); }
-          catch (_) { frame.setAttribute("src", target); }
-        }
-      }
-      const selectedStyle = "px-4 py-2 rounded-lg text-xs font-extrabold bg-blue-600 text-white";
-      const otherStyle = "px-4 py-2 rounded-lg text-xs font-bold border border-blue-200 bg-blue-50 text-blue-800";
-      if (a) a.className = show ? otherStyle : selectedStyle;
-      if (b) b.className = show ? selectedStyle : otherStyle;
-    }
-    function selectCategory(cat) {
-      if (currentCategory !== cat) workplaceSubtab = "documents";
       currentCategory = cat;
       updateCategoryTabStyles();
       renderAll();
@@ -2300,7 +2264,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       if (uploadDocBtn) uploadDocBtn.classList.toggle('hidden', !adminMode);
       if (manualAddBtn) manualAddBtn.classList.toggle('hidden', !adminMode);
 
-      const totalSum = documentsData.reduce((acc, d) => acc + (Number(d.displayCount) || 0), 0);
+      const totalSum = documentsData.filter(d => d.evalType !== '작업장 평가').reduce((acc, d) => acc + (Number(d.displayCount) || 0), 0);
       const totalCountEl = document.getElementById('totalItemCountText');
       if (totalCountEl) {
         totalCountEl.textContent = totalSum.toLocaleString();
@@ -2322,6 +2286,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       const container = document.getElementById('documentCardsContainer');
       const adminMode = isServerAdmin();
       const filteredDocs = documentsData.filter(doc => {
+        if (doc.evalType === '작업장 평가') return false;
         if (currentCategory !== '전체' && doc.evalType !== currentCategory) return false;
         return true;
       });
@@ -2405,6 +2370,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       updateSortButtonsUI();
 
       let filteredItems = riskItemsData.filter(item => {
+        if (item.evalType === '작업장 평가') return false;
         if (currentCategory !== '전체' && item.evalType !== currentCategory) return false;
         if (selectedDocumentId && selectedDocumentId !== 'ALL_SEARCH') {
           if (item.docId !== selectedDocumentId) return false;
@@ -8938,8 +8904,8 @@ function restoreIndexView(route){
   const r=route||{};
   state.view=r.view==='search'?'search':'portal';
   currentCategory=typeof r.category==='string'?r.category:'전체';
-  workplaceSubtab=r.subtab==='onepage'?'onepage':'documents';
-  selectedDocumentId=r.doc||null;
+  workplaceSubtab='onepage';
+  selectedDocumentId=r.category==='작업장 평가'?null:(r.doc||null);
   currentSearchQuery=r.query||'';
   const input=$('searchInput');
   if(input)input.value=currentSearchQuery;
@@ -9360,6 +9326,7 @@ function portalSearch(e){
     const query = safeStr(currentSearchQuery).trim().toLocaleLowerCase('ko');
     const list = all.filter(item => {
       const f=fieldsOf(item);
+      if (f.eval === '작업장 평가') return false;
       if (currentCategory !== '전체' && f.eval !== currentCategory) return false;
       if (selectedDocumentId && selectedDocumentId !== 'ALL_SEARCH' && safeStr(item.docId) !== safeStr(selectedDocumentId)) return false;
       if (query && ![f.title,f.hazard,f.measure,f.cause,f.doc].some(s=>s.toLocaleLowerCase('ko').includes(query))) return false;
