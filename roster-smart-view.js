@@ -124,6 +124,7 @@ function render(){
  page=Math.min(page,max);
  for(const rec of result.slice(page*40,(page+1)*40)){
   const item=node("article","she-smart-person");
+  if(String(rec.resignDate||"").trim()) item.classList.add("she-roster-resigned");
   const [tag,kind]=status(rec);
   if(allowedToTransfer()){
    const checkbox=node("input","she-smart-check");
