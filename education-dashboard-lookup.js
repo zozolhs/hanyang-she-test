@@ -174,11 +174,9 @@ function expiryEntries(today){
  const items=[];
  for(const w of workers()){
   if(textVal(w.resignDate))continue; // upcoming education concerns active workers only
-  if(textVal(w.job).replace(/\s/g,"")==="용접공"){
-   // crane education is inapplicable to welders, mirroring current roster rules
-  }
   for(const [key,label] of COURSE_FIELDS){
-   if(key==="eduCrane"&&textVal(w.job).replace(/\s/g,"")==="용접공")continue;
+   // Match the existing education module's occupation exclusion rule.
+   if(key==="eduCrane"&&typeof isWelder==="function"&&isWelder(w))continue;
    const raw=textVal(w[key]),info=educationState(raw,today);
    if(info.completed||!(info.dueDate instanceof Date)||info.dueDate<=today)continue;
    const dueMs=info.dueDate.getTime();
@@ -215,7 +213,7 @@ function renderExpiry(){
    textVal(item.worker.company)||"—",textVal(item.worker.birth)||"—",item.label,
    dateMatch?dateMatch[0]:"—",item.info.hours+"h",item.due]);
   const td=e("td");
-  td.append(badge({kind:item.days<=7?"expired":"partial",label:"D-"+item.days}));
+  td.append(badge({kind:item.days<=7?"urgent":"partial",label:"D-"+item.days}));
   tr.append(td);frag.append(tr);
  }
  if(!rows.length)renderEmpty("해당 기간에 만료 예정인 교육이 없습니다.",9);
