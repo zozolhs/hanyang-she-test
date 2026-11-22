@@ -419,6 +419,13 @@
         <button id="closeEventBtn" type="button" class="btn btn-outline icon-close" aria-label="닫기">×</button>
       </div>
       <form id="eventForm">
+        <section id="sheAttendeeOverview" class="she-attendee-overview" hidden aria-label="기존 등록 수강자">
+          <div class="she-attendee-overview-header">
+            <div><strong>📋 등록·완료된 수강자 전체 명단</strong><div id="sheAttendeeOverviewCount" class="field-hint"></div></div>
+            <button type="button" id="sheAttendeeOverviewBtn" class="btn btn-primary btn-sm">수강자 전체 보기</button>
+          </div>
+          <div class="field-hint">기존 등록 인원은 전체 명단에서 조회하며, 아래 수강자 등록은 추가·변경하는 기능입니다.</div>
+        </section>
         <div class="she-edu-preset">
           <label for="sheEduPresetSelect"><strong>⚡ 교육 간편 등록 양식</strong></label>
           <select id="sheEduPresetSelect" aria-label="교육 간편 등록 양식">
@@ -495,8 +502,8 @@
             </select>
             <span class="field-hint">교육 종료 후 [교육완료 확정] 시 해당 수강자 교육시간을 합산하여 연명부에 반영합니다. 8h 초과 시 경고합니다.</span>
           </div>
-          <div class="field full">
-            <label for="attendeeSearch">수강자 등록 (연명부 조회)</label>
+          <div class="field full" id="sheAttendeeEditor">
+            <label for="attendeeSearch">수강자 추가·변경 (연명부 조회)</label>
             <div class="participant-tools">
               <input type="search" id="attendeeSearch" placeholder="성명 · 근로번호 · 업체명 검색">
               <span id="attendeeCount" class="auth-badge">선택 0명</span>
@@ -1722,6 +1729,7 @@
         actions.appendChild(el('span',`cal-badge ${eventBadge(e)}`,statusAtTime(e,now)));
         const button=(label,action,cls='btn btn-outline btn-sm')=>{const b=el('button',cls,label);b.type='button';b.addEventListener('click',action);actions.appendChild(b);};
         button(e.status==='completed'&&e.kind==='education'?'조회':'수정',()=>e.kind==='iris'?openIris(e.id):openEventModal(e.id));
+        if(e.kind==='education') button('수강자 전체 보기',()=>window.SHEEducationAttendees?.open(e.id));
         if(pastEducationEnd(e,now)) button('교육완료 확정',()=>openConfirm(e.id),'btn btn-green btn-sm');
         if(e.kind==='education'&&e.status==='completed') button('복제',()=>cloneEvent(e.id));
         card.append(info,actions);frag.appendChild(card);
@@ -1886,6 +1894,18 @@
       const data=original||normalizeEvent({date:initialDate,title:'',hours:4,category:'regular'});
       const locked=data.status==='completed';
       state.draftAttendees=new Set(data.attendeeKeys);
+      const existing=$('sheAttendeeOverview');
+      existing.hidden=!original;
+      $('sheAttendeeEditor').hidden=locked;
+      if(original){
+        const total=(original.attendeeKeys?.length||0)+(original.guests?.length||0);
+        const attended=original.status==='completed'
+          ? (Array.isArray(original.confirmedKeys)?original.confirmedKeys.length:original.attendeeKeys.filter(key=>!original.attendeeOutcomes?.[key]||original.attendeeOutcomes[key]==='attended').length)
+          : null;
+        $('sheAttendeeOverviewCount').textContent=original.status==='completed'
+          ? '등록 '+total+'명 · 완료 확정 '+attended+'명 (외부 참석자 별도)'
+          : '현재 등록 '+total+'명 (외부 참석자 포함)';
+      }
       $('eventModalTitle').textContent=locked?'교육완료 확정 이력 조회 (수정 불가)':original?'교육 일정 및 수강자 수정':'교육 일정 등록';
       for(const [id,key] of Object.entries({eventTitle:'title',eventCategory:'category',eventStatus:'status',eventDate:'date',eventStart:'startTime',eventEnd:'endTime',eventHours:'hours',eventLocation:'location',eventInstructor:'instructor',eventCourse:'courseKey',eventNotes:'notes'}))$(id).value=String(data[key]??'');
       if(![...$('eventStatus').options].some(option=>option.value==='completed'))$('eventStatus').add(new Option('교육완료 확정','completed')); // 중복 옵션 생성 방지
@@ -1899,6 +1919,8 @@
     }
     function closeEventModal() {
       $('eventModal').hidden=true;state.editingId=null;
+      $('sheAttendeeOverview').hidden=true;
+      $('sheAttendeeEditor').hidden=false;
       [...$('eventForm').querySelectorAll('input,select,textarea')].forEach(field=>field.disabled=false);
     }
     function newTrainingWarnings(item) {
@@ -2528,7 +2550,7 @@
 
   </script>
 <script src="./education-workflow.js?v=20261122-ux1"></script>
-<script src="./education-attendee-view.js?v=20261122-1"></script>
+<script src="./education-attendee-view.js?v=20261122-2"></script>
 <script src="./mobile-back.js?v=20261121" defer></script>
 </body>
 </html>
