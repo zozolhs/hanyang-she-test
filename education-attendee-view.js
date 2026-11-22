@@ -41,7 +41,7 @@ function ensure(){
 }
 function hide(){if(!overlay)return;overlay.hidden=true;overlay.style.display="none";currentId=null;}
 function render(){
- if(!currentId||!window.state?.authorized){hide();return;}
+ if(!currentId||!(typeof state!=="undefined"&&state.authorized)){hide();return;}
  const event=state.events?.find(e=>String(e.id)===String(currentId));
  if(!event){hide();return;}
  heading.textContent=event.title+" · 수강자 명단";
@@ -61,7 +61,7 @@ function render(){
  tableBody.replaceChildren(frag);
 }
 function open(id){
- if(!window.state?.authorized)return;
+ if(!(typeof state!=="undefined"&&state.authorized))return;
  ensure();currentId=id;search.value="";render();
  if(!currentId)return;
  overlay.hidden=false;overlay.style.display="flex";search.focus();
