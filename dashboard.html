@@ -1898,7 +1898,7 @@
       root.replaceChildren();const frag=document.createDocumentFragment();
       for(const {worker:w} of results.slice(0,55)) {
         const blocked=!workerEligible(w,course),label=el('div',`participant-row${blocked?' blocked':''}`);
-        const box=document.createElement('input');box.type='checkbox';box.disabled=blocked;box.dataset.key=w.__key;
+        const box=document.createElement('input');box.type='checkbox';box.disabled=blocked||!canEditEducation();box.dataset.key=w.__key;
         box.checked=state.draftAttendees.has(w.__key);
         label.append(box,el('span','meta',`${w.name} | ${w.company||'업체 미입력'} | ${w.workerNo||'근로번호 없음'}${blocked?' · 크레인 제외 대상':''}`));
         if(blocked){const warn=el('button','btn btn-outline btn-sm','선택 불가');warn.type='button';warn.addEventListener('click',()=>alert('교육대상자가 아닙니다.'));label.appendChild(warn);}
@@ -2120,7 +2120,7 @@
       const frag=document.createDocumentFragment();
       for(const {worker:w} of matches.slice(0,55)) {
         const label=el('label','participant-row'),cb=document.createElement('input');
-        cb.type='checkbox';cb.dataset.key=w.__key;cb.checked=state.irisDraft.has(w.__key);
+        cb.type='checkbox';cb.disabled=!canEditEducation();cb.dataset.key=w.__key;cb.checked=state.irisDraft.has(w.__key);
         label.append(cb,el('span','meta',`${w.name} | ${w.company||'업체 미입력'} | ${w.workerNo||'번호 없음'} | 필수 5종 ${rosterComplete(w)?'완료':'미완료'}`));
         frag.append(label);
       }
@@ -2212,7 +2212,7 @@
       const root=$('batchEventOptions'),frag=document.createDocumentFragment();
       const completed=state.events.filter(e=>e.kind==='education'&&e.status==='completed').sort((a,b)=>-compareEvents(a,b));
       for(const e of completed.slice(0,160)) {
-        const row=el('label','participant-row'),cb=document.createElement('input');cb.type='checkbox';cb.value=e.id;cb.checked=state.reportDraftIds.has(e.id);
+        const row=el('label','participant-row'),cb=document.createElement('input');cb.type='checkbox';cb.disabled=!canEditEducation();cb.value=e.id;cb.checked=state.reportDraftIds.has(e.id);
         row.append(cb,el('span','meta',`${e.date} · ${e.title} · ${COURSE_LABELS[e.courseKey]||'교육항목 미지정'} ${e.hours}h · ${e.attendeeKeys.length}명`));frag.append(row);
       }
       if(!completed.length)frag.append(el('div','participant-list-hint','완료 확정된 교육 일정이 없습니다.'));
