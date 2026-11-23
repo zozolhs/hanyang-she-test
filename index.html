@@ -3740,20 +3740,10 @@ body:not(.she-portal-active) #shePortal{display:none!important}
         return;
       }
       let selectedMode = document.querySelector('input[name="uploadModeRadio"]:checked')?.value || 'new';
-      const selectedId = document.getElementById('uploadExistingDocSelect')?.value || '';
+      let selectedId = document.getElementById('uploadExistingDocSelect')?.value || '';
       const existing = documentsData.find(d => d.id === selectedId);
-      // A stale selection may point to a document deleted in another tab.
-      // With an empty library, do not attempt to replace a nonexistent ID.
-      if (selectedMode !== 'new' && !existing) {
-        if (documentsData.length === 0) {
-          selectedMode = 'new';
-          const newRadio = document.querySelector('input[name="uploadModeRadio"][value="new"]');
-          if (newRadio) { newRadio.checked = true; handleUploadModeChange(); }
-        } else {
-          alert('서버에서 덮어쓰기 대상을 찾지 못했습니다. 자료를 새로고침한 후 정확한 문서를 선택하세요.');
-          return;
-        }
-      }
+      // Local document IDs can become stale after a successful remote import.
+      // We resolve the latest authoritative server ID immediately before upload.
       const customTitle = document.getElementById('uploadTargetDocTitle').value.trim();
       const fileTitle = activeExcelFileName.replace(/\.[^/.]+$/, '');
       const evalType = document.getElementById('uploadTargetEvalType').value || '최초 평가';
@@ -3768,19 +3758,10 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       const replacementDoc = selectedMode === 'replace' ? existing
         : selectedMode === 'new' ? matchedExisting : null;
       const finalTitle = customTitle ||
-        (selectedMode !== 'new' ? existing.title : matchedExisting?.title || fileTitle);
-      const oldCount = Number(replacementDoc?.displayCount || 0);
+        (selectedMode !== 'new' ? (existing?.title || fileTitle) : matchedExisting?.title || fileTitle);
+      // A browser preview may be stale. Large-replacement safeguards use
+      // live server document counts, not the old UI snapshot.
       let confirmLargeReplacement = false;
-      if (replacementDoc && oldCount >= 100 && items.length < oldCount * 0.8) {
-        if (!window.confirm(
-          '⚠️ 최신본 교체 시 평가 항목이 대량 감소합니다.\n' +
-          '문서: ' + replacementDoc.title + '\n' +
-          '기존: ' + oldCount.toLocaleString() + '건 → 신규: ' + items.length.toLocaleString() + '건\n' +
-          'Excel 열 매칭·시트 선택을 확인하셨습니까?\n\n' +
-          '확인: 기존 문서를 최신 파일로 교체 / 취소: 서버 데이터 유지'
-        )) return;
-        confirmLargeReplacement = true;
-      }
       const documentMeta = {
         title:finalTitle,evalType,areaTag,
         revNo:document.getElementById('uploadTargetRevNo').value.trim() || 'Rev.1',
@@ -3797,7 +3778,65 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       if(button){button.disabled=true;button.style.opacity='.55';}
       const status = document.getElementById('sheSafetySyncStatus');
       try {
-        if(status)status.textContent='Excel 분할 업로드 시작 · 기존 데이터는 유지됩니다.';
+        if(status)status.textContent='최신 서버 문서 및 저장 버전 확인 중...';
+        const { data:latestMeta, error:latestMetaError } = await window.SHESEC.client
+          .from('hanyang_safety_store')
+          .select('id,documents,items,updated_at')
+          .eq('id','main_v10_meta').maybeSingle();
+        if(latestMetaError || !latestMeta || !Array.isArray(latestMeta.documents)){
+          throw new Error('서버의 최신 문서 목록을 확인하지 못했습니다. 이전 문서 ID로 저장하지 않습니다.');
+        }
+        const serverDocs=latestMeta.documents;
+        const norm=v=>String(v||'').normalize('NFKC').replace(/\s+/g,' ').trim().toLocaleLowerCase('ko');
+        const sameCategory=serverDocs.find(d=>
+          norm(d.evalType)===norm(documentMeta.evalType) &&
+          norm(d.areaTag)===norm(documentMeta.areaTag) &&
+          (norm(d.title)===norm(documentMeta.title) ||
+           (documentMeta.fileName && norm(d.fileName)===norm(documentMeta.fileName)))
+        );
+        const sameFile=serverDocs.filter(d=>
+          documentMeta.fileName && norm(d.fileName)===norm(documentMeta.fileName)
+        );
+        if(selectedMode!=='new'){
+          let currentTarget=serverDocs.find(d=>d.id===selectedId);
+          if(!currentTarget) currentTarget=sameCategory;
+          // The same uniquely named original workbook is authoritative even
+          // if an obsolete local document displayed the wrong category/site.
+          if(!currentTarget && sameFile.length===1) {
+            currentTarget=sameFile[0];
+            documentMeta.evalType=currentTarget.evalType || documentMeta.evalType;
+            documentMeta.areaTag=currentTarget.areaTag || documentMeta.areaTag;
+            items.forEach(it=>{
+              it.evalType=documentMeta.evalType;
+              it.areaTag=documentMeta.areaTag;
+            });
+          }
+          if(currentTarget){
+            selectedId=currentTarget.id;
+            if(status)status.textContent='서버의 최신 문서 ID 확인 완료 · 자료 전송 중...';
+          }else{
+            selectedMode='new';
+            selectedId='';
+            if(status)status.textContent='기존 덮어쓰기 대상이 없어 신규 문서로 등록합니다.';
+          }
+        }else{
+          selectedId='';
+        }
+        const replacementDoc = selectedMode==='replace'
+          ? serverDocs.find(d=>d.id===selectedId)
+          : selectedMode==='new' ? sameCategory : null;
+        const oldCount=Number(replacementDoc?.displayCount ?? 0);
+        if(replacementDoc && oldCount>=100 && items.length<oldCount*0.8){
+          if(!window.confirm(
+            '⚠️ 서버 기준 최신 평가항목 수가 크게 줄어듭니다.\n' +
+            '문서: ' + replacementDoc.title + '\n' +
+            '기존: ' + oldCount.toLocaleString() + '건 → 신규: ' + items.length.toLocaleString() + '건\n' +
+            '원본 시트 및 열 매칭이 올바른지 확인하고 교체하시겠습니까?'
+          ))return;
+          confirmLargeReplacement=true;
+        }
+        documentMeta.confirmLargeReplacement=confirmLargeReplacement;
+        if(status)status.textContent='Excel 분할 업로드 시작 · 서버 확정까지 기존 자료 유지';
         const saved = await window.SHESEC.importSafetyDocument({
           items, mode:selectedMode,targetDocId:selectedId,document:documentMeta
         },(part,total)=>{
@@ -5964,6 +6003,17 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       }
     });
 
+    // Empty arrays are valid startup state. Content-based discovery cannot
+    // detect them, so always register the three canonical editor arrays.
+    for (const [kind, name] of [
+      ["docs", "documentsData"],
+      ["items", "riskItemsData"],
+      ["users", "authorizedUsers"]
+    ]) {
+      if (Array.isArray(evalGlobal(name)) && !detectedVars[kind].includes(name)) {
+        detectedVars[kind].unshift(name);
+      }
+    }
     variablesDetected = true;
   }
 
@@ -5994,7 +6044,15 @@ body:not(.she-portal-active) #shePortal{display:none!important}
     detectDataVariables(false);
     const safeArr = Array.isArray(newArr) ? newArr.slice() : [];
     const list = detectedVars[type] || [];
-    list.forEach((varName) => setGlobalValue(varName, safeArr));
+    // The server's authoritative snapshot must reach the visible search arrays
+    // even when the page booted with zero documents and zero items.
+    const canonicalName = type === "docs" ? "documentsData"
+      : type === "items" ? "riskItemsData"
+      : type === "users" ? "authorizedUsers" : null;
+    if (canonicalName) setGlobalValue(canonicalName, safeArr);
+    list.forEach((varName) => {
+      if (varName !== canonicalName) setGlobalValue(varName, safeArr);
+    });
 
     if (type === "users") {
       syncUsersToLegacyLocalStorage(safeArr);
