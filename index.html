@@ -3048,6 +3048,8 @@ body:not(.she-portal-active) #shePortal{display:none!important}
     }
 
     function simulateSamplePdfUpload() {
+      alert('시연용 위험성평가 데이터 생성 기능은 비활성화되었습니다. 실제 승인 파일을 업로드하세요.');
+      return;
       if (!requireServerAdmin()) return;
       const customTitle = document.getElementById('uploadTargetDocTitle').value.trim();
       const targetEvalType = document.getElementById('uploadTargetEvalType').value;
@@ -3821,6 +3823,8 @@ body:not(.she-portal-active) #shePortal{display:none!important}
 
     // 보내주신 'P5 FAB1-Ph1(FAB) 폐수배관 설치 최초위험성평가 승인본.xls'와 동일한 34열(A~AH) 모눈종이 병합 구조 + 페이지별 반복 헤더 + 단계별 작업명 변경 시뮬레이션
     function simulateUserPhotoExcelUpload() {
+      alert('시연용 위험성평가 데이터 생성 기능은 비활성화되었습니다. 실제 승인 파일을 업로드하세요.');
+      return;
       if (!requireServerAdmin()) return;
 
       const makeRow34 = (cellsObj) => {
