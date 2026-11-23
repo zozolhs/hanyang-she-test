@@ -652,6 +652,7 @@ async function verifyRosterAccess(force = false) {
       }
       rosterState.user = result.profile;
       rosterState.authorized = true;
+      applyRosterWritePermissions();
       rosterState.isSuper = result.profile.role === 'super_admin';
       rosterState.lastVerifiedAt = Date.now();
       $('rosterAuthBadge').textContent = rosterState.isSuper ? '🛡️ 최고관리자' :
@@ -666,6 +667,23 @@ async function verifyRosterAccess(force = false) {
   })();
   try { return await rosterState.verifyPromise; }
   finally { rosterState.verifyPromise = null; }
+}
+
+function canEditRoster() {
+  return rosterState.authorized && window.SHESEC.canWrite(rosterState.user,"roster");
+}
+function applyRosterWritePermissions() {
+  const allowed=canEditRoster();
+  document.querySelectorAll('#tableBody input[data-field]').forEach(input=>{input.readOnly=!allowed;});
+  document.querySelectorAll('[onclick*="addNewRow()"],[onclick*="deleteSelectedRows()"],[onclick*="saveRoster(true)"],[onclick*="excelUpload"]').forEach(button=>{
+    button.disabled=!allowed;
+    button.title=allowed?'':'ROSTER 열람 전용: 수정 권한 없음';
+  });
+}
+function requireRosterEdit() {
+  if(!requireAccess())return false;
+  if(!canEditRoster()){setSaveStatus('열람 전용: ROSTER 수정 권한이 없습니다.','error');return false;}
+  return true;
 }
 
 function requireAccess() {
@@ -928,6 +946,7 @@ function createRow(record) {
     input.className = f.css || '';
     input.placeholder = f.placeholder || '';
     input.value = data[f.key] || '';
+    input.readOnly = !canEditRoster();
     input.autocomplete = 'off';
     if (f.key === 'workerNo') input.maxLength = 32;
     if (f.key === 'notes') input.title = '특이사항 기록';
@@ -1036,6 +1055,7 @@ function patchRosterRow(row, record) {
   // Rows are recycled during pagination/search, so reset the resignation style
   // for each current worker, not only when constructing a fresh table row.
   row.classList.toggle('she-roster-resigned',Boolean(String(record.resignDate || '').trim()));
+  if(row._rosterInputs)Object.values(row._rosterInputs).forEach(input=>{input.readOnly=!canEditRoster();});
   const changedWorker = row.dataset.uid !== record.uid;
   if (changedWorker) {
     row.dataset.uid = record.uid;
@@ -1124,7 +1144,7 @@ function updateSelectAllCheck() {
 }
 
 function markDirty() {
-  if (!rosterState.ready || !rosterState.authorized) return;
+  if (!rosterState.ready || !canEditRoster()) return;
   rosterState.dirty = true;
   rosterState.revision++;
   // 타이핑 중에는 동일한 저장 상태 텍스트를 수백 번 재렌더링하지 않는다.
@@ -1304,7 +1324,7 @@ function toggleSelectAll(source) {
   $('rosterSelectedCount').textContent = `선택 ${rosterView.selected.size}명`;
 }
 function deleteSelectedRows() {
-  if (!requireAccess()) return;
+  if (!requireRosterEdit()) return;
   const count = rosterView.selected.size;
   if (!count) return alert('삭제할 인원을 선택해 주세요.');
   if (!confirm(`선택한 ${count}명의 근로자 정보를 삭제하시겠습니까?`)) return;
@@ -1434,7 +1454,7 @@ function debounceRosterSearch() {
   rosterView.searchTimer = setTimeout(() => filterTable(), 180);
 }
 function addNewRow() {
-  if (!requireAccess()) return;
+  if (!requireRosterEdit()) return;
   const rec = normalizeRecord({uid:makeUid()});
   rosterView.records.push(rec);
   rosterView.byId.set(rec.uid, rec);
@@ -2098,7 +2118,7 @@ function bindTableEvents() {
   const tbody = $('tableBody');
   tbody.addEventListener('input', event => {
     const target = event.target;
-    if (!target.matches('input[data-field]')) return;
+    if (!target.matches('input[data-field]') || !canEditRoster()) return;
     const rec = rosterView.byId.get(target.closest('tr')?.dataset.uid);
     if (!rec) return;
     const key = target.dataset.field;
@@ -2130,7 +2150,7 @@ function bindTableEvents() {
       updateSelectAllCheck();
       return;
     }
-    if (!target.matches('input[data-field]')) return;
+    if (!target.matches('input[data-field]') || !canEditRoster()) return;
     const rec = rosterView.byId.get(row?.dataset.uid);
     if (rec && rec[target.dataset.field] !== target.value) {
       rec[target.dataset.field] = target.value;
