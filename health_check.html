@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="./mobile-spreadsheet-export.css?v=20261122-1">
   <script src="./mobile-export-guard.js?v=20261122-1"></script>
+  <script src="./ehs-deferred-libs.js?v=20261123-perf1"></script>
   <!-- Browser-side baseline: does not alter login, account approval, or inline app scripts. -->
   <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta name="referrer" content="no-referrer">
@@ -17,7 +18,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./she-v24-index.js?v=20261121-performance-batch1"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+  <!-- ExcelJS loads only when a completed health-check workbook is exported. -->
 
   <style>
     * {
@@ -1067,6 +1068,12 @@
         return;
       }
 
+      try {
+        await window.EHSLibs.ensure('exceljs');
+      } catch (error) {
+        alert('엑셀 생성 도구를 불러오지 못했습니다. '+(error.message||String(error)));
+        return;
+      }
       const wb = new ExcelJS.Workbook();
       const ws = wb.addWorksheet("Chkup");
 
