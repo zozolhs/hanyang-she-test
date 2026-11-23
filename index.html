@@ -9117,9 +9117,13 @@ function portalSearch(e){
     return panel;
   }
   function riskResultIdentity(item, f) {
-    const canonical = getSafeDuplicateKey(item);
-    if (canonical) return canonical;
-    const id = String(item.id ?? '').trim();
+    // This renderer is isolated from the legacy editor closure.
+    const doc = String(item?.docId ?? '').trim();
+    const norm = v => String(v ?? '').normalize('NFKC').replace(/\s+/g,' ').trim().toLocaleLowerCase('ko');
+    const key = [doc,norm(item?.evalType ?? f.eval),norm(f.title),
+      norm(f.cause),norm(f.hazard),norm(f.measure)];
+    if (doc && key[2] && key[5]) return 'scope:' + JSON.stringify(key);
+    const id = String(item?.id ?? '').trim();
     return id ? 'id:' + id : null;
   }
   function fastRenderItemCards() {
