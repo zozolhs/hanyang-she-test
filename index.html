@@ -7733,7 +7733,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       sb.from("hanyang_safety_store").select("*").eq("id", META_ROW_ID).maybeSingle()
     ]);
 
-    if (metaRes.error || !metaRes.data || usersRes.error) {
+    if (metaRes.error || !metaRes.data) {
       isPartialRecoveryState = true;
       lastVerifiedRiskUpdatedAt = null;
       setStatus("err","서버 문서 정보 조회 실패 · 현재 화면 유지 · 자동저장 차단");
