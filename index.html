@@ -2051,9 +2051,15 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       document.getElementById('docCountText').textContent = filteredDocs.length;
 
       if (filteredDocs.length === 0) {
+        const phase = window.sheV32?.getRiskLoadPhase?.() || 'metadata';
+        const message = phase === 'error'
+          ? '서버 문서 확인에 실패했습니다. 등록된 자료는 삭제되지 않았습니다. 자료 새로고침을 이용해 재시도하세요.'
+          : phase !== 'ready'
+          ? '서버에서 위험성평가 문서 목록을 확인하고 있습니다. 등록 자료는 보존되어 있습니다.'
+          : '해당 평가 분류에 등록된 위험성평가 문서가 없습니다.';
         container.innerHTML = `
           <div class="col-span-2 bg-white rounded-xl border border-slate-200 p-10 text-center text-slate-500 text-sm">
-            해당 평가 분류에 등록된 위험성평가 문서가 없습니다.
+            ${message}
           </div>
         `;
         return;
@@ -4882,6 +4888,10 @@ body:not(.she-portal-active) #shePortal{display:none!important}
   let isInternalDomMutating = false;
   let hasCompletedInitialLoad = false;
   let isPartialRecoveryState = false;
+  // Metadata is shown as soon as the authorized server responds; full
+  // assessments remain unavailable until every chunk and revision is verified.
+  let riskLoadPhase = "metadata"; // metadata | details | ready | error
+  let riskLoadRun = 0;
   // The latest revision actually loaded into the editor, NOT merely fetched
   // before a write. Prevent an old tab from restoring pre-revision content.
   let lastVerifiedRiskUpdatedAt = null;
@@ -7705,8 +7715,12 @@ body:not(.she-portal-active) #shePortal{display:none!important}
   }
 
   async function loadAllDataFromSupabase() {
+    const thisRun = ++riskLoadRun;
+    riskLoadPhase = "metadata";
+    isPartialRecoveryState = true;
+    lastVerifiedRiskUpdatedAt = null;
     createStatusBadge();
-    setStatus("work", "데이터 고속 로딩 중...");
+    setStatus("work", "위험성평가 문서 목록 확인 중 · 기존 서버 자료 보존");
 
     // V24 uses server-authoritative identities, never previous users' browser cache.
     const initialBuiltInUsers = [];
@@ -7735,8 +7749,10 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       sb.from("hanyang_safety_store").select("*").eq("id", USERS_MASTER_ROW_ID).maybeSingle(),
       sb.from("hanyang_safety_store").select("*").eq("id", META_ROW_ID).maybeSingle()
     ]);
+    if (thisRun !== riskLoadRun) return;
 
     if (metaRes.error || !metaRes.data) {
+      riskLoadPhase = "error";
       isPartialRecoveryState = true;
       lastVerifiedRiskUpdatedAt = null;
       setStatus("err","서버 문서 정보 조회 실패 · 현재 화면 유지 · 자동저장 차단");
@@ -7799,36 +7815,61 @@ body:not(.she-portal-active) #shePortal{display:none!important}
         setStatus("work","로컬 임시 자료와 서버 최신 자료 확인 중...");
       }
 
+      // Show only document metadata from the authenticated server immediately.
+      // Never present stale detail rows as a current revision or permit edits
+      // before verifying the complete, version-matched item snapshot.
+      riskLoadPhase = "details";
+      setAllArraysOfType("docs", metaRow.documents || []);
+      setAllArraysOfType("items", []);
+      if (selectedDocumentId && selectedDocumentId !== "ALL_SEARCH" &&
+          !(metaRow.documents || []).some(d=>d?.id===selectedDocumentId)) {
+        selectedDocumentId = null;
+      }
+      setStatus("work","서버 문서 " + (metaRow.documents||[]).length +
+        "개 확인 · 세부항목 " + Number(metaInfo.totalItems||0).toLocaleString() +
+        "건 검증하여 불러오는 중");
+      if (typeof renderAll === "function") renderAll();
+
       const isServerMetaTruncated = serverExpected >= 500 && Number(metaInfo.totalItems || 0) < serverExpected * 0.7;
-      const scanChunkCount = isServerMetaTruncated ? 15 : Math.max(Number(metaInfo.chunkCount || 0), 10);
+      const scanChunkCount = isServerMetaTruncated ? 15 : Math.max(Number(metaInfo.chunkCount || 0), 0);
 
       let allLoadedItems = [];
       if (scanChunkCount > 0) {
         const chunkIds = Array.from({ length: scanChunkCount }, (_, i) => `${CHUNK_PREFIX}${i}`);
-        // Previously one gateway request returned all 5,785 rows (~4 MB).
-        // Bounded two-chunk reads reduce occasional network stalls and memory
-        // spikes. One retry is allowed, never treat a failed fetch as empty.
-        const chunkRows=[];
-        for (let start=0;start<chunkIds.length;start+=2) {
-          const group=chunkIds.slice(start,start+2);
-          let batch=null;
-          for (let attemptNo=0;attemptNo<2;attemptNo++) {
-            const result=await sb.from("hanyang_safety_store")
-              .select("id,items").in("id",group);
-            if (!result.error && Array.isArray(result.data)) {
-              batch=result.data;break;
+        // Fetch two-chunk (~1 MB) batches concurrently instead of chaining
+        // five serial requests. Do not load untrusted or incomplete snapshots.
+        const groups=[];
+        for(let start=0;start<chunkIds.length;start+=2)
+          groups.push(chunkIds.slice(start,start+2));
+        let completed=0;
+        const batches=await Promise.all(groups.map(async group=>{
+          for(let attemptNo=0;attemptNo<2;attemptNo++){
+            try{
+              const result=await sb.from("hanyang_safety_store")
+                .select("id,items").in("id",group);
+              if (!result.error && Array.isArray(result.data)){
+                completed+=group.length;
+                if (thisRun===riskLoadRun)
+                  setStatus("work","서버 문서 " + (metaRow.documents||[]).length +
+                    "개 확인 · 세부항목 수신 " + completed + "/" + chunkIds.length + "구간");
+                return result.data;
+              }
+            }catch(fetchErr){
+              if(attemptNo===1) console.warn("[EHS SAFETY] chunk fetch failed",fetchErr);
             }
           }
-          if (!batch) {
-            isPartialRecoveryState=true;
-            lastVerifiedRiskUpdatedAt=null;
-            setStatus("err","위험성평가 분할 조회 실패 · 서버 자료 유지 · 새로고침으로 재시도하세요.");
-            return;
-          }
-          chunkRows.push(...batch);
-          setStatus("work","위험성평가 서버 읽는 중 " +
-            Math.min(start+group.length,chunkIds.length)+"/"+chunkIds.length);
+          return null;
+        }));
+        if (thisRun !== riskLoadRun) return;
+        if (batches.some(batch=>!Array.isArray(batch))){
+          riskLoadPhase="error";
+          isPartialRecoveryState=true;
+          lastVerifiedRiskUpdatedAt=null;
+          setStatus("err","문서 목록은 확인됐으나 세부항목 조회에 실패했습니다. 서버 자료는 보존되며 자동저장이 차단됩니다. 새로고침하세요.");
+          if (typeof renderAll==="function") renderAll();
+          return;
         }
+        const chunkRows=batches.flat();
         chunkRows.sort((a,b)=>
           Number(a.id.replace(CHUNK_PREFIX,""))-Number(b.id.replace(CHUNK_PREFIX,"")));
         chunkRows.forEach(cr=>{
@@ -7843,6 +7884,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       // collection or silently display zero when the server holds 1,234 rows.
       if (!Number.isSafeInteger(serverTotal) || serverTotal < 0 ||
           allLoadedItems.length !== serverTotal) {
+        riskLoadPhase = "error";
         lastVerifiedRiskUpdatedAt = null;
         isPartialRecoveryState = true;
         setStatus("err", "위험성평가 수신 건수 불일치 · 서버 " +
@@ -7853,8 +7895,10 @@ body:not(.she-portal-active) #shePortal{display:none!important}
 
       const checkVersion = await sb.from("hanyang_safety_store")
         .select("id,updated_at").eq("id",META_ROW_ID).maybeSingle();
+      if (thisRun !== riskLoadRun) return;
       if (checkVersion.error || !checkVersion.data ||
           checkVersion.data.updated_at !== metaRow.updated_at) {
+        riskLoadPhase = "error";
         isPartialRecoveryState=true;
         lastVerifiedRiskUpdatedAt=null;
         setStatus("err","서버 자료를 읽는 동안 새 개정이 등록됐습니다. 이전 버전 화면 반영을 차단했습니다. 새로고침하세요.");
@@ -7874,12 +7918,15 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       }
 
       if (finalItems.length !== serverTotal || serverExpected !== serverTotal) {
+        riskLoadPhase = "error";
         lastVerifiedRiskUpdatedAt = null;
         isPartialRecoveryState = true;
         setStatus("work", `부분 복구됨 (${finalItems.length.toLocaleString()}건 · 누락문서 덮어쓰기 필요)`);
       } else {
         isPartialRecoveryState = false;
         lastVerifiedRiskUpdatedAt = metaRow.updated_at;
+        riskLoadPhase = "ready";
+        if (typeof renderAll === "function") renderAll();
         await saveToLocalIDB({
           documents: finalDocs,
           items: finalItems,
@@ -8591,6 +8638,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
     setupSmartDomObserver();
     document.addEventListener("she:authorized", () => {
       void loadAllDataFromSupabase().catch(err=>{
+        riskLoadPhase="error";
         isPartialRecoveryState=true;
         lastVerifiedRiskUpdatedAt=null;
         console.error("[EHS SAFETY] server data load failed:",err);
@@ -8640,6 +8688,8 @@ body:not(.she-portal-active) #shePortal{display:none!important}
     return getPrimaryArray("items").length;
   }
   window.sheV32 = Object.freeze({
+    getRiskLoadPhase:()=>riskLoadPhase,
+    isRiskDataReady:()=>riskLoadPhase==="ready" && !isPartialRecoveryState && !!lastVerifiedRiskUpdatedAt,
     reloadSafetyDataReadOnly,
     lookupSerial: lookupSerialForCardOrModalFast,
     enhanceDetailModal: enhanceDetailModalWithSerialAndCalibration,
@@ -9190,6 +9240,17 @@ function portalSearch(e){
     const container = $('itemCardsContainer');
     if (!container) return;
     ensureSafetyDetailSearch(container);
+    if (!window.sheV32?.isRiskDataReady?.()){
+      const phase=window.sheV32?.getRiskLoadPhase?.();
+      container.innerHTML='<div class="bg-white rounded-xl border border-slate-200 p-8 text-center text-sm text-slate-600">' +
+        (phase==='error'
+          ? '서버에서 세부 평가항목을 확인하지 못했습니다. 기존 자료는 보존되며, 자료 새로고침으로 재시도하세요.'
+          : '서버 문서 목록을 확인했습니다. 세부 평가항목을 검증하여 불러오는 중입니다. 자료가 삭제된 것은 아닙니다.') +
+        '</div>';
+      const resultCount=$('sheSafetyDetailCount');
+      if(resultCount) resultCount.textContent=phase==='error'?'자료 검증 실패':'세부 자료 불러오는 중';
+      return;
+    }
     const all = Array.isArray(riskItemsData) ? riskItemsData : [];
     const query = safeStr(currentSearchQuery).trim().toLocaleLowerCase('ko');
     const detailQuery = safetyDetailQuery;
