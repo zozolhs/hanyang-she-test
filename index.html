@@ -7768,12 +7768,23 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       let allLoadedItems = [];
       if (scanChunkCount > 0) {
         const chunkIds = Array.from({ length: scanChunkCount }, (_, i) => `${CHUNK_PREFIX}${i}`);
-        const { data: chunkRows, error: chunkLoadErr } = await sb
+        let { data: chunkRows, error: chunkLoadErr } = await sb
           .from("hanyang_safety_store")
           .select("id, items")
           .in("id", chunkIds);
-
-        if (!chunkLoadErr && Array.isArray(chunkRows)) {
+        // One failed batch must never be rendered as an empty assessment.
+        if (chunkLoadErr || !Array.isArray(chunkRows)) {
+          const retry = await sb.from("hanyang_safety_store")
+            .select("id, items").in("id", chunkIds);
+          chunkRows = retry.data;
+          chunkLoadErr = retry.error;
+        }
+        if (chunkLoadErr || !Array.isArray(chunkRows)) {
+          isPartialRecoveryState = true;
+          setStatus("err", "위험성평가 청크 조회 실패 · 기존 화면 유지 · 서버 저장 차단");
+          return;
+        }
+        if (Array.isArray(chunkRows)) {
           chunkRows.sort((a, b) => {
             const ai = parseInt(String(a.id).replace(CHUNK_PREFIX, ""), 10);
             const bi = parseInt(String(b.id).replace(CHUNK_PREFIX, ""), 10);
@@ -7792,12 +7803,31 @@ body:not(.she-portal-active) #shePortal{display:none!important}
         }
       }
 
+      const serverTotal=Number(metaInfo.totalItems || 0);
+      // For complete server snapshots, never trust a partially received chunk
+      // collection or silently display zero when the server holds 1,234 rows.
+      if (!Number.isSafeInteger(serverTotal) || serverTotal < 0 ||
+          allLoadedItems.length !== serverTotal) {
+        isPartialRecoveryState = true;
+        setStatus("err", "위험성평가 수신 건수 불일치 · 서버 " +
+          serverTotal.toLocaleString() + "건 / 수신 " +
+          allLoadedItems.length.toLocaleString() + "건 · 서버 저장 차단");
+        return;
+      }
+
       hasCompletedInitialLoad = true;
       const cleanedOrFixed = applyFullStateToPage(metaRow.documents || [], allLoadedItems, authoritativeUsers, metaInfo.itemMaps || null);
       const finalDocs = getPrimaryArray("docs");
       const finalItems = getPrimaryArray("items");
+      // A failed, unsaved local document may still be selected in the UI.
+      // After a verified server refresh, return to the real document list.
+      if (selectedDocumentId && selectedDocumentId !== "ALL_SEARCH" &&
+          !finalDocs.some(d => d?.id === selectedDocumentId)) {
+        selectedDocumentId = null;
+        if (typeof renderAll === "function") renderAll();
+      }
 
-      if (serverExpected >= 500 && finalItems.length < serverExpected * 0.8) {
+      if (finalItems.length !== serverTotal || serverExpected !== serverTotal) {
         isPartialRecoveryState = true;
         setStatus("work", `부분 복구됨 (${finalItems.length.toLocaleString()}건 · 누락문서 덮어쓰기 필요)`);
       } else {
