@@ -74,16 +74,15 @@ function permitted(p,mod,write=false){
     return false;
   if(p.role==="super_admin")return true;
   if(mod==="admin"||mod==="users_admin")return false;
+  // The portal login guard remains valid even without module access.
   if(mod==="safety_view")return !write;
-  if(mod==="safety")
-    return p.role==="admin"&&p.permissions?.safety===true;
-  if(mod==="roster")
-    return write
-      ? p.role==="admin"&&p.permissions?.roster===true
-      : (p.role==="admin"||p.role==="viewer_admin")&&p.permissions?.roster===true;
+  // Preserve existing worker access to basic SAFETY search only.
+  if(mod==="safety"&&p.role==="worker")return !write;
   if(!MODULES.includes(mod))return false;
-  if(write)return p.role==="admin"&&p.permissions?.[mod]===true;
-  return (p.role==="admin"||p.role==="viewer_admin")&&p.permissions?.[mod]===true;
+  if(p.role!=="admin"&&p.role!=="viewer_admin")return false;
+  const canRead=p.permissions?.[mod]===true;
+  if(!write)return canRead;
+  return p.role==="admin"&&canRead&&p.permissions?.[mod+"_write"]===true;
 }
 async function refresh(force=false){
   if(ongoing)return ongoing;
