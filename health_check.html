@@ -538,7 +538,7 @@
     const SHE_SUPER_SESSION = "hy_super_admin_verified_v15";
     const SHE_ADMIN_SESSION = "hy_admin_verified_session_v15";
     const SHE_HEALTH_SESSION = "hy_health_manager_verified";
-    const hcAccess = { allowed: false, super: false, checking: false, lastChecked: 0 };
+    const hcAccess = { allowed: false, writable: false, super: false, checking: false, lastChecked: 0 };
     const hcSupabase = window.SHESEC.client;
 
     function hcSessionUser() {
@@ -599,10 +599,16 @@
         }
         const p = result.profile;
         hcAccess.allowed = true;
+        hcAccess.writable = window.SHESEC.canWrite(p,'health');
         hcAccess.super = p.role === 'super_admin';
+        ['hcSelectPdfBtn','hcDownloadExcelBtn','hcResetBtn'].forEach(id=>{
+          const element=document.getElementById(id);
+          if(element){element.disabled=!hcAccess.writable;element.title=hcAccess.writable?'':'HEALTH 열람 전용: PDF 변환·출력 권한 없음';}
+        });
+        document.getElementById('hcDropzone')?.setAttribute('aria-disabled',String(!hcAccess.writable));
         hcAccess.lastChecked = Date.now();
         document.getElementById('hcAdminRoleText').textContent = hcAccess.super ?
-          `🛡️ 최고관리자(${p.name}) 접속 중` : `🏥 HEALTH 관리자(${p.name}) 접속 중`;
+          `🛡️ 최고관리자(${p.name}) 접속 중` : `🏥 HEALTH ${hcAccess.writable?'열람·수정':'열람 전용'} (${p.name})`;
         document.getElementById('hcAccessOverlay').hidden = true;
         document.documentElement.classList.remove('hc-locked');
         return true;
@@ -618,6 +624,11 @@
         alert("🔒 HEALTH 모듈 접속 권한을 확인할 수 없습니다.");
         return false;
       }
+      return true;
+    }
+    function hcRequireWrite() {
+      if(!hcRequireAccess())return false;
+      if(!hcAccess.writable){alert('HEALTH 열람 전용입니다. PDF 등록·변환·엑셀 출력 권한이 없습니다.');return false;}
       return true;
     }
 
@@ -885,7 +896,7 @@
     }
 
     async function handlePdfFiles(fileList) {
-      if (!hcRequireAccess()) return;
+      if (!hcRequireWrite()) return;
       if (hcBatchBusy) return;
       const files = Array.from(fileList).filter(f => /\.pdf$/i.test(f.name));
       if (files.length === 0) {
@@ -1046,7 +1057,7 @@
     }
 
     async function downloadCompletedExcel() { if (window.SHEMobileExportGuard?.block("health_excel")) return;
-      if (!hcRequireAccess()) return;
+      if (!hcRequireWrite()) return;
       if (hcBatchBusy) {
         alert("PDF 변환 완료 후 엑셀을 다운로드해 주세요.");
         return;
@@ -1215,11 +1226,11 @@
 
     dropzone.addEventListener("click", (event) => {
       if (event.target.closest("button")) return;
-      if (hcRequireAccess() && !hcBatchBusy) pdfInput.click();
+      if (hcRequireWrite() && !hcBatchBusy) pdfInput.click();
     });
     selectBtn.addEventListener("click", event => {
       event.stopPropagation();
-      if (hcRequireAccess() && !hcBatchBusy) pdfInput.click();
+      if (hcRequireWrite() && !hcBatchBusy) pdfInput.click();
     });
     pdfInput.addEventListener("change", event => {
       const files = Array.from(event.target.files || []);
@@ -1228,7 +1239,7 @@
     });
     dropzone.addEventListener("dragover", event => {
       event.preventDefault();
-      if (!hcBatchBusy && hcAccess.allowed) dropzone.classList.add("dragover");
+      if (!hcBatchBusy && hcAccess.writable) dropzone.classList.add("dragover");
     });
     dropzone.addEventListener("dragleave", () => dropzone.classList.remove("dragover"));
     dropzone.addEventListener("drop", event => {
@@ -1264,7 +1275,7 @@
     });
 
     document.getElementById("hcResetBtn").addEventListener("click", () => {
-      if (!hcRequireAccess() || hcBatchBusy) return;
+      if (!hcRequireWrite() || hcBatchBusy) return;
       if (confirm("현재 변환된 목록을 모두 비우시겠습니까?")) {
         parsedRecords = [];hcPage=0;hcStatsMemo=null;hcFilterMemo=null;
         document.getElementById("hcProgressWrap").style.display = "none";
