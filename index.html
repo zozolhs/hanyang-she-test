@@ -4935,7 +4935,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="./she-v24-index.js?v=20261123-stream-import-v1"></script>
+<script src="./she-v24-index.js?v=20261123-atomic-risk-v2"></script>
 <script>
 (function() {
   const SUPABASE_URL = "https://ahmqthuympannqsrszvv.supabase.co";
@@ -7744,59 +7744,25 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       }
 
       const updatedAt = new Date().toISOString();
-      setStatus("work", `서버 저장 중... (${items.length.toLocaleString()}건)`);
-
-      await saveToLocalIDB({
-        documents: docs,
-        items: items,
-        users: finalUsers,
-        itemMaps: itemMapsSnapshot,
-        updated_at: updatedAt
+      if(!window.SHESEC?.saveSafetySnapshot)
+        throw new Error("위험성평가 저장 모듈이 최신 상태가 아닙니다. Ctrl+Shift+R로 새로고침하세요.");
+      setStatus("work", `서버 안전 저장 중... (${items.length.toLocaleString()}건)`);
+      // Save every chunk in staging, then activate as one atomic transaction.
+      const confirmed = await window.SHESEC.saveSafetySnapshot({
+        documents:docs,items
+      },(part,total)=>{
+        setStatus("work",`위험성평가 저장 ${part}/${total} · 서버 확정 대기`);
       });
-
-      const chunks = [];
-      for (let i = 0; i < items.length; i += CHUNK_SIZE) {
-        chunks.push(items.slice(i, i + CHUNK_SIZE));
-      }
-
-      const chunkPayloads = chunks.map((chunkArr, idx) => ({
-        id: `${CHUNK_PREFIX}${idx}`,
-        documents: [],
-        items: chunkArr,
-        users: [],
-        updated_at: updatedAt
-      }));
-      // Clearing removed entries in old chunks prevents deleted records from
-      // reappearing after the next full scan.
-      for(let i=chunkPayloads.length;i<knownServerChunkCount;i++) {
-        chunkPayloads.push({
-          id:`${CHUNK_PREFIX}${i}`, documents:[],items:[],users:[],updated_at:updatedAt
+      if(Number(confirmed.total_items)!==items.length)
+        throw new Error("서버 확정 항목 수 검증 실패. 관리자 확인이 필요합니다.");
+      try {
+        await saveToLocalIDB({
+          documents:docs,items,users:finalUsers,
+          itemMaps:itemMapsSnapshot,updated_at:updatedAt
         });
+      } catch(localErr) {
+        console.warn("[EHS SAFETY] Server saved; local cache update failed.");
       }
-      const metaPayload = {
-        id: META_ROW_ID,
-        documents: docs,
-        items: [{
-          __v10Meta: true,
-          chunkCount: chunks.length,
-          totalItems: items.length,
-          itemMaps: itemMapsSnapshot,
-          docTableMapsV24: getStoredDocTableMaps()
-        }],
-        users: [],
-        updated_at: updatedAt
-      };
-
-      // One V24 server-side transaction updates ALL chunks and metadata.
-      const { error: metaErr } = await sb
-        .from("hanyang_safety_store")
-        .upsert([...chunkPayloads,metaPayload], { onConflict: "id" });
-      if (metaErr) {
-        setStatus("err", "서버 일괄 저장이 거부됐습니다. 변경 충돌 또는 권한을 확인하세요.");
-        if(showNotification)alert(metaErr.message||"서버 일괄 저장에 실패했습니다.");
-        return;
-      }
-
       lastDataSig = computeDataSig();
       lastUsersSig = computeUsersSig();
       savedSuccessfully = true;
@@ -7806,6 +7772,12 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       if (showNotification && typeof showToast === "function") {
         showToast(`☁️ 문서 ${docs.length}개 · 세부항목 ${items.length.toLocaleString()}건 · 회원 ${finalUsers.length}명이 저장되었습니다.`);
       }
+    } catch(saveError) {
+      unconfirmedRiskChanges = true;
+      const reason = saveError?.message || "알 수 없는 저장 오류";
+      setStatus("err","❌ 위험성평가 저장 실패 · 기존 DB 상태 보존: "+reason);
+      console.error("[EHS SAFETY] atomic save rejected:",reason);
+      if(showNotification)alert("위험성평가 저장 실패: "+reason);
     } finally {
       isSavingNow = false;
       if (pendingRiskSaveAfterFlight) {
