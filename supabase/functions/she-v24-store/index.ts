@@ -207,6 +207,55 @@ async function putSafetyBatch(a:Account,input:Record<string,unknown>) {
   if(data?.status!=="ok")throw new ApiError(400,"일괄 저장 요청 형식 오류");
   return {status:"ok",rows:data.rows};
 }
+
+async function safetyImportPart(a:Account,input:Record<string,unknown>){
+  if(!canWrite(a,"safety"))throw new ApiError(403,"위험성평가 업로드 권한이 없습니다.");
+  const uploadId=input.upload_id,partIndex=input.part_index,partCount=input.part_count;
+  const expected=input.base_meta_updated_at,mode=input.import_mode,doc=input.document;
+  const targetId=input.target_doc_id;
+  const items=input.items;
+  if(typeof uploadId!=="string" ||
+     !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(uploadId) ||
+     !Number.isInteger(partIndex)||Number(partIndex)<0||
+     !Number.isInteger(partCount)||Number(partCount)<1||
+     Number(partCount)>100||Number(partIndex)>=Number(partCount)||
+     typeof expected!=="string"||!Number.isFinite(Date.parse(expected))||
+     !["replace","append","new"].includes(String(mode))||
+     (mode!=="new"&&(typeof targetId!=="string"||targetId.length>120))||
+     !doc||typeof doc!=="object"||Array.isArray(doc)||
+     !Array.isArray(items)||items.length<1||items.length>350||
+     items.some(v=>!v||typeof v!=="object"||Array.isArray(v)||
+       typeof v.measureText!=="string"||v.measureText.length<1||
+       v.measureText.length>10000)){
+    throw new ApiError(400,"엑셀 분할 업로드 자료가 올바르지 않습니다.");
+  }
+  const {error}=await db.from("she_v24_safety_import_parts").upsert({
+    actor_id:a.id,upload_id:uploadId,part_index:partIndex,part_count:partCount,
+    base_meta_updated_at:expected,import_mode:mode,
+    target_doc_id:mode==="new"?null:targetId,
+    document:doc,items:items
+  },{onConflict:"actor_id,upload_id,part_index"});
+  if(error)throw new ApiError(503,"위험성평가 분할 업로드를 저장하지 못했습니다.");
+  return {status:"ok",part_index:partIndex,part_count:partCount};
+}
+async function safetyImportCommit(a:Account,input:Record<string,unknown>){
+  if(!canWrite(a,"safety"))throw new ApiError(403,"위험성평가 업로드 권한이 없습니다.");
+  const id=input.upload_id;
+  if(typeof id!=="string"||! /^[0-9a-f-]{36}$/i.test(id))
+    throw new ApiError(400,"업로드 요청 번호 형식 오류");
+  const {data,error}=await db.rpc("she_v24_commit_safety_import",{
+    p_actor:a.id,p_upload_id:id
+  });
+  if(error)throw new ApiError(503,"위험성평가 최종 저장에 실패했습니다.");
+  if(data?.status==="conflict")throw new ApiError(409,"다른 사용자의 변경이 먼저 저장됐습니다. 자료를 새로고침한 후 다시 업로드하세요.");
+  if(data?.status==="incomplete")throw new ApiError(409,"엑셀의 일부 분할 자료가 누락됐습니다. 기존 파일은 변경되지 않았습니다.");
+  if(data?.status==="integrity")throw new ApiError(409,"서버의 기존 데이터 개수가 일치하지 않습니다. 안전 확인이 필요합니다.");
+  if(data?.status==="mass_loss"||data?.status==="large_replacement")throw new ApiError(409,"기존 평가 항목의 대량 감소가 감지되어 덮어쓰기를 차단했습니다.");
+  if(data?.status==="not_found")throw new ApiError(404,"선택한 문서를 찾지 못했습니다. 새로고침 후 다시 확인하세요.");
+  if(data?.status!=="ok")throw new ApiError(400,"위험성평가 업로드 자료를 검증하지 못했습니다.");
+  return data;
+}
+
 // ONE-PAGE: isolated V24 SAFETY data; never writes the existing risk-document chunks.
 function onepageRead(a:Account){if(!canRead(a,"safety"))throw new ApiError(403,"ONE-PAGE 조회 권한이 없습니다.");}
 function onepageWrite(a:Account){if(!canWrite(a,"safety"))throw new ApiError(403,"ONE-PAGE 수정 권한이 없습니다.");}
@@ -425,6 +474,8 @@ Deno.serve(async (req:Request)=>{
       case "store_counts":return send(req,200,await getRow(a,input,true));
       case "store_put":return send(req,200,await putRow(a,input));
       case "store_put_batch":return send(req,200,await putSafetyBatch(a,input));
+      case "safety_import_part":return send(req,200,await safetyImportPart(a,input));
+      case "safety_import_commit":return send(req,200,await safetyImportCommit(a,input));
       case "store_education_roster":return send(req,200,await educationRoster(a,input));
       case "store_confirm_education":return send(req,200,await confirmEducation(a,input));
       case "onepage_get":return send(req,200,await onepageGet(a));
