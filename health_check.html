@@ -17,7 +17,6 @@
   <!-- PDF.js · ExcelJS · Supabase (브라우저 공개키 사용) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./she-v24-index.js?v=20261121-performance-batch1"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <!-- ExcelJS loads only when a completed health-check workbook is exported. -->
 
   <style>
@@ -515,7 +514,6 @@
   </main>
 
   <script>
-    pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
     let parsedRecords = [];
     let currentFilter = "ALL";
@@ -653,6 +651,8 @@
       const pagesText = [];
       try {
         // PDF는 브라우저 내에서만 처리하며 서버에 업로드하지 않는다.
+        const pdfjsLib = await window.EHSLibs.ensure("pdfjs");
+        pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
         loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) });
         pdf = await loadingTask.promise;
         for (let pNum = 1; pNum <= pdf.numPages; pNum++) {
