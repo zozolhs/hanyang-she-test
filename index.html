@@ -3855,6 +3855,19 @@ body:not(.she-portal-active) #shePortal{display:none!important}
         totalItems = totalItems.concat(sheetItems);
       });
 
+      // Same workbook source rows may appear on multiple sheets, such as
+      // sheet1 and 갑지. Keep the first exact source match, never merge
+      // different row positions or different safety measures.
+      const firstSheetByRow = new Map();
+      totalItems = totalItems.filter(it => {
+        const key = JSON.stringify([
+          it.rowNo, it.taskTitle, it.causeObj, it.hazardText, it.measureText
+        ].map(v => String(v ?? "").replace(/\\s+/g, " ").trim()));
+        const originalSheet = firstSheetByRow.get(key);
+        if (originalSheet && originalSheet !== it.sheetName) return false;
+        if (!originalSheet) firstSheetByRow.set(key, it.sheetName);
+        return true;
+      });
       totalItems.forEach((it, idx) => {
         it.itemNo = `${idx + 1}번 항목`;
       });
@@ -5044,21 +5057,11 @@ body:not(.she-portal-active) #shePortal{display:none!important}
   // 2. 옛 테스트용 6개 샘플 문서(7,686건) 즉시 소거 엔진
   // =========================================================================
   function isLegacySampleDoc(docOrItem) {
+    // Uploaded documents must never be discarded simply because their titles
+    // or filenames match an old bundled demonstration document.
     if (!docOrItem || typeof docOrItem !== "object") return false;
-    const titleStr = String(
-      docOrItem.title || docOrItem.name || docOrItem.docTitle || docOrItem.docName || docOrItem.source || ""
-    ).trim();
-    const fileStr = String(
-      docOrItem.fileName || docOrItem.file || docOrItem.sourceFile || docOrItem.originalFile || ""
-    ).trim();
-
-    for (let i = 0; i < LEGACY_SAMPLE_DOC_KEYWORDS.length; i++) {
-      const kw = LEGACY_SAMPLE_DOC_KEYWORDS[i];
-      if ((titleStr && titleStr.includes(kw)) || (fileStr && fileStr.includes(kw))) {
-        return true;
-      }
-    }
-    return false;
+    const id = String(docOrItem.docId ?? docOrItem.id ?? "");
+    return /^doc-[1-6]$/.test(id);
   }
 
   function purgeLegacySampleSixDocsImmediate() {
@@ -6186,6 +6189,14 @@ body:not(.she-portal-active) #shePortal{display:none!important}
 
   function getPrimaryArray(type) {
     detectDataVariables(false);
+    // Treat the active legacy editor arrays as canonical even when empty;
+    // picking whichever candidate is longest can restore stale sample data.
+    const canonicalName = type === "docs" ? "documentsData"
+      : type === "items" ? "riskItemsData" : null;
+    if (canonicalName) {
+      const canonical = evalGlobal(canonicalName);
+      if (Array.isArray(canonical)) return canonical;
+    }
     const list = detectedVars[type] || [];
     let bestArr = null;
     let maxLen = -1;
@@ -7502,21 +7513,8 @@ body:not(.she-portal-active) #shePortal{display:none!important}
   }
 
   function deleteAllDocuments() {
-    if (!isAnyAdminLoggedIn()) {
-      alert("서버관리자만 전체 문서를 삭제할 수 있습니다.");
-      return;
-    }
-    const docs = getPrimaryArray("docs");
-    if (!docs.length) {
-      alert("삭제할 문서가 없습니다.");
-      return;
-    }
-    if (!confirm(`현재 등록된 ${docs.length}개 위험성평가 문서를 모두 삭제하시겠습니까?`)) return;
-    setAllArraysOfType("docs", []);
-    setAllArraysOfType("items", []);
-    isPartialRecoveryState = false;
-    refreshUI();
-    saveAllDataToSupabase(true);
+    alert("안전 보호 조치: 위험성평가 문서 전체 삭제 기능은 비활성화되었습니다.");
+    return false;
   }
 
   function injectDocDeleteButtons() {
@@ -7553,19 +7551,8 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       parent.appendChild(delBtn);
     });
 
-    const addDocBtn = allButtons.find((b) => (b.textContent || "").trim().includes("새 위험성평가 문서 등록"));
-    if (addDocBtn && addDocBtn.parentElement && !addDocBtn.parentElement.querySelector(".hy-doc-clear-all-btn")) {
-      const clearAllBtn = document.createElement("button");
-      clearAllBtn.type = "button";
-      clearAllBtn.className = "hy-doc-clear-all-btn";
-      clearAllBtn.style.cssText = "background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;border-radius:10px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;margin-left:6px;";
-      clearAllBtn.textContent = "🗑️ 기존 문서 전체 삭제";
-      clearAllBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        deleteAllDocuments();
-      });
-      addDocBtn.parentElement.appendChild(clearAllBtn);
-    }
+    // Never create or retain a bulk-delete action in the UI.
+    document.querySelectorAll(".hy-doc-clear-all-btn").forEach(b => b.remove());
   }
 
   // =========================================================================
@@ -7690,6 +7677,27 @@ body:not(.she-portal-active) #shePortal{display:none!important}
         const m = evalGlobal(mapVar);
         if (m && typeof m === "object") itemMapsSnapshot[mapVar] = m;
       });
+
+      // Read the server metadata before every write, including manual saves.
+      // If client state unexpectedly loses all documents or a large fraction
+      // of records, do not overwrite an intact server snapshot.
+      const {data: serverMeta, error: serverCheckError} = await sb
+        .from("hanyang_safety_store")
+        .select("id,documents,items,updated_at").eq("id",META_ROW_ID).maybeSingle();
+      if (serverCheckError || !serverMeta) {
+        setStatus("err","최신 서버 자료 확인 실패 · 저장 차단");
+        if (showNotification) alert("서버 확인에 실패하여 저장이 차단됐습니다. 새로고침 후 다시 확인하세요.");
+        return;
+      }
+      const serverDocs = Array.isArray(serverMeta.documents) ? serverMeta.documents : [];
+      const serverTotal = Number(serverMeta.items?.[0]?.totalItems || 0);
+      const unsafeEmpty = serverDocs.length > 0 && docs.length === 0;
+      const unsafeDrop = serverTotal >= 100 && items.length < serverTotal * 0.8;
+      if (unsafeEmpty || unsafeDrop) {
+        setStatus("err",`⚠️ 자료 대량 감소 감지 · 저장 차단 (서버 ${serverTotal}건 / 현재 ${items.length}건)`);
+        if (showNotification) alert("평가 자료가 대량 감소하는 변경이 감지돼 저장을 차단했습니다. 기존 서버 자료를 확인하세요.");
+        return;
+      }
 
       const updatedAt = new Date().toISOString();
       setStatus("work", `서버 저장 중... (${items.length.toLocaleString()}건)`);
