@@ -8666,13 +8666,19 @@ body:not(.she-portal-active) #shePortal{display:none!important}
   }
 
   function setupSmartDomObserver() {
-    let rafScheduled = false;
+    // DOM mutations may arrive in many frames while 35-card pages are appended.
+    // Throttle legacy enhancement scans rather than rescanning the whole screen
+    // every animation frame. Existing enhancement logic is unchanged.
+    let scheduled = false;
+    let lastRun = 0;
     const observer = new MutationObserver(() => {
-      if (isInternalDomMutating || isRefreshingUI || rafScheduled) return;
-      rafScheduled = true;
-      requestAnimationFrame(() => {
-        rafScheduled = false;
-        if (isInternalDomMutating || isRefreshingUI) return;
+      if (isInternalDomMutating || isRefreshingUI || scheduled || document.hidden) return;
+      scheduled = true;
+      const delay = Math.max(0, 120 - (performance.now() - lastRun));
+      setTimeout(() => requestAnimationFrame(() => {
+        scheduled = false;
+        if (isInternalDomMutating || isRefreshingUI || document.hidden) return;
+        lastRun = performance.now();
         setupExcelSerialNumberExtractor();
         enhanceGateModalWithTabsAndPin();
         purgeAllTestBypassButtons();
@@ -8682,7 +8688,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
         lockUserManagementRowsAndDropdowns();
         applySmartListVirtualization();
         enhanceDetailModalWithSerialAndCalibration();
-      });
+      }), delay);
     });
     observer.observe(document.body, { childList: true, subtree: true });
   }
@@ -9230,22 +9236,27 @@ function portalSearch(e){
     if (!container) return;
     const all = Array.isArray(riskItemsData) ? riskItemsData : [];
     const query = safeStr(currentSearchQuery).trim().toLocaleLowerCase('ko');
-    const list = all.filter(item => {
+    // Compute field projections once per item. Previously the sort recomputed
+    // them on each comparison (O(N log N) additional object allocations).
+    const projected=[];
+    for (const item of all) {
       const f=fieldsOf(item);
-      if (f.eval === '작업장 평가') return false;
-      if (currentCategory !== '전체' && f.eval !== currentCategory) return false;
-      if (selectedDocumentId && selectedDocumentId !== 'ALL_SEARCH' && safeStr(item.docId) !== safeStr(selectedDocumentId)) return false;
-      if (query && ![f.title,f.hazard,f.measure,f.cause,f.doc].some(s=>s.toLocaleLowerCase('ko').includes(query))) return false;
-      return true;
-    });
-    list.sort((a,b)=>{
-      const f=fieldsOf(a), g=fieldsOf(b);
-      const method = safeStr(currentItemSortField || 'itemNo');
+      if (f.eval === '작업장 평가') continue;
+      if (currentCategory !== '전체' && f.eval !== currentCategory) continue;
+      if (selectedDocumentId && selectedDocumentId !== 'ALL_SEARCH' && safeStr(item.docId) !== safeStr(selectedDocumentId)) continue;
+      if (query && ![f.title,f.hazard,f.measure,f.cause,f.doc].some(s=>s.toLocaleLowerCase('ko').includes(query))) continue;
+      projected.push({item,f});
+    }
+    const method = safeStr(currentItemSortField || 'itemNo');
+    const desc = currentItemSortOrder === 'desc';
+    projected.sort((a,b)=>{
+      const f=a.f, g=b.f;
       let cmp = method === 'taskTitle' ? f.title.localeCompare(g.title,'ko')
         : method === 'rowNo' ? numberFrom(f.row)-numberFrom(g.row) : numberFrom(f.no)-numberFrom(g.no);
       if (cmp === 0) cmp = numberFrom(f.row)-numberFrom(g.row);
-      return currentItemSortOrder === 'desc' ? -cmp : cmp;
+      return desc ? -cmp : cmp;
     });
+    const list = projected.map(({item})=>item);
     const title = $('selectedDocTitle'), sub = $('selectedDocSubtitle'), edit=$('editSelectedDocBtn');
     if (selectedDocumentId && selectedDocumentId !== 'ALL_SEARCH') {
       const doc=(Array.isArray(documentsData)?documentsData:[]).find(d=>d.id===selectedDocumentId);
@@ -9290,7 +9301,11 @@ function setupSecureAdmin(){
  const signupToggle=document.createElement('button');signupToggle.type='button';
  signupToggle.id='sheV24SignupToggle';signupToggle.textContent='가입 신청 상태 확인';
  signupToggle.style.cssText='padding:8px 12px;border:1px solid #93c5fd;border-radius:9px;background:white;color:#1d4ed8;font-weight:800';
- signupBar.append(signupStatus,signupToggle);
+ const refreshMembers=document.createElement('button');
+ refreshMembers.type='button';refreshMembers.textContent='↻ 회원 목록 새로고침';
+ refreshMembers.id='sheSecureRefreshMembers';
+ refreshMembers.style.cssText='padding:8px 12px;border:1px solid #cbd5e1;border-radius:9px;background:white;color:#334155;font-weight:800';
+ signupBar.append(signupStatus,refreshMembers,signupToggle);
  div.querySelector('table').parentElement.before(signupBar);
  signupToggle.addEventListener('click',async()=>{
   const current=signupToggle.dataset.enabled==='true';
@@ -9300,6 +9315,13 @@ function setupSecureAdmin(){
    await refreshSignupStatus();
   }catch(err){signupStatus.textContent='⚠️ '+(err.message||'가입 접수 설정 오류');}
   finally{signupToggle.disabled=false;}
+ });
+ refreshMembers.addEventListener('click',async()=>{
+  const unsaved=div.querySelector('#sheSecureUsers tr[data-she-dirty="1"]');
+  if(unsaved && !window.confirm('저장되지 않은 권한 변경사항이 있습니다. 목록을 새로고침하면 사라집니다. 계속하시겠습니까?'))return;
+  refreshMembers.disabled=true;
+  try{await Promise.all([refreshUsers(),refreshSignupStatus()]);}
+  finally{refreshMembers.disabled=false;}
  });
  $('sheSecureClose').addEventListener('click',closeSecureAdmin);
  div.addEventListener('click',e=>{if(e.target===div)closeSecureAdmin();});
@@ -9320,11 +9342,10 @@ async function refreshSignupStatus(){
 async function openSecureAdmin(){
  if(!canControlUsers())return;
  if(!$('sheSecureAdmin'))setupSecureAdmin();
- $('sheSecureAdmin').hidden=false;await Promise.all([refreshUsers(),refreshSignupStatus()]);
- stopUserTimer();state.tabTimer=setInterval(()=>{
-  if(document.hidden||$('sheSecureAdmin').hidden)return;
-  refreshUsers();
- },12000);
+ $('sheSecureAdmin').hidden=false;stopUserTimer();
+ await Promise.all([refreshUsers(),refreshSignupStatus()]);
+ // No background refresh: it would overwrite unsaved role/permission changes.
+ // The panel provides explicit, guarded manual refresh instead.
 }
 async function refreshUsers(){
  if(!canControlUsers())return;
@@ -9333,6 +9354,8 @@ async function refreshUsers(){
   const users=await window.SHESEC.users();body.replaceChildren();
   for(const u of users){
    const row=document.createElement('tr');row.style.borderBottom='1px solid #e2e8f0';
+   row.dataset.sheDirty='0';
+   const markDirty=()=>{if(u.id!==state.current.id)row.dataset.sheDirty='1';};
    const cell=t=>{const td=row.insertCell();td.textContent=t||'';return td;};
    cell(u.name);cell(u.department);
    const mySelf=u.id===state.current.id;
@@ -9359,13 +9382,15 @@ async function refreshUsers(){
       write.disabled=mySelf||u.role==='super_admin'||role.value!=='admin'||!view.checked;
     };
     view.disabled=mySelf||u.role==='super_admin';
-    view.addEventListener('change',sync);
-    write.addEventListener('change',()=>{if(write.checked)view.checked=true;sync();});
+    view.addEventListener('change',()=>{sync();markDirty();});
+    write.addEventListener('change',()=>{if(write.checked)view.checked=true;sync();markDirty();});
     cell('').appendChild(view);
     cell('').appendChild(write);
     checks[m].sync=sync;sync();
    }
+   status.addEventListener('change',markDirty);
    role.addEventListener('change',()=>{
+    markDirty();
     for(const m of CFG.modules){
       if(role.value!=='admin')checks[m].write.checked=false;
       checks[m].sync();
@@ -9380,8 +9405,10 @@ async function refreshUsers(){
        [m+'_write',role.value==='admin'&&checks[m].view.checked&&checks[m].write.checked]
      ]));
      await window.SHESEC.setUser(u.id,role.value,status.value,perm);
+     u.role=role.value;u.status=status.value;u.permissions=perm;
+     row.dataset.sheDirty='0';
      $('sheSecureMsg').textContent=`✅ ${u.name} 계정의 상태·권한이 저장됐습니다.`;
-     await refreshUsers();
+     save.disabled=mySelf;
     }catch(err){$('sheSecureMsg').textContent='⚠️ '+err.message;save.disabled=false;}
    };
    const actions=cell('');
@@ -9395,6 +9422,8 @@ async function refreshUsers(){
     remove.setAttribute('aria-label',u.name+' ('+u.login_id+') 계정 삭제');
     remove.style.cssText='background:#fff1f2;color:#be123c;border:1px solid #fecdd3;border-radius:7px;padding:7px 10px;font-weight:bold';
     remove.onclick=async()=>{
+     const otherUnsaved=Array.from(body.querySelectorAll('tr[data-she-dirty="1"]')).some(r=>r!==row);
+     if(otherUnsaved && !window.confirm('다른 회원의 저장되지 않은 권한 변경사항이 있습니다. 삭제 후 목록을 새로고침하면 사라집니다. 계속하시겠습니까?'))return;
      const typed=prompt('⚠️ 계정을 영구 삭제합니다.\n\n대상: '+u.name+' ('+u.login_id+')\n삭제하면 해당 아이디로 다시 로그인할 수 없으며 기존 세션도 종료됩니다.\n\n삭제하려면 아이디를 정확히 입력하세요:', '');
      if(typed===null)return;
      if(typed!==u.login_id){alert('아이디가 일치하지 않아 삭제를 취소했습니다.');return;}
