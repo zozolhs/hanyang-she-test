@@ -2875,17 +2875,13 @@ body:not(.she-portal-active) #shePortal{display:none!important}
     }
 
     function deleteDocumentFromModal() {
-      if (!requireServerAdmin()) return;
-      if (!currentEditingDocId) return;
-      const targetDoc = documentsData.find(d => d.id === currentEditingDocId);
-      documentsData = documentsData.filter(d => d.id !== currentEditingDocId);
-      riskItemsData = riskItemsData.filter(i => i.docId !== currentEditingDocId);
-      if (selectedDocumentId === currentEditingDocId) {
-        selectedDocumentId = null;
-      }
-      closeDocumentEditModal();
-      renderAll();
-      showToast(`'${targetDoc ? targetDoc.title : '선택한 문서'}' 및 하위 항목이 삭제되었습니다.`);
+      if (!requireServerAdmin() || !currentEditingDocId) return;
+      const doc = documentsData.find(d => d.id === currentEditingDocId);
+      if (!doc) return;
+      // Do not change UI data until the authenticated server deletion succeeds.
+      if (typeof window.EHSDeleteRiskDoc !== 'function')
+        return alert('문서 삭제 기능이 준비되지 않았습니다. Ctrl+Shift+R로 새로고침하세요.');
+      void window.EHSDeleteRiskDoc(doc.id, doc.title);
     }
 
     function openAdminModal(defaultTab) {
@@ -4935,7 +4931,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="./she-v24-index.js?v=20261123-atomic-risk-v2"></script>
+<script src="./she-v24-index.js?v=20261123-confirmed-delete-v3"></script>
 <script>
 (function() {
   const SUPABASE_URL = "https://ahmqthuympannqsrszvv.supabase.co";
@@ -7518,36 +7514,13 @@ body:not(.she-portal-active) #shePortal{display:none!important}
   }
 
   function deleteSingleDocument(docIndex, docTitle) {
-    if (!isAnyAdminLoggedIn()) {
-      alert("서버관리자만 문서를 삭제할 수 있습니다.");
-      return;
-    }
-    const docs = getPrimaryArray("docs").slice();
-    const items = getPrimaryArray("items").slice();
-    let targetIdx = docIndex;
-    if (docTitle) {
-      const foundIdx = docs.findIndex((d) => (d.title || d.name) === docTitle);
-      if (foundIdx !== -1) targetIdx = foundIdx;
-    }
-    const targetDoc = docs[targetIdx];
-    if (!targetDoc) return;
-    const titleText = targetDoc.title || targetDoc.name || "선택한 문서";
-    if (!confirm(`정말 [${titleText}] 문서를 삭제하시겠습니까?\n삭제 즉시 클라우드 DB에 영구 반영됩니다.`)) return;
-
-    const removedDoc = docs.splice(targetIdx, 1)[0];
-    setAllArraysOfType("docs", docs);
-
-    if (removedDoc && Array.isArray(items) && items.length > 0) {
-      const filteredItems = items.filter((it) => {
-        if (removedDoc.id !== undefined && it.docId !== undefined) return String(it.docId) !== String(removedDoc.id);
-        const docName = removedDoc.title || removedDoc.name || "";
-        return (it.docTitle || it.source || it.docName || "") !== docName;
-      });
-      setAllArraysOfType("items", filteredItems);
-    }
-    isPartialRecoveryState = false;
-    refreshUI();
-    saveAllDataToSupabase(true);
+    if (!isAnyAdminLoggedIn()) return alert("위험성평가 삭제 권한이 없습니다.");
+    const docs = getPrimaryArray("docs");
+    const target = (docTitle ? docs.find(d => (d.title || d.name) === docTitle) : null) || docs[docIndex];
+    if (!target || !target.id) return;
+    if (typeof window.EHSDeleteRiskDoc !== "function")
+      return alert("서버 삭제 기능을 불러오지 못했습니다. 새로고침해 주세요.");
+    void window.EHSDeleteRiskDoc(String(target.id),String(target.title || target.name));
   }
 
   function deleteAllDocuments() {
@@ -9632,7 +9605,7 @@ function bindLegacy(){
  window.handleWorkerGateSubmit=e=>{e?.preventDefault();showGate();};
  window.loginAsSuperAdminUser=()=>alert('최고관리자 아이디로 로그인해야 합니다.');
  // 수정 기능은 기존 위험성평가 로직을 유지하되 서버 RLS로 쓰기 제한.
- for(const name of ['saveItemEdit','saveDocumentModalForm','deleteCurrentItem','deleteDocumentFromModal',
+ for(const name of ['saveItemEdit','saveDocumentModalForm','deleteCurrentItem',
   'handleManualAddItem','applyUploadedItemsByMode','handleImageFilesUpload']){
   const original=window[name];if(typeof original!=='function')continue;
   window[name]=function(...args){if(!canEditSafety())return alert('SAFETY 수정 권한이 없습니다.');
