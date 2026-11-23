@@ -7940,29 +7940,12 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       const serverTime = new Date(metaRow.updated_at || 0).getTime();
       const localTime = localBackup ? new Date(localBackup.updated_at || 0).getTime() : 0;
 
-      // 로컬 백업이 서버보다 최신이더라도, 새로 추가된 rowToSerial 1순위 번호 재정렬(1472번 오류 자동 복구)을 1회 실행!
-      if (
-        renderedFromLocalBackup &&
-        localTime >= serverTime &&
-        Number(metaInfo.totalItems || 0) >= Math.max(100, serverExpected * 0.7)
-      ) {
-        hasCompletedInitialLoad = true;
-        setAllArraysOfType("users", authoritativeUsers);
-        lastKnownUsersSnapshot = authoritativeUsers.map((u) => Object.assign({}, u));
-        const fixedAny = processAndDeduplicateAllItemsOnce(true);
-        applySessionUserState(false);
-        if (fixedAny) {
-          refreshUI();
-          saveAllDataToSupabase(false);
-        } else {
-          try { if (typeof renderUserList === "function") renderUserList(); } catch (e) {}
-          try { if (typeof updateCurrentUserHeader === "function") updateCurrentUserHeader(); } catch (e) {}
-        }
-        const finalItems = getPrimaryArray("items");
-        lastDataSig = computeDataSig();
-        lastUsersSig = computeUsersSig();
-        setStatus("ok", `실시간 DB 연동 완료 (${finalItems.length.toLocaleString()}건)`);
-        return;
+      // Server state is always authoritative after successful authentication.
+      // A local IndexedDB preview may be newer because an attempted delete or
+      // upload failed to reach the server. Never let that preview bypass the
+      // verified server chunk load or trigger a write-back.
+      if (renderedFromLocalBackup && localTime >= serverTime) {
+        setStatus("work","로컬 임시 자료와 서버 최신 자료 확인 중...");
       }
 
       const isServerMetaTruncated = serverExpected >= 500 && Number(metaInfo.totalItems || 0) < serverExpected * 0.7;
