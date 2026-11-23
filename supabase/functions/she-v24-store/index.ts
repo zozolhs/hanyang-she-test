@@ -270,6 +270,8 @@ async function safetySnapshotCommit(a:Account,input:Record<string,unknown>){
   if(data?.status==="integrity")throw new ApiError(409,"기존 평가 자료 무결성에 문제가 있어 저장을 차단했습니다.");
   if(data?.status==="doc_loss"||data?.status==="mass_loss")
     throw new ApiError(409,"기존 문서 또는 평가 항목의 대량 삭제가 감지돼 저장을 차단했습니다.");
+  if(data?.status==="duplicate")
+    throw new ApiError(409,"같은 문서·작업명·위험요인·감소대책에 동일한 항목이 있습니다. 중복 항목을 정리한 후 저장하세요.");
   if(data?.status!=="ok")throw new ApiError(400,"위험성평가 저장값을 검증할 수 없습니다.");
   return data;
 }
