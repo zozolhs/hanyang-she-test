@@ -6,6 +6,7 @@
   <link rel="stylesheet" href="./mobile-spreadsheet-export.css?v=20261122-1">
   <link rel="stylesheet" href="./she-ux2026.css?v=20261123-lookup1">
   <script src="./mobile-export-guard.js?v=20261122-1"></script>
+  <script src="./ehs-deferred-libs.js?v=20261123-perf1"></script>
   <!-- Browser-side baseline: does not alter login, account approval, or inline app scripts. -->
   <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta name="referrer" content="no-referrer">
@@ -14,7 +15,7 @@
   <script>document.documentElement.classList.add("edu-locked");</script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./she-v24-index.js?v=20261121-performance-batch1"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <!-- XLSX loads only when an attendance Excel file is selected. -->
   <style>
     :root {
       --primary: #16286e;
@@ -2513,10 +2514,12 @@
       if(state.importRunning)return alert('이전 명단 처리가 완료되지 않았습니다.');
       if(!/\.(xlsx|xls|csv)$/i.test(file.name))return alert('엑셀(.xlsx/.xls) 또는 CSV 파일만 업로드할 수 있습니다.');
       if(file.size>15*1024*1024)return alert('15MB 이하 명단 파일을 업로드해 주세요.');
-      if(!window.XLSX)return alert('엑셀 읽기 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인하세요.');
       state.importRunning=true;
       const container=resultContainer(kind);container.classList.remove('has-errors');container.textContent='엑셀 명단 확인 중…';
       try{
+        container.textContent='엑셀 도구 불러오는 중…';
+        await window.EHSLibs.ensure('xlsx');
+        container.textContent='엑셀 명단 확인 중…';
         const buffer=await file.arrayBuffer();
         const workbook=XLSX.read(buffer,{type:'array'});
         const sheet=workbook.Sheets?.[workbook.SheetNames?.[0]];
