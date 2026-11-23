@@ -2912,6 +2912,63 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       }
     }
 
+    let pdfCloudImportBusy = false;
+    async function commitPdfRiskImport(items, file, title, evalType, areaTag, revNo, revDate) {
+      if (!requireServerAdmin() || pdfCloudImportBusy) return;
+      if(!window.SHESEC?.importSafetyDocument)
+        throw new Error('최신 서버 저장 모듈이 없습니다. Ctrl+Shift+R로 새로고침하세요.');
+      let mode = document.querySelector('input[name="uploadModeRadio"]:checked')?.value || 'new';
+      const selectedId = document.getElementById('uploadExistingDocSelect')?.value || '';
+      const selected = documentsData.find(d => d.id === selectedId);
+      if(mode!=='new' && !selected) {
+        if(documentsData.length===0) mode='new';
+        else throw new Error('기존 문서 선택이 오래되었습니다. 새로고침한 후 다시 선택하세요.');
+      }
+      const norm=v=>String(v||'').trim().toLocaleLowerCase('ko');
+      const match=documentsData.find(d=>
+        norm(d.evalType)===norm(evalType) && norm(d.areaTag)===norm(areaTag) &&
+        (norm(d.title)===norm(title) || norm(d.fileName)===norm(file.name))
+      );
+      const earlier=mode==='replace'?selected:mode==='new'?match:null;
+      const oldCount=Number(earlier?.displayCount||0);
+      let confirmLargeReplacement=false;
+      if(earlier && oldCount>=100 && items.length<oldCount*0.8) {
+        if(!window.confirm(
+          '⚠️ PDF 최신본 교체로 위험성평가 항목이 감소합니다.\n' +
+          '기존 '+oldCount+'건 → PDF 추출 '+items.length+'건\n' +
+          '작업명과 안전대책이 원본에 맞는지 검토한 후 확인을 누르세요.'
+        )) return;
+        confirmLargeReplacement=true;
+      }
+      if(!window.confirm('PDF에서 '+items.length.toLocaleString()+'건을 추출했습니다.\n'+
+        '원본 대조를 마쳤을 때만 서버 저장을 진행하세요.\n'+
+        '미리보기: '+items.slice(0,2).map(x=>x.taskTitle).join(' / ')))return;
+      pdfCloudImportBusy=true;
+      const status=document.getElementById('sheSafetySyncStatus');
+      try{
+        const saved=await window.SHESEC.importSafetyDocument({
+          items,mode,targetDocId:selectedId,
+          document:{
+            title:mode==='new'&&match?match.title:title,
+            evalType,areaTag,revNo,revDate,
+            fileName:file.name,confirmLargeReplacement
+          }
+        },(part,total)=>{
+          if(status)status.textContent='PDF 자료 서버 전송 '+part+'/'+total;
+        });
+        if(status)status.textContent='✅ PDF 서버 저장 '+saved.imported_items+'건';
+        closeAdminModal();
+        try {
+          await window.sheV32.reloadSafetyDataReadOnly();
+          selectedDocumentId=saved.doc_id;
+          renderAll();
+          showToast('✅ PDF 위험성평가 최신본 서버 반영: '+saved.imported_items+'건');
+        }catch(err){
+          alert('PDF '+saved.imported_items+'건은 서버에 저장됐습니다. 화면을 새로고침하여 확인하세요.');
+        }
+      }finally{pdfCloudImportBusy=false;}
+    }
+
     async function handlePdfFileUpload(file) {
       const progressBox = document.getElementById('uploadProgressBox');
       const progressText = document.getElementById('uploadProgressText');
@@ -2979,37 +3036,14 @@ body:not(.she-portal-active) #shePortal{display:none!important}
         }
 
         if (extractedItems.length === 0) {
-          extractedItems.push({
-            evalType: targetEvalType,
-            areaTag: targetArea,
-            taskTitle: `${docTitle} - PDF 위험성평가 항목`,
-            causeObj: '현장 설비/자재',
-            hazardText: '전도 / 추락 / 협착 주의',
-            measureText: `업로드된 PDF 문서(${file.name}, 총 ${totalPages}페이지) 기반 위험성평가 항목입니다.`,
-            itemNo: '1번 항목',
-            pageNo: '1페이지',
-            duplicateInfo: '',
-            fileName: file.name,
-            sheetName: 'PDF 원본',
-            rowNo: '1행',
-            revInfo: targetRevNo,
-            approvalDate: targetRevDate
-          });
+          throw new Error('PDF에서 추출 가능한 평가 항목이 없습니다. 스캔 PDF를 임의의 안전대책으로 변환하지 않습니다.');
         }
-
         progressBox.classList.add('hidden');
-        applyUploadedItemsByMode({
-          fileName: file.name,
-          defaultDocTitle: docTitle,
-          evalType: targetEvalType,
-          areaTag: targetArea,
-          revNo: targetRevNo,
-          revDate: targetRevDate,
-          newItems: extractedItems
-        });
+        await commitPdfRiskImport(extractedItems,file,docTitle,targetEvalType,
+          targetArea,targetRevNo,targetRevDate);
       } catch (err) {
         progressBox.classList.add('hidden');
-        showToast('PDF 분석 중 오류가 발생했습니다. 정상적인 PDF 파일인지 확인해 주세요.');
+        alert('PDF 분석 또는 저장 실패: '+(err?.message || '파일을 확인하세요.')+'\n서버의 기존 자료는 임의로 변경하지 않았습니다.');
       }
     }
 
