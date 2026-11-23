@@ -31,6 +31,13 @@ function failure(message,status){
 }
 async function request(kind,action,data={}){
   let response;
+  // Only timeout idempotent reads. Aborting an import commit could make a
+  // successful server transaction look like a failed upload to the operator.
+  const readOnly = kind==="auth" && action==="me" ||
+    kind==="store" && ["store_get","store_get_batch","store_list","store_counts"].includes(action);
+  const controller=readOnly ? new AbortController() : null;
+  let timeoutId=null;
+  if(controller) timeoutId=setTimeout(()=>controller.abort(),30000);
   try{
     response=await fetch(ENDPOINT+(kind==="auth"?"she-v24-auth":"she-v24-store"),{
       method:"POST",
@@ -38,10 +45,15 @@ async function request(kind,action,data={}){
         "Content-Type":"application/json",
         ...(token?{Authorization:"Bearer "+token}:{})
       },
-      credentials:"omit",cache:"no-store",body:JSON.stringify({action,...data})
+      credentials:"omit",cache:"no-store",body:JSON.stringify({action,...data}),
+      ...(controller?{signal:controller.signal}:{})
     });
   }catch{
+    if(controller?.signal.aborted)
+      throw failure("서버 조회가 30초를 초과해 중단됐습니다. 서버 데이터는 변경되지 않았습니다. 새로고침 후 다시 시도하세요.",504);
     throw failure("인증 서버와 연결할 수 없습니다. 네트워크를 확인하세요.",503);
+  }finally{
+    if(timeoutId!==null)clearTimeout(timeoutId);
   }
   let value;
   try{value=await response.json();}
@@ -323,6 +335,8 @@ async function saveSafetySnapshot(opts,onProgress){
     throw failure("비정상적인 빈 위험성평가 저장을 차단했습니다.",409);
   const base=await fetchRow("main_v10_meta");
   if(!base?.updated_at)throw failure("서버 최신 버전 확인에 실패했습니다.",409);
+  if(!opts.expectedVersion || base.updated_at!==opts.expectedVersion)
+    throw failure("서버에 새 개정이 등록된 뒤 오래된 화면에서 저장을 시도했습니다. 기존 자료를 덮어쓰지 않고 차단했습니다. 자료를 새로고침하세요.",409);
   const uploadId=crypto.randomUUID(),chunkSize=160;
   const partCount=Math.ceil(opts.items.length/chunkSize);
   if(partCount>100)throw failure("저장할 항목 수가 안전 한도를 초과했습니다.",413);
