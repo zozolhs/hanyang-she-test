@@ -8773,7 +8773,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
 </script>
 
 <!-- SHE 통합 master script: 600ms 건강검진 타이머 폐기 -->
-<script id="sheIndexMasterScript">
+<script id="sheIndexMasterScript" data-version="20261123-safety-search-fix1">
 /* HANYANG ENG SHE V24 Index Master | Edge gateway is the server access gate */
 (() => {
 'use strict';
@@ -9231,11 +9231,91 @@ function portalSearch(e){
       state.listObserver.observe($('sheLoadMore'));
     }
   }
+  // Detailed search lives in the V24 renderer. The old DOM virtualizer is
+  // intentionally disabled by __sheManagedPagination, so its filter bar cannot run.
+  let safetyDetailQuery = '';
+  let safetyDetailScope = '';
+  let safetyDetailTimer = null;
+  function ensureSafetyDetailSearch(container) {
+    const scope = [currentCategory, selectedDocumentId || 'ALL', currentSearchQuery || ''].join('\\u001f');
+    if (scope !== safetyDetailScope) {
+      safetyDetailScope = scope;
+      safetyDetailQuery = '';
+      const existing = $('sheSafetyDetailInput');
+      if (existing) existing.value = '';
+    }
+    let panel = $('sheSafetyDetailPanel');
+    if (!panel) {
+      panel = document.createElement('section');
+      panel.id = 'sheSafetyDetailPanel';
+      panel.setAttribute('aria-label', '위험성평가 상세 검색');
+      panel.style.cssText = 'background:#fff;border:1px solid #bfdbfe;border-radius:12px;padding:14px 16px;margin:0 0 16px;box-shadow:0 2px 5px rgba(15,23,42,.04)';
+      const head = document.createElement('div');
+      head.style.cssText = 'display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px';
+      const label = document.createElement('label');
+      label.htmlFor = 'sheSafetyDetailInput';
+      label.textContent = '🔍 상세 검색 · 현재 평가 결과 내 재검색';
+      label.style.cssText = 'font-size:14px;font-weight:800;color:#1e3a8a';
+      const count = document.createElement('span');
+      count.id = 'sheSafetyDetailCount';
+      count.style.cssText = 'font-size:12px;color:#64748b';
+      head.append(label, count);
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap';
+      const input = document.createElement('input');
+      input.id = 'sheSafetyDetailInput';
+      input.type = 'text';
+      input.autocomplete = 'off';
+      input.placeholder = '안전대책 / 위험요인 / 기인물 / 원본번호 / 문서명';
+      input.setAttribute('aria-label','상세 검색어: 작업명, 안전대책, 위험요인, 기인물, 원본번호, 문서명');
+      input.style.cssText = 'flex:1 1 260px;min-width:0;padding:11px 13px;border:1px solid #cbd5e1;border-radius:9px;font-size:14px;outline-offset:2px';
+      const clear = document.createElement('button');
+      clear.type = 'button';
+      clear.id = 'sheSafetyDetailClear';
+      clear.textContent = '초기화';
+      clear.style.cssText = 'padding:9px 15px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:9px;color:#1d4ed8;font-size:13px;font-weight:750';
+      clear.addEventListener('click', () => {
+        clearTimeout(safetyDetailTimer);
+        input.value = '';
+        safetyDetailQuery = '';
+        fastRenderItemCards();
+        input.focus();
+      });
+      input.addEventListener('input', () => {
+        clearTimeout(safetyDetailTimer);
+        safetyDetailTimer = setTimeout(() => {
+          safetyDetailQuery = input.value.trim().toLocaleLowerCase('ko');
+          fastRenderItemCards();
+        }, 180);
+      });
+      row.append(input, clear);
+      panel.append(head,row);
+    }
+    if (panel.parentElement !== container.parentElement || panel.nextElementSibling !== container) {
+      container.parentElement.insertBefore(panel,container);
+    }
+    return panel;
+  }
+  function riskResultIdentity(item, f) {
+    // Duplicate IDs identify the same stored record. Distinct IDs are merged
+    // only when source document, source coordinates AND content all agree.
+    const id = String(item.id ?? '').trim();
+    if (id) return 'id:' + id;
+    const doc = String(item.docId ?? f.doc ?? '').trim();
+    const row = f.row.trim(), no = f.no.trim(), page = f.page.trim();
+    if (!doc || !(row || (page && no))) return null;
+    return 'src:' + JSON.stringify([doc,row,page,no,f.title,f.cause,f.hazard,f.measure]);
+  }
   function fastRenderItemCards() {
     const container = $('itemCardsContainer');
     if (!container) return;
+    ensureSafetyDetailSearch(container);
     const all = Array.isArray(riskItemsData) ? riskItemsData : [];
     const query = safeStr(currentSearchQuery).trim().toLocaleLowerCase('ko');
+    const detailQuery = safetyDetailQuery;
+    const seenIds = new Set();
+    let duplicatesHidden = 0;
+    let primaryMatchCount = 0;
     // Compute field projections once per item. Previously the sort recomputed
     // them on each comparison (O(N log N) additional object allocations).
     const projected=[];
@@ -9245,6 +9325,12 @@ function portalSearch(e){
       if (currentCategory !== '전체' && f.eval !== currentCategory) continue;
       if (selectedDocumentId && selectedDocumentId !== 'ALL_SEARCH' && safeStr(item.docId) !== safeStr(selectedDocumentId)) continue;
       if (query && ![f.title,f.hazard,f.measure,f.cause,f.doc].some(s=>s.toLocaleLowerCase('ko').includes(query))) continue;
+      // Remove duplicate search-result cards without deleting or rewriting source data.
+      const key = riskResultIdentity(item,f);
+      if (key && seenIds.has(key)) { duplicatesHidden++; continue; }
+      if (key) seenIds.add(key);
+      primaryMatchCount++;
+      if (detailQuery && ![f.title,f.hazard,f.measure,f.cause,f.doc,f.no,f.row,f.page,f.rev].some(s=>s.toLocaleLowerCase('ko').includes(detailQuery))) continue;
       projected.push({item,f});
     }
     const method = safeStr(currentItemSortField || 'itemNo');
@@ -9257,6 +9343,11 @@ function portalSearch(e){
       return desc ? -cmp : cmp;
     });
     const list = projected.map(({item})=>item);
+    const countEl = $('sheSafetyDetailCount');
+    if (countEl) countEl.textContent = detailQuery
+      ? '상세 검색 ' + list.length.toLocaleString() + '건 / 전체 ' + primaryMatchCount.toLocaleString() + '건'
+      : '현재 결과 ' + primaryMatchCount.toLocaleString() + '건';
+    if (duplicatesHidden) console.warn('[EHS SAFETY] 화면 중복 레코드 ' + duplicatesHidden + '건 제외 (서버 데이터 변경 없음)');
     const title = $('selectedDocTitle'), sub = $('selectedDocSubtitle'), edit=$('editSelectedDocBtn');
     if (selectedDocumentId && selectedDocumentId !== 'ALL_SEARCH') {
       const doc=(Array.isArray(documentsData)?documentsData:[]).find(d=>d.id===selectedDocumentId);
