@@ -81,16 +81,18 @@ function scopeOf(id:string):Scope|null {
 function canRead(a:Account,scope:Scope):boolean {
   if (a.role==="super_admin") return true;
   if (scope==="users_admin") return false;
-  if (scope==="safety") return true; // V24 safety_view for every approved account
+  // Existing worker SAFETY search stays readable; admin/viewer SAFETY is selectable.
+  if (scope==="safety" && a.role==="worker") return true;
   if (a.role!=="viewer_admin" && a.role!=="admin") return false;
-  if (scope==="roster")return a.permissions?.roster===true || a.permissions?.education===true;
+  // Education schedules need a minimal redacted roster, not full ROSTER access.
+  if (scope==="roster") return a.permissions?.roster===true || a.permissions?.education===true;
   return a.permissions?.[scope]===true;
 }
 function canWrite(a:Account,scope:Scope):boolean {
   if (scope==="users_admin") return false; // use she-v24-auth instead
   if (a.role==="super_admin")return true;
   return a.role==="admin" && EDIT_SCOPES.includes(scope as typeof EDIT_SCOPES[number]) &&
-    a.permissions?.[scope]===true;
+    a.permissions?.[scope]===true && a.permissions?.[scope+"_write"]===true;
 }
 function requireId(value:unknown):{id:string;scope:Scope} {
   if (typeof value!=="string" || value.length>80) throw new ApiError(400,"데이터 ID 형식 오류");
@@ -159,6 +161,42 @@ async function putSafetyBatch(a:Account,input:Record<string,unknown>) {
        r.documents.length>2000||r.items.length>5000||r.users.length>2000)
       throw new ApiError(400,"일괄 저장 항목이 유효하지 않습니다.");
     seen.add(id);
+  }
+  // Fail closed on a stale browser state or an accidental mass deletion.
+  // Use the authoritative server metadata. The existing CAS RPC additionally
+  // ensures no concurrent writer can overwrite a newer version.
+  const incomingMeta = (input.rows as Record<string,unknown>[])
+    .find(r=>r.id==="main_v10_meta");
+  if(!incomingMeta)throw new ApiError(409,"안전 자료 메타정보가 빠져 저장을 차단했습니다.");
+  const incomingDocs=incomingMeta.documents as Record<string,unknown>[];
+  const incomingItems=incomingMeta.items as Record<string,unknown>[];
+  const nextTotal=Number(incomingItems[0]?.totalItems);
+  const nextChunks=Number(incomingItems[0]?.chunkCount);
+  const chunkRows=(input.rows as Record<string,unknown>[])
+    .filter(r=>typeof r.id==="string"&&/^main_v10_chunk_[0-9]+$/.test(r.id));
+  const submittedTotal=chunkRows.reduce((n,r)=>n+(r.items as unknown[]).length,0);
+  if(!Number.isSafeInteger(nextTotal)||nextTotal<0||
+     !Number.isSafeInteger(nextChunks)||nextChunks<0||
+     submittedTotal!==nextTotal||nextChunks>chunkRows.length)
+    throw new ApiError(409,"일괄 저장 항목 수가 일치하지 않아 저장을 차단했습니다.");
+  const {data:currentMeta,error:currentMetaError}=await db
+    .from("hanyang_safety_store").select("documents,items")
+    .eq("id","main_v10_meta").maybeSingle();
+  if(currentMetaError||!currentMeta)
+    throw new ApiError(503,"현재 위험성평가 자료를 확인하지 못해 저장을 차단했습니다.");
+  const oldDocs=Array.isArray(currentMeta.documents)?currentMeta.documents:[];
+  const oldTotal=Number(currentMeta.items?.[0]?.totalItems||0);
+  const nextDocIds=new Set(incomingDocs.map(d=>String(d?.id||"")).filter(Boolean));
+  const missingOldDocs=oldDocs.some((d:Record<string,unknown>)=>
+    typeof d?.id==="string"&&!nextDocIds.has(d.id));
+  if((oldDocs.length>0&&incomingDocs.length===0)||
+     missingOldDocs||
+     (oldTotal>=100&&nextTotal<oldTotal*0.8)){
+    console.warn("SHE_V24_DATA_GUARD",JSON.stringify({
+      event:"blocked_safety_mass_deletion",oldTotal,nextTotal,
+      oldDocumentCount:oldDocs.length,newDocumentCount:incomingDocs.length
+    }));
+    throw new ApiError(409,"위험성평가 문서 또는 항목의 대량 감소가 감지되어 서버 저장을 차단했습니다.");
   }
   const {data,error}=await db.rpc("she_v24_cas_update_safety_batch",{
     p_rows:input.rows,p_actor:a.id
@@ -337,6 +375,8 @@ async function getRow(a:Account,input:Record<string,unknown>,counts=false) {
 async function putRow(a:Account,input:Record<string,unknown>) {
   const {id,scope}=requireId(input.id);
   if (!canWrite(a,scope))throw new ApiError(403,"해당 데이터의 수정 권한이 없습니다.");
+  // Safety metadata and chunks must be written together via validated CAS batch.
+  if(scope==="safety")throw new ApiError(409,"안전 자료는 전체 검증된 일괄 저장만 허용됩니다.");
   const expected=input.expected_updated_at;
   const docs=input.documents, items=input.items, users=input.users;
   if (typeof expected!=="string" || expected.length>60 ||
