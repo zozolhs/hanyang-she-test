@@ -2713,8 +2713,15 @@ body:not(.she-portal-active) #shePortal{display:none!important}
     }
 
     function handleUploadModeChange() {
-      const checkedRadio = document.querySelector('input[name="uploadModeRadio"]:checked');
-      const mode = checkedRadio ? checkedRadio.value : 'replace';
+      let checkedRadio = document.querySelector('input[name="uploadModeRadio"]:checked');
+      // A completely empty risk library has no document to replace or append to.
+      // Start the first real workbook as a new document instead of allowing an
+      // invalid replacement attempt against a demo/empty selection.
+      if (documentsData.length === 0 && checkedRadio?.value !== 'new') {
+        checkedRadio = document.querySelector('input[name="uploadModeRadio"][value="new"]');
+        if (checkedRadio) checkedRadio.checked = true;
+      }
+      const mode = checkedRadio ? checkedRadio.value : 'new';
 
       ['replace', 'append', 'new'].forEach(m => {
         const lbl = document.getElementById('modeLabel_' + m);
