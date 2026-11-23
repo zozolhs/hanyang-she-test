@@ -4789,7 +4789,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="./she-v24-index.js?v=20261121-performance-batch1"></script>
+<script src="./she-v24-index.js?v=20261123-modulerw1"></script>
 <script>
 (function() {
   const SUPABASE_URL = "https://ahmqthuympannqsrszvv.supabase.co";
@@ -7567,7 +7567,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
   }
 
   async function saveAllDataToSupabase(showNotification) {
-    if (window.SHEIndex && !window.SHEIndex.hasAccess('safety')) return;
+    if (window.SHEIndex && !window.SHEIndex.canWrite('safety')) return;
     if (!hasCompletedInitialLoad || isSyncingFromServer || isSavingNow) return;
 
     const docsCheck = getPrimaryArray("docs");
@@ -8611,7 +8611,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       clearTimeout(syncTimer);
       syncTimer = setTimeout(() => {
         syncTimer = null;
-        if (window.SHEIndex && !window.SHEIndex.hasAccess('safety')) return;
+        if (window.SHEIndex && !window.SHEIndex.canWrite('safety')) return;
         if (!isPartialRecoveryState) saveAllDataToSupabase(false);
       }, 650);
     };
@@ -8619,7 +8619,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
     document.addEventListener('change', (ev) => {
       const node = ev.target;
       if (!node) return;
-      if (node.closest?.('#itemDetailModal, #documentEditModal') && window.SHEIndex?.hasAccess('safety')) {
+      if (node.closest?.('#itemDetailModal, #documentEditModal') && window.SHEIndex?.canWrite('safety')) {
         scheduleRiskSave();
       }
     }, true);
@@ -8772,7 +8772,8 @@ const safeStr=s=>String(s==null?'':s);
 const esc=s=>safeStr(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const isSuper=()=>state.authorized&&state.current?.role==='super_admin';
 const hasAccess=module=>state.authorized&&window.SHESEC.permit(state.current,module);
-const canSafetyView=()=>hasAccess('safety_view');
+const canSafetyView=()=>hasAccess('safety');
+const canEditSafety=()=>state.authorized&&window.SHESEC.canWrite(state.current,'safety');
 const canControlUsers=()=>isSuper();
 function showGate(message){
  state.authorized=false;state.current=null;
@@ -8790,7 +8791,7 @@ function reconcileHeader(){
  const u=state.current;
  if($('currentUserBadge'))$('currentUserBadge').textContent=state.authorized?`접속중: ${u.name}`:'로그인 필요';
  if($('currentUserRoleBadge'))$('currentUserRoleBadge').textContent=isSuper()?'최고관리자':u?.role==='admin'?'관리자':u?.role==='viewer_admin'?'조회관리자':'기술인';
- if($('headerAdminBtn'))$('headerAdminBtn').style.display=(state.view==='search' && hasAccess('safety'))?'':'none';
+ if($('headerAdminBtn'))$('headerAdminBtn').style.display=(state.view==='search' && canEditSafety())?'inline-flex':'none';
  if($('sheMaintenanceToggle')){
   // The base .she-header-control CSS is display:none, so clearing the
   // inline style ('') leaves it hidden on desktop. Explicitly display
@@ -8809,8 +8810,8 @@ if($('sheRiskRefreshBtn'))$('sheRiskRefreshBtn').style.display=state.authorized&
   if(c){const yes=mod==='safety'?canSafetyView():mod==='admin'?canControlUsers():hasAccess(mod);
     c.classList.toggle('is-disabled',!yes);c.setAttribute('aria-disabled',String(!yes));}
  }
- const edit=$('toggleEditModeBtn');if(edit)edit.style.display=hasAccess('safety')?'':'none';
- const manual=$('adminManualAddItemBtn');if(manual)manual.style.display=hasAccess('safety')?'':'none';
+ const edit=$('toggleEditModeBtn');if(edit)edit.style.display=canEditSafety()?'inline-flex':'none';
+ const manual=$('adminManualAddItemBtn');if(manual)manual.style.display=canEditSafety()?'inline-flex':'none';
  if($('adminTabBtn_users'))$('adminTabBtn_users').style.display='none';
  // Both the legacy header and module cards now use the verified V24 identity.
  if (typeof updateCurrentUserHeader === 'function') updateCurrentUserHeader();
@@ -8925,7 +8926,7 @@ async function showCurrentPermissions(){
   );
   const grid=el('div',null,'display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px');
   for(const [mod,label] of [['safety','SAFETY 안전'],['health','HEALTH 보건'],['roster','ROSTER 인원'],['education','EDUCATION 교육'],['admin','ADMIN CONSOLE']]){
-   const read=window.SHESEC.permit(p,mod==='safety'?'safety_view':mod);
+   const read=window.SHESEC.permit(p,mod);
    const write=mod==='admin'?p.role==='super_admin':window.SHESEC.canWrite(p,mod);
    const card=el('div',null,'border:1px solid #dbe5f4;border-radius:10px;background:#f8fbff;padding:10px 12px');
    card.append(el('strong',label,'display:block;font-size:12px;color:#16286e;margin-bottom:4px'),
@@ -9008,7 +9009,7 @@ async function logout(){
 }
 function openModule(module){
  if(!state.authorized)return showGate();
- if(module==='safety'){applyPortalView('search');if(typeof renderAll==='function')renderAll();return;}
+ if(module==='safety'){if(!canSafetyView())return alert('SAFETY 열람 권한이 없습니다.');applyPortalView('search');if(typeof renderAll==='function')renderAll();return;}
  if(module==='admin'){if(!canControlUsers())return alert('최고관리자 전용입니다.');return openSecureAdmin();}
  if(!hasAccess(module))return alert(`🔒 ${module.toUpperCase()} 권한이 없습니다.`);
  const urls={health:'health_check.html',roster:'roster.html',education:'dashboard.html'};
@@ -9019,7 +9020,7 @@ function openModule(module){
  }
 }
 function portalSearch(e){
- e.preventDefault();if(!canSafetyView())return showGate();
+ e.preventDefault();if(!canSafetyView())return alert('SAFETY 열람 권한이 없습니다.');
  const query=$('shePortalSearch').value.trim();if(!query)return;
  applyPortalView('search');
  if($('searchInput'))$('searchInput').value=query;
@@ -9148,7 +9149,7 @@ function portalSearch(e){
       const doc=(Array.isArray(documentsData)?documentsData:[]).find(d=>d.id===selectedDocumentId);
       if (title) title.textContent = doc?.title || '선택 위험성평가';
       if (sub) sub.textContent = `${doc?.areaTag||''} · ${doc?.evalType||''} · 검색 결과 ${list.length.toLocaleString()}건 · ${doc?.revNo||''} (${doc?.revDate||''})`;
-      if (edit) edit.classList.toggle('hidden', !hasAccess('safety'));
+      if (edit) edit.classList.toggle('hidden', !canEditSafety());
     } else {
       if (title) title.textContent = query ? `'${currentSearchQuery}' 검색 결과` : '전체 위험성평가 등록 항목';
       if (sub) sub.textContent = `관련 위험성평가 항목 ${list.length.toLocaleString()}건`;
@@ -9169,7 +9170,11 @@ function setupSecureAdmin(){
  div.innerHTML=`<div style="max-width:1120px;margin:auto;background:white;border-radius:18px;padding:25px;min-height:70vh;color:#16286e">
  <div style="display:flex;align-items:center;justify-content:space-between;gap:15px"><h2 style="font-size:21px;font-weight:850">⚙️ SHE 인원 접속 권한 관리</h2><button id="sheSecureClose" type="button" style="padding:8px 15px;background:#16286e;color:white;border-radius:9px">닫기</button></div>
  <p style="margin:12px 0;font-size:12px;color:#475569">V24 아이디 계정 기반. 가입 승인과 권한은 서버에서 검증합니다.</p>
- <div style="overflow-x:auto"><table class="she-admin-mobile-table" style="border-collapse:collapse;width:100%;font-size:12px;min-width:880px"><thead><tr style="background:#eff6ff;text-align:left"><th>성명</th><th>부서</th><th>역할</th><th>상태</th><th>SAFETY</th><th>HEALTH</th><th>ROSTER</th><th>EDUCATION</th><th>동작</th></tr></thead><tbody id="sheSecureUsers"></tbody></table></div>
+ <p style="font-size:12px;color:#475569;margin:8px 0">모듈별 열람·수정 권한을 따로 설정합니다. 수정 권한에는 열람 권한이 필요합니다.</p>
+ <div style="overflow-x:auto"><table class="she-admin-mobile-table" style="border-collapse:collapse;width:100%;font-size:12px;min-width:1090px"><thead>
+ <tr style="background:#eff6ff;text-align:center"><th rowspan="2">성명</th><th rowspan="2">부서</th><th rowspan="2">역할</th><th rowspan="2">상태</th><th colspan="2">SAFETY</th><th colspan="2">HEALTH</th><th colspan="2">ROSTER</th><th colspan="2">EDUCATION</th><th rowspan="2">동작</th></tr>
+ <tr style="background:#f5f8ff;text-align:center"><th>열람</th><th>수정</th><th>열람</th><th>수정</th><th>열람</th><th>수정</th><th>열람</th><th>수정</th></tr></thead>
+ <tbody id="sheSecureUsers"></tbody></table></div>
  <p id="sheSecureMsg" style="font-size:12px;margin-top:10px;color:#64748b"></p></div>`;
  document.body.appendChild(div);
  const signupBar=document.createElement('div');
@@ -9237,14 +9242,36 @@ async function refreshUsers(){
    status.value=u.status;status.disabled=mySelf;cell('').appendChild(status);
    const checks={};
    for(const m of CFG.modules){
-    const c=document.createElement('input');c.type='checkbox';c.checked=u.role==='super_admin'||u.permissions?.[m]===true;
-    c.disabled=mySelf||u.role==='super_admin';checks[m]=c;cell('').appendChild(c);
+    const view=document.createElement('input');view.type='checkbox';
+    view.checked=u.role==='super_admin'||u.permissions?.[m]===true;
+    const write=document.createElement('input');write.type='checkbox';
+    write.checked=u.role==='super_admin'||u.permissions?.[m+'_write']===true;
+    checks[m]={view,write};
+    const sync=()=>{
+      if(!view.checked)write.checked=false;
+      write.disabled=mySelf||u.role==='super_admin'||role.value!=='admin'||!view.checked;
+    };
+    view.disabled=mySelf||u.role==='super_admin';
+    view.addEventListener('change',sync);
+    write.addEventListener('change',()=>{if(write.checked)view.checked=true;sync();});
+    cell('').appendChild(view);
+    cell('').appendChild(write);
+    checks[m].sync=sync;sync();
    }
+   role.addEventListener('change',()=>{
+    for(const m of CFG.modules){
+      if(role.value!=='admin')checks[m].write.checked=false;
+      checks[m].sync();
+    }
+   });
    const save=document.createElement('button');save.textContent='저장';save.disabled=mySelf;
    save.style.cssText='background:#1d6ce0;color:white;border-radius:7px;padding:7px 12px;font-weight:bold';
    save.onclick=async()=>{save.disabled=true;
     try{
-     const perm=Object.fromEntries(CFG.modules.map(m=>[m,checks[m].checked]));
+     const perm=Object.fromEntries(CFG.modules.flatMap(m=>[
+       [m,checks[m].view.checked],
+       [m+'_write',role.value==='admin'&&checks[m].view.checked&&checks[m].write.checked]
+     ]));
      await window.SHESEC.setUser(u.id,role.value,status.value,perm);
      $('sheSecureMsg').textContent=`✅ ${u.name} 계정의 상태·권한이 저장됐습니다.`;
      await refreshUsers();
@@ -9279,7 +9306,7 @@ async function refreshUsers(){
    }
    actions.appendChild(group);
    // 모바일 카드에서 각 권한 열의 의미를 유지하며 표시합니다.
-   const mobileLabels=['성명','부서','역할','상태','SAFETY','HEALTH','ROSTER','EDUCATION','동작'];
+   const mobileLabels=['성명','부서','역할','상태','SAFETY 열람','SAFETY 수정','HEALTH 열람','HEALTH 수정','ROSTER 열람','ROSTER 수정','EDUCATION 열람','EDUCATION 수정','동작'];
    Array.from(row.cells).forEach((td,i)=>{td.dataset.mobileLabel=mobileLabels[i]||'권한';});
    body.appendChild(row);
   }
@@ -9296,12 +9323,12 @@ async function toggleMaintenance(){
 }
 function bindLegacy(){
  window.renderItemCards=fastRenderItemCards;
- window.isServerAdmin=()=>hasAccess('safety');
- window.requireServerAdmin=()=>hasAccess('safety')|| (alert('SAFETY 수정 권한이 없습니다.'),false);
+ window.isServerAdmin=()=>canEditSafety();
+ window.requireServerAdmin=()=>canEditSafety()|| (alert('SAFETY 수정 권한이 없습니다.'),false);
  const originalOpenAdmin=window.openAdminModal;
  window.openAdminModal=function(tab){
   if(tab==='users')return canControlUsers()?openSecureAdmin():alert('최고관리자 권한이 필요합니다.');
-  if(!hasAccess('safety'))return alert('SAFETY 수정 권한이 없습니다.');
+  if(!canEditSafety())return alert('SAFETY 수정 권한이 없습니다.');
   return originalOpenAdmin?.call(this,tab);
  };
  window.handleHeaderAdminClick=()=>window.openAdminModal('excel');
@@ -9316,7 +9343,7 @@ function bindLegacy(){
  for(const name of ['saveItemEdit','saveDocumentModalForm','deleteCurrentItem','deleteDocumentFromModal',
   'handleManualAddItem','confirmExcelMappedImport','applyUploadedItemsByMode','handleImageFilesUpload']){
   const original=window[name];if(typeof original!=='function')continue;
-  window[name]=function(...args){if(!hasAccess('safety'))return alert('SAFETY 수정 권한이 없습니다.');
+  window[name]=function(...args){if(!canEditSafety())return alert('SAFETY 수정 권한이 없습니다.');
     const result=original.apply(this,args);document.dispatchEvent(new Event('she:risk-data-changed'));return result;};
  }
  // 구형 회원관리 버튼은 작동시키지 않고 서버 인증 기반 관리 화면만 사용.
@@ -9344,6 +9371,7 @@ async function init(){
 }
 window.SHEIndex=Object.freeze({hasAccess,canControlUsers,checkAccess,logout,
  openModule,showPortal:()=>applyPortalView('portal'),refreshUsers,recordView:recordIndexView,
+ canWrite:module=>state.authorized&&window.SHESEC.canWrite(state.current,module),
  closeDetailFromUI});
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
