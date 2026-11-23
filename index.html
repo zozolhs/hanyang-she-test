@@ -7756,6 +7756,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       isPartialRecoveryState = true;
       lastVerifiedRiskUpdatedAt = null;
       setStatus("err","서버 문서 정보 조회 실패 · 현재 화면 유지 · 자동저장 차단");
+      if (typeof renderAll==="function") renderAll();
       return;
     }
     const usersMasterRow = usersRes.data;
@@ -7890,6 +7891,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
         setStatus("err", "위험성평가 수신 건수 불일치 · 서버 " +
           serverTotal.toLocaleString() + "건 / 수신 " +
           allLoadedItems.length.toLocaleString() + "건 · 서버 저장 차단");
+        if (typeof renderAll==="function") renderAll();
         return;
       }
 
@@ -7902,6 +7904,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
         isPartialRecoveryState=true;
         lastVerifiedRiskUpdatedAt=null;
         setStatus("err","서버 자료를 읽는 동안 새 개정이 등록됐습니다. 이전 버전 화면 반영을 차단했습니다. 새로고침하세요.");
+        if (typeof renderAll==="function") renderAll();
         return;
       }
 
@@ -7921,7 +7924,8 @@ body:not(.she-portal-active) #shePortal{display:none!important}
         riskLoadPhase = "error";
         lastVerifiedRiskUpdatedAt = null;
         isPartialRecoveryState = true;
-        setStatus("work", `부분 복구됨 (${finalItems.length.toLocaleString()}건 · 누락문서 덮어쓰기 필요)`);
+        setStatus("err", `자료 건수 검증 실패 (${finalItems.length.toLocaleString()}건 · 서버 원본 보존 · 자동저장 차단)`);
+        if (typeof renderAll==="function") renderAll();
       } else {
         isPartialRecoveryState = false;
         lastVerifiedRiskUpdatedAt = metaRow.updated_at;
@@ -8643,6 +8647,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
         lastVerifiedRiskUpdatedAt=null;
         console.error("[EHS SAFETY] server data load failed:",err);
         setStatus("err","위험성평가 서버 로딩 오류 · 자료는 보존됨 · 새로고침으로 재시도하세요.");
+        if (typeof renderAll==="function") renderAll();
       });
     });
 
