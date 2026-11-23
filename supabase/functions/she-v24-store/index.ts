@@ -220,8 +220,8 @@ async function safetyImportPart(a:Account,input:Record<string,unknown>){
      !Number.isInteger(partCount)||Number(partCount)<1||
      Number(partCount)>100||Number(partIndex)>=Number(partCount)||
      typeof expected!=="string"||!Number.isFinite(Date.parse(expected))||
-     !["replace","append","new"].includes(String(mode))||
-     (mode!=="new"&&(typeof targetId!=="string"||targetId.length>120))||
+     !["replace","append","new","snapshot"].includes(String(mode))||
+     ((mode==="replace"||mode==="append")&&(typeof targetId!=="string"||targetId.length>120))||
      !doc||typeof doc!=="object"||Array.isArray(doc)||
      !Array.isArray(items)||items.length<1||items.length>350||
      items.some(v=>!v||typeof v!=="object"||Array.isArray(v)||
@@ -232,7 +232,7 @@ async function safetyImportPart(a:Account,input:Record<string,unknown>){
   const {error}=await db.from("she_v24_safety_import_parts").upsert({
     actor_id:a.id,upload_id:uploadId,part_index:partIndex,part_count:partCount,
     base_meta_updated_at:expected,import_mode:mode,
-    target_doc_id:mode==="new"?null:targetId,
+    target_doc_id:(mode==="replace"||mode==="append")?targetId:null,
     document:doc,items:items
   },{onConflict:"actor_id,upload_id,part_index"});
   if(error)throw new ApiError(503,"위험성평가 분할 업로드를 저장하지 못했습니다.");
@@ -253,6 +253,24 @@ async function safetyImportCommit(a:Account,input:Record<string,unknown>){
   if(data?.status==="mass_loss"||data?.status==="large_replacement")throw new ApiError(409,"기존 평가 항목의 대량 감소가 감지되어 덮어쓰기를 차단했습니다.");
   if(data?.status==="not_found")throw new ApiError(404,"선택한 문서를 찾지 못했습니다. 새로고침 후 다시 확인하세요.");
   if(data?.status!=="ok")throw new ApiError(400,"위험성평가 업로드 자료를 검증하지 못했습니다.");
+  return data;
+}
+
+async function safetySnapshotCommit(a:Account,input:Record<string,unknown>){
+  if(!canWrite(a,"safety"))throw new ApiError(403,"위험성평가 저장 권한이 없습니다.");
+  const id=input.upload_id;
+  if(typeof id!=="string"||!/^[0-9a-f-]{36}$/i.test(id))
+    throw new ApiError(400,"저장 요청 번호 형식 오류");
+  const {data,error}=await db.rpc("she_v24_commit_safety_snapshot",{
+    p_actor:a.id,p_upload_id:id
+  });
+  if(error)throw new ApiError(503,"위험성평가 서버 저장에 실패했습니다.");
+  if(data?.status==="conflict")throw new ApiError(409,"다른 사용자가 먼저 수정했습니다. 변경 사항이 저장되지 않았습니다.");
+  if(data?.status==="incomplete")throw new ApiError(409,"서버 저장 항목 중 일부가 누락돼 기존 자료를 유지했습니다.");
+  if(data?.status==="integrity")throw new ApiError(409,"기존 평가 자료 무결성에 문제가 있어 저장을 차단했습니다.");
+  if(data?.status==="doc_loss"||data?.status==="mass_loss")
+    throw new ApiError(409,"기존 문서 또는 평가 항목의 대량 삭제가 감지돼 저장을 차단했습니다.");
+  if(data?.status!=="ok")throw new ApiError(400,"위험성평가 저장값을 검증할 수 없습니다.");
   return data;
 }
 
@@ -476,6 +494,7 @@ Deno.serve(async (req:Request)=>{
       case "store_put_batch":return send(req,200,await putSafetyBatch(a,input));
       case "safety_import_part":return send(req,200,await safetyImportPart(a,input));
       case "safety_import_commit":return send(req,200,await safetyImportCommit(a,input));
+      case "safety_snapshot_commit":return send(req,200,await safetySnapshotCommit(a,input));
       case "store_education_roster":return send(req,200,await educationRoster(a,input));
       case "store_confirm_education":return send(req,200,await confirmEducation(a,input));
       case "onepage_get":return send(req,200,await onepageGet(a));
