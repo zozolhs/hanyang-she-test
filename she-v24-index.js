@@ -351,6 +351,38 @@ async function saveSafetySnapshot(opts,onProgress){
   return result;
 }
 
+// Destructive changes are authorized only through an explicit named-document
+// transaction. The normal snapshot writer never gets a mass-loss bypass.
+async function deleteSafetyDocument(documentId,expectedTitle){
+  await refresh(true);
+  if(!permitted(profile,"safety",true))
+    throw failure("위험성평가 문서 삭제 권한이 없습니다.",403);
+  if(typeof documentId!=="string"||typeof expectedTitle!=="string"||
+     !documentId||!expectedTitle)
+    throw failure("삭제할 문서 정보가 올바르지 않습니다.",400);
+  // Always get the latest metadata. The server still CAS-checks this
+  // version against the real row at deletion time.
+  const meta=await fetchRow("main_v10_meta");
+  if(!meta||!Array.isArray(meta.documents))
+    throw failure("서버에서 문서 목록을 확인하지 못했습니다.",503);
+  const target=meta.documents.find(d=>d?.id===documentId);
+  if(!target||target.title!==expectedTitle)
+    throw failure("선택한 문서가 서버의 최신 목록과 다릅니다. 새로고침하세요.",409);
+  const result=await request("store","safety_document_delete",{
+    document_id:documentId,
+    expected_title:expectedTitle,
+    expected_updated_at:meta.updated_at,
+    confirm_delete:true
+  });
+  for(const key of [...fullRows.keys()]){
+    if(/^main_v10_(meta|chunk_\d+)$/.test(key)){
+      fullRows.delete(key);versions.delete(key);pendingRows.delete(key);
+    }
+  }
+  pendingBatches.clear();
+  return result;
+}
+
 async function writeSafetyBatch(raws){
   if(!Array.isArray(raws)||!raws.length)throw failure("저장할 자료가 없습니다.",400);
   const rows=[];
@@ -500,7 +532,7 @@ const client=Object.freeze({
 });
 window.SHESEC=Object.freeze({
   client,refresh,guard,login,register,logout,users,setUser,deleteUser,
-  maintenance,registrationStatus,setRegistration,changePassword,importSafetyDocument,saveSafetySnapshot,
+  maintenance,registrationStatus,setRegistration,changePassword,importSafetyDocument,saveSafetySnapshot,deleteSafetyDocument,
   permit:(p,m)=>permitted(p,m,false),
   canWrite:(p,m)=>permitted(p,m,true),
   get profile(){return profile;},
