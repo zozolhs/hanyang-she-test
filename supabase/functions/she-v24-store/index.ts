@@ -274,6 +274,36 @@ async function safetySnapshotCommit(a:Account,input:Record<string,unknown>){
   return data;
 }
 
+
+async function safetyDeleteDocument(a:Account,input:Record<string,unknown>) {
+  if(!canWrite(a,"safety"))throw new ApiError(403,"위험성평가 문서 삭제 권한이 없습니다.");
+  const id=input.document_id,title=input.expected_title,version=input.expected_updated_at;
+  if(typeof id!=="string"||!/^doc-[A-Za-z0-9_-]{1,110}$/.test(id)||
+     typeof title!=="string"||title.length<1||title.length>220||
+     typeof version!=="string"||version.length>60||
+     !Number.isFinite(Date.parse(version))||
+     input.confirm_delete!==true)
+    throw new ApiError(400,"삭제 대상 문서와 확인 정보가 올바르지 않습니다.");
+  const {data,error}=await db.rpc("she_v24_delete_safety_document",{
+    p_actor:a.id,
+    p_document_id:id,
+    p_expected_title:title,
+    p_expected_at:version
+  });
+  if(error)throw new ApiError(503,"서버에서 문서를 삭제하지 못했습니다.");
+  if(data?.status==="conflict")
+    throw new ApiError(409,"자료가 다른 작업에서 변경되었습니다. 새로고침 후 삭제 대상을 다시 확인하세요.");
+  if(data?.status==="not_found")throw new ApiError(404,"선택한 문서가 없습니다.");
+  if(data?.status==="integrity")
+    throw new ApiError(409,"서버 평가 자료 무결성 확인에 실패하여 삭제를 차단했습니다.");
+  if(data?.status!=="ok")throw new ApiError(400,"문서 삭제 요청을 검증하지 못했습니다.");
+  console.info("SHE_V24_AUDIT",JSON.stringify({
+    event:"confirmed_safety_document_delete",account_id:a.id,
+    document_id:id,deleted_items:data.deleted_items
+  }));
+  return data;
+}
+
 // ONE-PAGE: isolated V24 SAFETY data; never writes the existing risk-document chunks.
 function onepageRead(a:Account){if(!canRead(a,"safety"))throw new ApiError(403,"ONE-PAGE 조회 권한이 없습니다.");}
 function onepageWrite(a:Account){if(!canWrite(a,"safety"))throw new ApiError(403,"ONE-PAGE 수정 권한이 없습니다.");}
@@ -495,6 +525,7 @@ Deno.serve(async (req:Request)=>{
       case "safety_import_part":return send(req,200,await safetyImportPart(a,input));
       case "safety_import_commit":return send(req,200,await safetyImportCommit(a,input));
       case "safety_snapshot_commit":return send(req,200,await safetySnapshotCommit(a,input));
+      case "safety_document_delete":return send(req,200,await safetyDeleteDocument(a,input));
       case "store_education_roster":return send(req,200,await educationRoster(a,input));
       case "store_confirm_education":return send(req,200,await confirmEducation(a,input));
       case "onepage_get":return send(req,200,await onepageGet(a));
