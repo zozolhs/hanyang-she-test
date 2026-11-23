@@ -273,6 +273,45 @@ async function findRows(filter,columns,single=false){
   }
   return {data:null,error:failure("데이터 조회 ID가 필요합니다.",400)};
 }
+// Risk workbook uploads are staged in small authenticated parts and committed
+// atomically by the server. The existing client snapshot is never mutated on a
+// failed upload; server-side CAS prevents stale-tab overwrites.
+async function importSafetyDocument(opts,onProgress){
+  await refresh(true);
+  if(!permitted(profile,"safety",true))
+    throw failure("위험성평가 수정 권한이 없습니다.",403);
+  if(!opts||!Array.isArray(opts.items)||opts.items.length<1)
+    throw failure("업로드할 위험성평가 항목이 없습니다.",400);
+  const base=await fetchRow("main_v10_meta");
+  if(!base||!base.updated_at)throw failure("서버 기준 버전을 확인하지 못했습니다.",409);
+  const uploadId=crypto.randomUUID();
+  const epoch=sessionEpoch,session=token;
+  const chunkSize=160,partCount=Math.ceil(opts.items.length/chunkSize);
+  if(partCount>100)throw failure("한 번에 등록할 수 있는 최대 항목 수를 초과했습니다.",413);
+  for(let part=0;part<partCount;part++){
+    if(epoch!==sessionEpoch||session!==token)
+      throw failure("로그인 세션이 변경되어 업로드를 중단했습니다.",401);
+    const items=opts.items.slice(part*chunkSize,(part+1)*chunkSize);
+    await request("store","safety_import_part",{
+      upload_id:uploadId,part_index:part,part_count:partCount,
+      base_meta_updated_at:base.updated_at,
+      import_mode:opts.mode,target_doc_id:opts.targetDocId||null,
+      document:opts.document,items
+    });
+    if(typeof onProgress==="function")onProgress(part+1,partCount);
+  }
+  if(epoch!==sessionEpoch||session!==token)
+    throw failure("로그인 세션이 변경되어 업로드를 중단했습니다.",401);
+  const result=await request("store","safety_import_commit",{upload_id:uploadId});
+  for(const key of [...fullRows.keys()]){
+    if(/^main_v10_(meta|chunk_\d+)$/.test(key)){
+      fullRows.delete(key);versions.delete(key);pendingRows.delete(key);
+    }
+  }
+  pendingBatches.clear();
+  return result;
+}
+
 async function writeSafetyBatch(raws){
   if(!Array.isArray(raws)||!raws.length)throw failure("저장할 자료가 없습니다.",400);
   const rows=[];
@@ -422,7 +461,7 @@ const client=Object.freeze({
 });
 window.SHESEC=Object.freeze({
   client,refresh,guard,login,register,logout,users,setUser,deleteUser,
-  maintenance,registrationStatus,setRegistration,changePassword,
+  maintenance,registrationStatus,setRegistration,changePassword,importSafetyDocument,
   permit:(p,m)=>permitted(p,m,false),
   canWrite:(p,m)=>permitted(p,m,true),
   get profile(){return profile;},
