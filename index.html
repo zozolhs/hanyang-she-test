@@ -8672,12 +8672,12 @@ body:not(.she-portal-active) #shePortal{display:none!important}
     let scheduled = false;
     let lastRun = 0;
     const observer = new MutationObserver(() => {
-      if (isInternalDomMutating || isRefreshingUI || scheduled || document.hidden) return;
+      if (isInternalDomMutating || isRefreshingUI || scheduled) return;
       scheduled = true;
       const delay = Math.max(0, 120 - (performance.now() - lastRun));
       setTimeout(() => requestAnimationFrame(() => {
         scheduled = false;
-        if (isInternalDomMutating || isRefreshingUI || document.hidden) return;
+        if (isInternalDomMutating || isRefreshingUI) return;
         lastRun = performance.now();
         setupExcelSerialNumberExtractor();
         enhanceGateModalWithTabsAndPin();
