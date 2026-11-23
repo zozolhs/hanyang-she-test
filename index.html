@@ -4789,7 +4789,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="./she-v24-index.js?v=20261123-modulerw1"></script>
+<script src="./she-v24-index.js?v=20261123-modulerw2"></script>
 <script>
 (function() {
   const SUPABASE_URL = "https://ahmqthuympannqsrszvv.supabase.co";
@@ -8840,6 +8840,7 @@ async function checkAccess(force=true){
    role:res.profile.role,status:'approved',
    birth:'',dept:res.profile.department||'',permissions:res.profile.permissions};}
  catch(_){ }
+ if(state.view==='search'&&!canSafetyView())state.view='portal';
  applyPortalView(state.view);
  initializeIndexHistory();return true;
 }
