@@ -2297,6 +2297,7 @@
         body.append(tr);
       }
       table.append(body);root.append(table);
+      if(!canEditEducation())table.querySelectorAll('input,select,textarea').forEach(field=>{field.disabled=true;});
       const pager=el('div','page-toolbar');pager.append(el('span','',`${matched.length}명 · ${state.batchPage+1}/${maxPage+1} 페이지`));
       const prev=el('button','btn btn-outline btn-sm','← 이전'),next=el('button','btn btn-outline btn-sm','다음 →');
       prev.type=next.type='button';prev.disabled=state.batchPage===0;next.disabled=state.batchPage===maxPage;
