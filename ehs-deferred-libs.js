@@ -5,7 +5,8 @@
  if(window.EHSLibs)return;
  const libs=Object.freeze({
    xlsx:{global:'XLSX',src:'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'},
-   exceljs:{global:'ExcelJS',src:'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js'}
+   exceljs:{global:'ExcelJS',src:'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js'},
+   pdfjs:{global:'pdfjsLib',src:'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'}
  });
  const inflight=new Map();
  function ensure(name){
