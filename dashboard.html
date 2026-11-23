@@ -733,9 +733,10 @@
           state.user = result.profile;
           state.isSuper = result.profile.role==='super_admin';
           state.rosterAllowed = state.isSuper ||
-            (result.profile.role==='admin'&&result.profile.permissions?.roster===true);
+            (['admin','viewer_admin'].includes(result.profile.role)&&result.profile.permissions?.roster===true);
           state.authorized = true;
           state.lastAuthAt = Date.now();
+          applyEducationWritePermissions();
           $('eduUserBadge').textContent = state.isSuper ? '🛡️ 최고관리자' : `🎓 EDUCATION 관리자 · ${result.profile.name}`;
           for (const id of ['rosterLink','expiredLink']) {
             $(id).setAttribute('aria-disabled',String(!state.rosterAllowed));
@@ -750,6 +751,24 @@
       })();
       try { return await state.authInProgress; }
       finally { state.authInProgress = null; }
+    }
+
+    function canEditEducation() {
+      return state.authorized && window.SHESEC.canWrite(state.user,'education');
+    }
+    function requireEditEducation() {
+      if(!requireAccess())return false;
+      if(!canEditEducation()){notify('EDUCATION 열람 전용입니다. 수정 권한이 없습니다.');return false;}
+      return true;
+    }
+    function applyEducationWritePermissions() {
+      const allowed=canEditEducation();
+      for(const id of ['saveScheduleBtn','addScheduleBtn','addFromCalendarBtn',
+        'addIrisBtn','addIrisCalendarBtn','newBatchReportBtn']){
+        const button=$(id);
+        if(!button)continue;
+        button.hidden=!allowed;
+      }
     }
 
     function requireAccess() {
@@ -1082,6 +1101,7 @@
       return true;
     }
     function markDirty() {
+      if(!canEditEducation())return;
       state.dirty = true;
       state.revision++;
       updateStatus('saveStatus','● 교육 일정 변경사항 저장 대기','pending');
@@ -1732,10 +1752,10 @@
           : `수강자 ${count}명${e.courseKey?' | '+COURSE_LABELS[e.courseKey]:''}${e.confirmedAt?' | 확정: '+e.confirmedAt.slice(0,10):''}`));
         actions.appendChild(el('span',`cal-badge ${eventBadge(e)}`,statusAtTime(e,now)));
         const button=(label,action,cls='btn btn-outline btn-sm')=>{const b=el('button',cls,label);b.type='button';b.addEventListener('click',action);actions.appendChild(b);};
-        button(e.status==='completed'&&e.kind==='education'?'조회':'수정',()=>e.kind==='iris'?openIris(e.id):openEventModal(e.id));
+        button(!canEditEducation()||(e.status==='completed'&&e.kind==='education')?'조회':'수정',()=>e.kind==='iris'?openIris(e.id):openEventModal(e.id));
         if(e.kind==='education') button('수강자 전체 보기',()=>window.SHEEducationAttendees?.open(e.id));
-        if(pastEducationEnd(e,now)) button('교육완료 확정',()=>openConfirm(e.id),'btn btn-green btn-sm');
-        if(e.kind==='education'&&e.status==='completed') button('복제',()=>cloneEvent(e.id));
+        if(canEditEducation()&&pastEducationEnd(e,now)) button('교육완료 확정',()=>openConfirm(e.id),'btn btn-green btn-sm');
+        if(canEditEducation()&&e.kind==='education'&&e.status==='completed') button('복제',()=>cloneEvent(e.id));
         card.append(info,actions);frag.appendChild(card);
       }
       root.replaceChildren(frag);
@@ -1892,11 +1912,12 @@
     function openEventModal(id=null,initialDate=todayString()) {
       if(!requireAccess())return;
       const original=id?state.events.find(e=>e.id===id):null;
+      if(!canEditEducation()&&!original)return notify('교육 등록은 수정 권한이 필요합니다.');
       if(id&&!original)return notify('교육 일정을 찾을 수 없습니다.');
       if(original?.kind==='iris')return openIris(id);
       state.editingId=original?.id||null;
       const data=original||normalizeEvent({date:initialDate,title:'',hours:4,category:'regular'});
-      const locked=data.status==='completed';
+      const locked=data.status==='completed'||!canEditEducation();
       state.draftAttendees=new Set(data.attendeeKeys);
       const existing=$('sheAttendeeOverview');
       existing.hidden=!original;
@@ -1910,7 +1931,7 @@
           ? '등록 '+total+'명 · 완료 확정 '+attended+'명 (외부 참석자 별도)'
           : '현재 등록 '+total+'명 (외부 참석자 포함)';
       }
-      $('eventModalTitle').textContent=locked?'교육완료 확정 이력 조회 (수정 불가)':original?'교육 일정 및 수강자 수정':'교육 일정 등록';
+      $('eventModalTitle').textContent=locked?data.status==='completed'?'교육완료 확정 이력 조회':'교육 일정 조회 (열람 전용)':original?'교육 일정 및 수강자 수정':'교육 일정 등록';
       for(const [id,key] of Object.entries({eventTitle:'title',eventCategory:'category',eventStatus:'status',eventDate:'date',eventStart:'startTime',eventEnd:'endTime',eventHours:'hours',eventLocation:'location',eventInstructor:'instructor',eventCourse:'courseKey',eventNotes:'notes'}))$(id).value=String(data[key]??'');
       if(![...$('eventStatus').options].some(option=>option.value==='completed'))$('eventStatus').add(new Option('교육완료 확정','completed')); // 중복 옵션 생성 방지
       for(const option of [...$('eventStatus').options])if(option.value==='completed'&&!locked)option.remove();
@@ -1945,7 +1966,7 @@
       alert(detail);return true;
     }
     async function submitEventForm(e) {
-      e.preventDefault();if(!requireAccess())return;
+      e.preventDefault();if(!requireEditEducation())return;
       const current=state.events.find(x=>x.id===state.editingId);
       if(current?.status==='completed')return alert('완료 확정된 교육은 변경할 수 없습니다. [복제]로 새 일정을 만드세요.');
       applyCourseEligibility();
@@ -1965,6 +1986,7 @@
       state.events.sort(compareEvents);markDirty();closeEventModal();renderEverything();await saveSchedule(true);
     }
     function cloneEvent(id) {
+      if(!requireEditEducation())return;
       const old=state.events.find(e=>e.id===id);
       if(!old||old.kind!=='education'||old.status!=='completed')return;
       openEventModal();state.draftAttendees=new Set(old.attendeeKeys);
@@ -1977,7 +1999,7 @@
       notify('기존 교육을 복제했습니다. 새 교육일자·수강자를 확인하고 저장하세요.');
     }
     async function deleteEvent() {
-      if(!requireAccess()||!state.editingId)return;
+      if(!requireEditEducation()||!state.editingId)return;
       const e=state.events.find(x=>x.id===state.editingId);
       if(!e||e.status==='completed')return alert('교육완료 확정 이력은 삭제할 수 없습니다.');
       if(state.reports.some(r=>r.eventIds.includes(e.id)))return alert('결과 보고서에 연결된 일정은 삭제할 수 없습니다.');
@@ -1985,7 +2007,7 @@
       state.events=state.events.filter(x=>x.id!==e.id);markDirty();closeEventModal();renderEverything();await saveSchedule(true);
     }
     function openConfirm(id) {
-      if(!requireAccess())return;
+      if(!requireEditEducation())return;
       const e=state.events.find(x=>x.id===id);
       if(!e||!pastEducationEnd(e))return alert('종료시각이 지난 미확정 교육만 완료 확정할 수 있습니다.');
       if(state.dirty||state.savePaused)return alert('미저장 일정이 있습니다. 서버 저장 상태를 확인한 후 확정하세요.');
@@ -2033,7 +2055,7 @@
     }
     function closeConfirm() {if(state.pendingConfirm)return;$('confirmModal').hidden=true;state.confirmId=null;}
     async function commitConfirm() {
-      if(state.pendingConfirm || !requireAccess())return;
+      if(state.pendingConfirm || !requireEditEducation())return;
       const e=state.events.find(x=>x.id===state.confirmId);
       if(!e||!pastEducationEnd(e))return alert('교육 상태가 변경됐습니다. 다시 조회하세요.');
       if(state.dirty)return alert('저장되지 않은 변경사항이 있습니다. 먼저 저장하세요.');
@@ -2072,6 +2094,7 @@
     function openIris(id=null,initialDate=todayString()) {
       if(!requireAccess())return;
       const original=id?state.events.find(e=>e.id===id&&e.kind==='iris'):null;
+      if(!canEditEducation()&&!original)return notify('홍채 일정 등록은 수정 권한이 필요합니다.');
       if(id&&!original)return notify('홍채등록 일정을 찾을 수 없습니다.');
       state.irisId=original?.id||null;
       state.irisDraft=new Set(original?.attendeeKeys||[]);
@@ -2081,10 +2104,16 @@
       $('irisProgress').value=original?.irisProgress||'scheduled';
       $('irisGuide').value=original?.irisGuide||'';
       $('irisNotes').value=original?.notes||'';
-      $('irisSearch').value='';$('deleteIrisBtn').hidden=!original;
+      $('irisSearch').value='';$('deleteIrisBtn').hidden=!original||!canEditEducation();
+      const readonly=!canEditEducation();
+      [...$('irisForm').querySelectorAll('input,select,textarea')].forEach(field=>{field.disabled=readonly;});
+      $('irisForm').querySelector('[type="submit"]').hidden=readonly;
       irisWeekdayUpdate();renderIrisAttendees();$('irisModal').hidden=false;
     }
-    function closeIris() {$('irisModal').hidden=true;state.irisId=null;}
+    function closeIris() {
+      $('irisModal').hidden=true;state.irisId=null;
+      [...$('irisForm').querySelectorAll('input,select,textarea')].forEach(field=>{field.disabled=false;});
+    }
     function renderIrisAttendees() {
       const root=$('irisAttendees'),search=$('irisSearch').value.trim().toLocaleLowerCase('ko');
       const matches=eligibleWorkers('iris').filter(x=>!search||x.search.includes(search));
@@ -2111,7 +2140,7 @@
       $('irisSelectedCount').textContent=`대상 ${valid}명 · 5종 완료 ${completed}명`;
     }
     async function submitIris(e) {
-      e.preventDefault();if(!requireAccess())return;
+      e.preventDefault();if(!requireEditEducation())return;
       const date=$('irisDate').value;
       if(!strictDate(date))return alert('홍채등록 날짜를 입력하세요.');
       if(!$('irisLocation').value.trim())return alert('홍채등록 장소를 입력하세요.');
@@ -2128,7 +2157,7 @@
       state.events.sort(compareEvents);markDirty();closeIris();renderEverything();await saveSchedule(true);
     }
     async function deleteIris() {
-      if(!requireAccess()||!state.irisId)return;
+      if(!requireEditEducation()||!state.irisId)return;
       const item=state.events.find(x=>x.id===state.irisId);
       if(!item||!confirm(`'${item.title}' 홍채등록 일정을 삭제하시겠습니까?`))return;
       state.events=state.events.filter(x=>x.id!==item.id);markDirty();closeIris();renderEverything();await saveSchedule(true);
@@ -2164,6 +2193,7 @@
     }
     function openBatch(id=null) {
       if(!requireAccess())return;
+      if(!canEditEducation()&&!id)return notify('보고서 작성은 수정 권한이 필요합니다.');
       const report=id?state.reports.find(r=>r.id===id):null;
       if(id&&!report)return notify('교육 보고서를 찾을 수 없습니다.');
       state.reportEditingId=report?.id||null;state.reportDraftIds=new Set(report?.eventIds||[]);
@@ -2171,7 +2201,10 @@
       state.batchColumnPage=0;state.batchBaseCache=null;
       $('batchModalTitle').textContent=report?'교육 결과 보고서 조회·수정':'교육 결과 보고서 작성';
       $('batchTitle').value=report?.title||'';$('batchMemo').value=report?.memo||'';
-      $('batchWorkerSearch').value='';$('deleteBatchBtn').hidden=!report;
+      $('batchWorkerSearch').value='';$('deleteBatchBtn').hidden=!report||!canEditEducation();
+      $('saveBatchBtn').hidden=!canEditEducation();
+      $('batchTitle').readOnly=!canEditEducation();
+      $('batchMemo').readOnly=!canEditEducation();
       $('batchModal').hidden=false;renderBatchOptions();renderBatchMatrix();
     }
     function closeBatch() {$('batchModal').hidden=true;state.reportEditingId=null;state.batchBaseCache=null;}
@@ -2271,6 +2304,7 @@
       next.addEventListener('click',()=>{state.batchPage++;renderBatchMatrix();});pager.append(prev,next);root.append(pager);
     }
     function updateReportNote(element) {
+      if(!canEditEducation())return;
       const id=element.dataset.noteId,kind=element.dataset.kind;
       if(!id || !kind)return;
       const current=state.reportDraftNotes[id]||{};
@@ -2280,7 +2314,7 @@
       else state.reportDraftNotes[id]=note;
     }
     async function saveBatch() {
-      if(!requireAccess())return;
+      if(!requireEditEducation())return;
       const title=$('batchTitle').value.trim();if(!title)return alert('보고서명을 입력하세요.');
       const ids=[...state.reportDraftIds].filter(id=>state.events.some(e=>e.id===id&&e.kind==='education'&&e.status==='completed'));
       if(!ids.length)return alert('확정된 교육 일정을 하나 이상 선택하세요.');
@@ -2293,7 +2327,7 @@
       markDirty();closeBatch();renderBatchList();await saveSchedule(true);
     }
     async function deleteBatch() {
-      if(!requireAccess()||!state.reportEditingId)return;
+      if(!requireEditEducation()||!state.reportEditingId)return;
       if(!confirm('교육 결과 보고서만 삭제합니다. 기존 교육·연명부 이수 기록은 보존됩니다. 계속하시겠습니까?'))return;
       state.reports=state.reports.filter(r=>r.id!==state.reportEditingId);markDirty();closeBatch();renderBatchList();await saveSchedule(true);
     }
