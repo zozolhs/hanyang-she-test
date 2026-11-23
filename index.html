@@ -5047,12 +5047,12 @@ body:not(.she-portal-active) #shePortal{display:none!important}
 
   function getItemWorkText(it) {
     if (!it || typeof it !== "object") return "";
-    return String(it.work || it.step || it.task || it.process || it.category || it.workName || "").trim();
+    return String(it.taskTitle || it.work || it.step || it.task || it.process || it.category || it.workName || "").trim();
   }
 
   function getItemMeasureText(it) {
     if (!it || typeof it !== "object") return "";
-    return String(it.measure || it.countermeasure || it.action || it.plan || it.solution || it.reductionMeasure || "").trim();
+    return String(it.measureText || it.measure || it.countermeasure || it.action || it.plan || it.solution || it.reductionMeasure || "").trim();
   }
 
   function getSafeDuplicateKey(it) {
@@ -5327,13 +5327,8 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       if (v1 !== undefined && v1 > 0) return v1;
     }
 
-    // 3순위: 단일 고유 안전대책 문구 확인 (단, -1 중복 문구가 아닐 때만)
-    if (normMeasure.length >= 6 && docMap.textToSerial) {
-      const p28 = normMeasure.slice(0, 28);
-      const p18 = normMeasure.slice(0, 18);
-      if (docMap.textToSerial[p28] !== undefined && docMap.textToSerial[p28] > 0) return docMap.textToSerial[p28];
-      if (docMap.textToSerial[p18] !== undefined && docMap.textToSerial[p18] > 0) return docMap.textToSerial[p18];
-    }
+    // No mitigation-only fallback: a countermeasure is reusable across
+    // different work categories and must not identify a serial number.
 
     return null;
   }
@@ -5470,84 +5465,24 @@ body:not(.she-portal-active) #shePortal{display:none!important}
   }
 
   function matchAndBindExtractedTableToItems(extractedTable, triggerSave) {
-    isPartialRecoveryState = false;
-
-    const items = getPrimaryArray("items");
+    // A spreadsheet being opened is not an approved import. Never infer
+    // ownership by matching mitigation text, or save a stale browser snapshot.
+    if (!extractedTable?.fileName || !extractedTable?.textToSerial) return;
     const docs = getPrimaryArray("docs");
-    if (!Array.isArray(items) || items.length === 0) return;
-
-    const allDocMaps = getStoredDocTableMaps();
-
-    if (extractedTable && extractedTable.textToSerial) {
-      const docMatchScores = {};
-      for (let i = 0; i < items.length; i++) {
-        const it = items[i];
-        if (!it) continue;
-        const dTitle = getItemDocTitle(it);
-        if (!dTitle) continue;
-        const normM = normalizeCompareText(getItemMeasureText(it));
-        if (normM.length >= 6) {
-          const p18 = normM.slice(0, 18);
-          if (extractedTable.textToSerial[p18] !== undefined) {
-            docMatchScores[dTitle] = (docMatchScores[dTitle] || 0) + 1;
-          }
-        }
-      }
-
-      let bestDocTitle = "";
-      let bestScore = 0;
-      Object.keys(docMatchScores).forEach((dTitle) => {
-        if (docMatchScores[dTitle] > bestScore) {
-          bestScore = docMatchScores[dTitle];
-          bestDocTitle = dTitle;
-        }
-      });
-
-      if (bestDocTitle && bestScore >= 1) {
-        allDocMaps[bestDocTitle] = extractedTable;
-      } else if (extractedTable.fileName) {
-        docs.forEach((d) => {
-          if (!d) return;
-          const dTitle = String(d.title || d.name || "").trim();
-          const dFile = String(d.fileName || d.file || "").trim();
-          if (dTitle && dFile && normalizeCompareText(dFile) === normalizeCompareText(extractedTable.fileName)) {
-            allDocMaps[dTitle] = extractedTable;
-          }
-        });
-      }
-      saveStoredDocTableMaps(allDocMaps);
-    }
-
-    const changed = processAndDeduplicateAllItemsOnce(true);
-    const currentItems = getPrimaryArray("items");
-    let serialUpdatedCount = 0;
-
-    for (let i = 0; i < currentItems.length; i++) {
-      const it = currentItems[i];
-      if (!it || typeof it !== "object") continue;
-      const dTitle = getItemDocTitle(it);
-      const docMap = dTitle ? allDocMaps[dTitle] : null;
-      if (docMap) {
-        const trueSerial = findExactSerialForItemFromMap(it, docMap);
-        if (trueSerial !== null && applyTrueSerialToItemObject(it, trueSerial)) {
-          serialUpdatedCount++;
-        }
-      }
-    }
-
-    rebuildFastItemRowLookupMap(currentItems);
-
-    if (changed || serialUpdatedCount > 0 || triggerSave) {
-      setAllArraysOfType("items", currentItems.slice());
-      if (activeVirtualizedContainer) {
-        activeVirtualizedContainer._hyMasterCards = null;
-        activeVirtualizedContainer = null;
-      }
-      refreshUI();
-      if (hasCompletedInitialLoad && (triggerSave || serialUpdatedCount > 0)) {
-        saveAllDataToSupabase(false);
-      }
-    }
+    const norm = v => String(v || "").normalize("NFKC").trim().toLocaleLowerCase("ko");
+    const matches = docs.filter(d =>
+      norm(d?.fileName || d?.file) === norm(extractedTable.fileName)
+    );
+    if (matches.length !== 1) return;
+    const doc = matches[0];
+    // A title-keyed legacy map is unsafe if multiple documents share a title.
+    if (docs.filter(d => norm(d?.title || d?.name) === norm(doc.title || doc.name)).length !== 1)
+      return;
+    const maps = getStoredDocTableMaps();
+    maps[String(doc.title || doc.name).trim()] = extractedTable;
+    saveStoredDocTableMaps(maps);
+    // No processAndDeduplicateAllItemsOnce, refreshUI or database save here.
+    // The current approved file can only be persisted by its atomic import.
   }
 
   // [핵심 수정] 카드 및 모달창에서 번호를 찾을 때도 무조건 1순위는 '엑셀 행 번호(rowToSerial[excelRowNum])'!
@@ -5576,12 +5511,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
           const v = docMap.workMeasureToSerial[k];
           if (v !== undefined && v > 0) return v;
         }
-        if (docMap.textToSerial && !excelRowNum) {
-          const p28 = normM.slice(0, 28);
-          const p18 = normM.slice(0, 18);
-          if (docMap.textToSerial[p28] !== undefined && docMap.textToSerial[p28] > 0) return docMap.textToSerial[p28];
-          if (docMap.textToSerial[p18] !== undefined && docMap.textToSerial[p18] > 0) return docMap.textToSerial[p18];
-        }
+        // A shared mitigation sentence alone cannot identify a task row.
       }
     }
 
@@ -5603,7 +5533,6 @@ body:not(.she-portal-active) #shePortal{display:none!important}
           const extracted = extractStructuredTableFromWorkbook(wb, file.name);
           if (extracted) {
             setTimeout(() => matchAndBindExtractedTableToItems(extracted, false), 250);
-            setTimeout(() => matchAndBindExtractedTableToItems(extracted, true), 1100);
           }
         } catch (err) {}
       };
@@ -5612,40 +5541,14 @@ body:not(.she-portal-active) #shePortal{display:none!important}
   }
 
   function setupExcelSerialNumberExtractor() {
-    if (window.XLSX && !window.XLSX._hyHookedV32) {
-      window.XLSX._hyHookedV32 = true;
-      const origRead = window.XLSX.read;
-      if (typeof origRead === "function") {
-        window.XLSX.read = function(data, opts) {
-          const wb = origRead.apply(this, arguments);
-          try {
-            const extracted = extractStructuredTableFromWorkbook(wb, window.__hyLastUploadedExcelName || "");
-            if (extracted) {
-              setTimeout(() => matchAndBindExtractedTableToItems(extracted, true), 600);
-            }
-          } catch (e) {}
-          return wb;
-        };
-      }
-    }
-
-    if (!window._hyFileInputHookedV32) {
-      window._hyFileInputHookedV32 = true;
-      document.addEventListener("change", (e) => {
-        if (e.target && e.target.tagName === "INPUT" && e.target.type === "file") {
-          handleExcelFileInputChange(e.target);
-        }
-      }, true);
-
-      const origInputClick = HTMLInputElement.prototype.click;
-      HTMLInputElement.prototype.click = function() {
-        if (this && this.type === "file" && !this._hyDirectChangeBound) {
-          this._hyDirectChangeBound = true;
-          this.addEventListener("change", () => handleExcelFileInputChange(this), true);
-        }
-        return origInputClick.apply(this, arguments);
-      };
-    }
+    // Preserve workbook parsing without overriding XLSX.read or intercepting
+    // every browser file-input click. A targeted input listener is sufficient.
+    if (window._hyFileInputHookedV32) return;
+    window._hyFileInputHookedV32 = true;
+    document.addEventListener("change", e => {
+      if (e.target?.id === "excelFileInput")
+        handleExcelFileInputChange(e.target);
+    }, true);
   }
 
   // [핵심 해결 2] 상세보기 모달창이 열릴 때마다 이전 항목의 행 번호(8행) 캐시를 버리고 현재 항목의 실제 행 번호(307행 등)를 실시간으로 읽음!
