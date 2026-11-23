@@ -1343,7 +1343,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
             엑셀(.xlsx, .xls, .csv) · PDF(.pdf) · <span class="text-[#1d6ce0] underline">작업장 평가 원본 이미지(.jpg, .png)</span> 업로드
           </p>
           <p class="text-xs text-slate-500 mb-4 leading-relaxed">
-            • 보내주신 사진처럼 <strong>작업명·기인물·위험요인(감전/화재)이 세로 병합</strong>되어 있거나 <strong>1번 행에 [사고] 배지 칸이 쪼개진 엑셀</strong>도 한 줄도 건너뛰지 않고 100% 정확히 읽어옵니다!
+            • 세로·가로 병합 엑셀의 작업명과 감소대책을 자동 분석합니다. <strong>저장 전 시트와 열 매칭, 추출 결과를 반드시 확인</strong>하세요.
           </p>
 
           <div id="uploadProgressBox" class="hidden max-w-md mx-auto mb-4 bg-white p-3 rounded-xl border border-blue-200">
@@ -1361,13 +1361,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
             <button onclick="document.getElementById('excelFileInput').click()" class="px-5 py-2.5 rounded-lg bg-[#1d6ce0] hover:bg-blue-700 text-white font-bold text-xs sm:text-sm shadow-xs transition">
               📂 내 컴퓨터에서 엑셀 / PDF / 이미지 선택
             </button>
-            <button onclick="simulateUserPhotoExcelUpload()" class="px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs sm:text-sm shadow-xs transition">
-              📸 P5 폐수배관 엑셀 양식(B~AD열 모눈병합·단계별 작업명) 반영 체험
-            </button>
-            
-            <button onclick="simulateSamplePdfUpload()" class="px-4 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs sm:text-sm shadow-xs transition">
-              📄 샘플 PDF 파일 자동 파싱 체험
-            </button>
+
             <button onclick="downloadTemplateExcel()" class="px-4 py-2.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-semibold text-xs sm:text-sm transition" data-mobile-spreadsheet-export data-mobile-export-key="risk_template_excel">
               📥 표준 엑셀 양식 다운로드 (.xlsx)
             </button>
@@ -1665,13 +1659,8 @@ body:not(.she-portal-active) #shePortal{display:none!important}
     // Never preload sample assessment rows into an operational search.
     let riskItemsData = [];
     // 3. 접속 권한 관리용 인원 데이터
-    let authorizedUsers = [
-      { id: 'u-1', name: '김안전', birth: '1988-05-14', dept: 'HANYANG 안전환경팀', role: '서버관리자 (총괄)', allowed: true, status: 'approved', isAdmin: true },
-      { id: 'u-2', name: '박설비', birth: '1992-11-03', dept: 'P4 Ph2(SUP) 설비', role: '일반 기술인 (덕트공)', allowed: true, status: 'approved', isAdmin: false },
-      { id: 'u-4', name: '최현장', birth: '1985-02-19', dept: '복합동 설비파트', role: '일반 관리자 (관리감독자·수정권한없음)', allowed: true, status: 'approved', isAdmin: false },
-      { id: 'u-5', name: '강신규', birth: '1997-03-08', dept: '클린룸 배관팀', role: '신규 가입 신청자 (승인 대기중)', allowed: false, status: 'pending', isAdmin: false },
-      { id: 'u-3', name: '홍길동', birth: '1995-12-26', dept: '협력사 덕트팀', role: '작업자 (퇴사/권한회수)', allowed: false, status: 'blocked', isAdmin: false }
-    ];
+    // V24 accounts and permissions are loaded from the authorized server.
+    let authorizedUsers = [];
 
     function normalizeBirthDate(raw) {
       const digits = String(raw || '').replace(/[^0-9]/g, '');
