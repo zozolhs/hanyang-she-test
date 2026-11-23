@@ -9559,7 +9559,7 @@ async function toggleMaintenance(){
  const input=window.prompt((enabling
   ?'⚠️ 서버 점검을 시작하면 최고관리자를 제외한 사용자의 데이터 접근이 차단됩니다.'
   :'서버 점검을 종료하면 사용자 접근이 다시 허용됩니다.')
-  +'\\n실행하려면 아래 문구를 정확히 입력하세요: '+phrase,'');
+  +'\n실행하려면 아래 문구를 정확히 입력하세요: '+phrase,'');
  if(input!==phrase)return;
  if(!window.confirm(phrase+'을(를) 실행하시겠습니까?'))return;
  maintenanceChangeBusy=true;updateAdminMaintenanceUI();
