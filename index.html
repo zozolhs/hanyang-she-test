@@ -3908,30 +3908,67 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       `).join('');
     }
 
-    function confirmExcelMappedImport() {
-      if (!requireServerAdmin()) return;
+    let excelCloudImportBusy = false;
+    async function confirmExcelMappedImport() {
+      if (!requireServerAdmin() || excelCloudImportBusy) return;
       const items = getCurrentMapperExtractedItems();
       if (items.length === 0) {
-        showToast('⚠️ 추출된 항목이 0건입니다. 열 선택을 다시 확인해 주세요.');
+        showToast('⚠️ 추출된 위험성평가 항목이 0건입니다. Excel 열 매칭을 확인하세요.');
         return;
       }
-
+      const selectedMode = document.querySelector('input[name="uploadModeRadio"]:checked')?.value || 'replace';
+      const selectedId = document.getElementById('uploadExistingDocSelect')?.value || '';
+      const existing = documentsData.find(d => d.id === selectedId);
+      if (selectedMode !== 'new' && !existing) {
+        alert('덮어쓰기/추가 대상 문서를 선택해야 합니다. 기존 문서 목록을 확인하세요.');
+        return;
+      }
       const customTitle = document.getElementById('uploadTargetDocTitle').value.trim();
-      const defaultDocName = customTitle || activeExcelFileName.replace(/\.[^/.]+$/, '');
-      const targetEvalType = document.getElementById('uploadTargetEvalType').value || '정기 평가';
-      const targetArea = document.getElementById('uploadTargetAreaTag').value.trim() || 'HANYANG';
-      const targetRevNo = document.getElementById('uploadTargetRevNo').value.trim() || 'Rev.1';
-      const targetRevDate = document.getElementById('uploadTargetRevDate').value || '2026-11-11';
-
-      applyUploadedItemsByMode({
-        fileName: activeExcelFileName,
-        defaultDocTitle: defaultDocName,
-        evalType: targetEvalType,
-        areaTag: targetArea,
-        revNo: targetRevNo,
-        revDate: targetRevDate,
-        newItems: items
-      });
+      const fileTitle = activeExcelFileName.replace(/\.[^/.]+$/, '');
+      const finalTitle = customTitle || (selectedMode==='new' ? fileTitle : existing.title);
+      const documentMeta = {
+        title:finalTitle,
+        evalType:document.getElementById('uploadTargetEvalType').value || '최초 평가',
+        areaTag:document.getElementById('uploadTargetAreaTag').value.trim() || 'HANYANG',
+        revNo:document.getElementById('uploadTargetRevNo').value.trim() || 'Rev.1',
+        revDate:document.getElementById('uploadTargetRevDate').value,
+        fileName:activeExcelFileName
+      };
+      if (!window.SHESEC?.importSafetyDocument) {
+        alert('최신 Excel 분할 저장 기능을 불러오지 못했습니다. Ctrl+Shift+R로 새로고침 후 다시 시도하세요.');
+        return;
+      }
+      const button = document.querySelector('button[onclick="confirmExcelMappedImport()"]');
+      excelCloudImportBusy = true;
+      if(button){button.disabled=true;button.style.opacity='.55';}
+      const status = document.getElementById('sheSafetySyncStatus');
+      try {
+        if(status)status.textContent='Excel 분할 업로드 시작 · 기존 데이터는 유지됩니다.';
+        const saved = await window.SHESEC.importSafetyDocument({
+          items, mode:selectedMode,targetDocId:selectedId,document:documentMeta
+        },(part,total)=>{
+          if(status)status.textContent='Excel 자료 전송 중 '+part+'/'+total+' · 서버 확정 대기';
+        });
+        if(status)status.textContent='✅ 서버 업로드 완료 · '+saved.imported_items+'건';
+        cancelExcelMapper();
+        closeAdminModal();
+        // The server is authoritative. Only after its atomic commit succeeds
+        // do we discard the old UI snapshot and pull the new item collection.
+        try {
+          await window.sheV32.reloadSafetyDataReadOnly();
+          selectedDocumentId = saved.doc_id;
+          renderAll();
+          showToast('✅ 서버 저장 확인: '+saved.document_title+' · '+saved.imported_items+'건');
+        } catch(refreshError) {
+          alert('서버에 '+saved.imported_items+'건 저장됐습니다. 화면 갱신은 실패했으니 새로고침 후 다시 확인하세요. ('+refreshError.message+')');
+        }
+      } catch(err) {
+        if(status)status.textContent='❌ 업로드 저장 실패 · 기존 서버 데이터 보존';
+        alert('Excel 저장 실패: '+(err?.message||'알 수 없는 오류')+'\n기존 평가 자료는 변경되지 않았습니다. 파일을 다시 선택하기 전에 원인을 확인하세요.');
+      } finally {
+        excelCloudImportBusy=false;
+        if(button){button.disabled=false;button.style.opacity='';}
+      }
     }
 
     // 보내주신 'P5 FAB1-Ph1(FAB) 폐수배관 설치 최초위험성평가 승인본.xls'와 동일한 34열(A~AH) 모눈종이 병합 구조 + 페이지별 반복 헤더 + 단계별 작업명 변경 시뮬레이션
@@ -4898,7 +4935,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="./she-v24-index.js?v=20261123-modulerw2"></script>
+<script src="./she-v24-index.js?v=20261123-stream-import-v1"></script>
 <script>
 (function() {
   const SUPABASE_URL = "https://ahmqthuympannqsrszvv.supabase.co";
@@ -9624,7 +9661,7 @@ function bindLegacy(){
  window.loginAsSuperAdminUser=()=>alert('최고관리자 아이디로 로그인해야 합니다.');
  // 수정 기능은 기존 위험성평가 로직을 유지하되 서버 RLS로 쓰기 제한.
  for(const name of ['saveItemEdit','saveDocumentModalForm','deleteCurrentItem','deleteDocumentFromModal',
-  'handleManualAddItem','confirmExcelMappedImport','applyUploadedItemsByMode','handleImageFilesUpload']){
+  'handleManualAddItem','applyUploadedItemsByMode','handleImageFilesUpload']){
   const original=window[name];if(typeof original!=='function')continue;
   window[name]=function(...args){if(!canEditSafety())return alert('SAFETY 수정 권한이 없습니다.');
     const result=original.apply(this,args);document.dispatchEvent(new Event('she:risk-data-changed'));return result;};
