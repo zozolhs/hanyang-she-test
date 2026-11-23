@@ -3589,16 +3589,18 @@ body:not(.she-portal-active) #shePortal{display:none!important}
           continue;
         }
 
-        // 세로 병합 3단 연속 채움: 새로운 단계별 작업명/기인물/위험요인이 나오면 즉시 갱신!
-        if (rawTask) {
-          lastValidTaskTitle = rawTask;
+        // A new work step starts a new category. Never inherit the cause
+        // or hazard from a previous task just because Excel cells are merged.
+        const normTask = v => String(v || '').normalize('NFKC').replace(/\s+/g,' ').trim();
+        if (rawTask && normTask(rawTask) !== normTask(lastValidTaskTitle)) {
+          lastValidCauseObj = '';
+          lastValidHazardText = '';
+        } else if (rawCause && normTask(rawCause) !== normTask(lastValidCauseObj)) {
+          lastValidHazardText = '';
         }
-        if (rawCause) {
-          lastValidCauseObj = rawCause;
-        }
-        if (rawHazard) {
-          lastValidHazardText = rawHazard;
-        }
+        if (rawTask) lastValidTaskTitle = rawTask;
+        if (rawCause) lastValidCauseObj = rawCause;
+        if (rawHazard) lastValidHazardText = rawHazard;
 
         // 안전대책 본문이 없는 빈 줄은 건너뛰되, 윗줄에서 갱신된 작업명/기인물/위험요인 상태는 그대로 보존합니다.
         if (!rawMeasure) continue;
@@ -3724,6 +3726,11 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       const items = getCurrentMapperExtractedItems();
       if (items.length === 0) {
         showToast('⚠️ 추출된 위험성평가 항목이 0건입니다. Excel 열 매칭을 확인하세요.');
+        return;
+      }
+      const unclassified = items.filter(it => !String(it.taskTitle || '').trim() || it.taskTitle === '미분류 작업');
+      if (unclassified.length) {
+        alert('작업명 분류가 누락된 항목이 '+unclassified.length+'건 있습니다.\n다른 작업명의 안전대책이 섞이지 않도록 Excel 작업명 열을 다시 확인하세요. 저장은 진행하지 않습니다.');
         return;
       }
       let selectedMode = document.querySelector('input[name="uploadModeRadio"]:checked')?.value || 'new';
