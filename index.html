@@ -7513,11 +7513,10 @@ body:not(.she-portal-active) #shePortal{display:none!important}
     label.style.color=state==="ok"?"#15803d":state==="work"?"#92400e":"#b91c1c";
   }
 
-  function deleteSingleDocument(docIndex, docTitle) {
+  function deleteSingleDocument(docId) {
     if (!isAnyAdminLoggedIn()) return alert("위험성평가 삭제 권한이 없습니다.");
-    const docs = getPrimaryArray("docs");
-    const target = (docTitle ? docs.find(d => (d.title || d.name) === docTitle) : null) || docs[docIndex];
-    if (!target || !target.id) return;
+    const target = getPrimaryArray("docs").find(d => String(d?.id) === String(docId));
+    if (!target?.id) return alert("삭제할 문서의 고유 ID를 확인하지 못했습니다.");
     if (typeof window.EHSDeleteRiskDoc !== "function")
       return alert("서버 삭제 기능을 불러오지 못했습니다. 새로고침해 주세요.");
     void window.EHSDeleteRiskDoc(String(target.id),String(target.title || target.name));
@@ -7536,28 +7535,24 @@ body:not(.she-portal-active) #shePortal{display:none!important}
     const allButtons = Array.from(document.querySelectorAll("button, a, span"));
     const editButtons = allButtons.filter((b) => (b.textContent || "").trim().includes("제목·개정 수정"));
 
-    editButtons.forEach((editBtn, idx) => {
+    editButtons.forEach(editBtn => {
       const parent = editBtn.parentElement;
       if (!parent || parent.querySelector(".hy-doc-del-btn")) return;
-
-      const card = editBtn.closest("div.bg-white, div.rounded-2xl, div.rounded-xl, div.border") || parent.parentElement;
-      let matchedTitle = "";
-      const docs = getPrimaryArray("docs");
-      if (card && docs.length) {
-        const cardText = card.textContent || "";
-        const sortedDocs = [...docs].sort((a, b) => String(b.title || b.name || "").length - String(a.title || a.name || "").length);
-        const found = sortedDocs.find((d) => (d.title || d.name) && cardText.includes(d.title || d.name));
-        if (found) matchedTitle = found.title || found.name;
-      }
-
+      // Read the unique document ID from the button already bound to this
+      // card. Title matching is unsafe when two imported documents share a name.
+      const editAction = editBtn.getAttribute("onclick") || "";
+      const match = editAction.match(/openDocumentEditModal\(['"]([^'"]+)['"]/);
+      const docId = match?.[1];
+      if (!docId || !getPrimaryArray("docs").some(d => String(d.id) === docId))
+        return;
       const delBtn = document.createElement("button");
       delBtn.type = "button";
       delBtn.className = "hy-doc-del-btn";
       delBtn.style.cssText = "background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer;margin-left:4px;";
       delBtn.textContent = "🗑️ 삭제";
-      delBtn.addEventListener("click", (e) => {
+      delBtn.addEventListener("click", e => {
         e.stopPropagation();
-        deleteSingleDocument(idx, matchedTitle);
+        deleteSingleDocument(docId);
       });
       parent.appendChild(delBtn);
     });
@@ -9608,7 +9603,7 @@ function ehsAskDocumentRemoval(doc,totalCount) {
   heading.textContent=isLarge?'⚠️ 자료 대량 감소가 감지되었습니다. 저장을 차단할까요?':'⚠️ 문서 삭제로 자료가 감소합니다. 저장을 차단할까요?';
   heading.style.cssText='font-size:19px;font-weight:850;color:#991b1b;line-height:1.5;margin:0 0 14px';
   const summary=document.createElement('p');
-  summary.textContent='삭제 대상: '+doc.title+' ('+estimated.toLocaleString('ko-KR')+'건 예상)\n서버 전체: '+totalCount.toLocaleString('ko-KR')+'건\n선택한 문서와 관련 평가 항목만 삭제됩니다. 다른 문서는 유지됩니다.';
+  summary.textContent='삭제 대상: '+doc.title+' ('+estimated.toLocaleString('ko-KR')+'건 예상)\n문서 ID: '+doc.id+'\n서버 전체: '+totalCount.toLocaleString('ko-KR')+'건\n선택한 문서와 관련 평가 항목만 삭제됩니다. 다른 문서는 유지됩니다.';
   summary.style.cssText='white-space:pre-line;font-size:14px;color:#334155;line-height:1.8;margin:0 0 14px';
   const help=document.createElement('p');
   help.textContent='예를 누르면 아무것도 삭제하지 않습니다. 아니오를 누르면 선택한 문서만 서버에서 삭제합니다. 삭제 이전 상태는 관리자 복구 이력에 보관됩니다.';
