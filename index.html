@@ -7317,9 +7317,14 @@ body:not(.she-portal-active) #shePortal{display:none!important}
     if (!Array.isArray(docsArr)) return 0;
     let sum = 0;
     docsArr.forEach((d) => {
-      if (d && !isLegacySampleDoc(d)) {
-        sum += Number(d.count || d.itemCount || 0);
-      }
+      if (!d || isLegacySampleDoc(d)) return;
+      // The atomic Excel import writes displayCount. Legacy documents may
+      // instead provide count or itemCount; keep those as fallbacks.
+      const reported = [d.displayCount, d.count, d.itemCount].find((value) =>
+        value !== null && value !== undefined && value !== '' &&
+        Number.isSafeInteger(Number(value)) && Number(value) >= 0
+      );
+      if (reported !== undefined) sum += Number(reported);
     });
     return sum;
   }
@@ -7682,7 +7687,12 @@ body:not(.she-portal-active) #shePortal{display:none!important}
         saveStoredDocTableMaps(localMaps);
       }
 
-      const serverExpected = getExpectedTotalItemsFromDocs(metaRow.documents || []);
+      // Fail closed if server chunks are missing, even when document metadata
+      // lacks legacy count fields. totalItems is the authoritative item count.
+      const serverExpected = Math.max(
+        Number(metaInfo.totalItems || 0),
+        getExpectedTotalItemsFromDocs(metaRow.documents || [])
+      );
       const serverTime = new Date(metaRow.updated_at || 0).getTime();
       const localTime = localBackup ? new Date(localBackup.updated_at || 0).getTime() : 0;
 
