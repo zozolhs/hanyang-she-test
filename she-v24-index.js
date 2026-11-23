@@ -312,6 +312,45 @@ async function importSafetyDocument(opts,onProgress){
   return result;
 }
 
+// General edits use the same atomic staged protocol as workbook imports.
+// Old bulk JSON upserts exceeded the gateway limit once a second workbook was added.
+async function saveSafetySnapshot(opts,onProgress){
+  await refresh(true);
+  if(!permitted(profile,"safety",true))
+    throw failure("위험성평가 저장 권한이 없습니다.",403);
+  if(!opts||!Array.isArray(opts.items)||opts.items.length<1||
+     !Array.isArray(opts.documents)||opts.documents.length<1)
+    throw failure("비정상적인 빈 위험성평가 저장을 차단했습니다.",409);
+  const base=await fetchRow("main_v10_meta");
+  if(!base?.updated_at)throw failure("서버 최신 버전 확인에 실패했습니다.",409);
+  const uploadId=crypto.randomUUID(),chunkSize=160;
+  const partCount=Math.ceil(opts.items.length/chunkSize);
+  if(partCount>100)throw failure("저장할 항목 수가 안전 한도를 초과했습니다.",413);
+  const epoch=sessionEpoch,session=token;
+  for(let part=0;part<partCount;part++){
+    if(epoch!==sessionEpoch||session!==token)
+      throw failure("로그인 세션이 변경되어 저장을 중단했습니다.",401);
+    await request("store","safety_import_part",{
+      upload_id:uploadId,part_index:part,part_count:partCount,
+      base_meta_updated_at:base.updated_at,
+      import_mode:"snapshot",target_doc_id:null,
+      document:{documents:opts.documents},
+      items:opts.items.slice(part*chunkSize,(part+1)*chunkSize)
+    });
+    if(typeof onProgress==="function")onProgress(part+1,partCount);
+  }
+  if(epoch!==sessionEpoch||session!==token)
+    throw failure("로그인 세션이 변경되어 저장을 중단했습니다.",401);
+  const result=await request("store","safety_snapshot_commit",{upload_id:uploadId});
+  for(const key of [...fullRows.keys()]){
+    if(/^main_v10_(meta|chunk_\d+)$/.test(key)){
+      fullRows.delete(key);versions.delete(key);pendingRows.delete(key);
+    }
+  }
+  pendingBatches.clear();
+  return result;
+}
+
 async function writeSafetyBatch(raws){
   if(!Array.isArray(raws)||!raws.length)throw failure("저장할 자료가 없습니다.",400);
   const rows=[];
@@ -461,7 +500,7 @@ const client=Object.freeze({
 });
 window.SHESEC=Object.freeze({
   client,refresh,guard,login,register,logout,users,setUser,deleteUser,
-  maintenance,registrationStatus,setRegistration,changePassword,importSafetyDocument,
+  maintenance,registrationStatus,setRegistration,changePassword,importSafetyDocument,saveSafetySnapshot,
   permit:(p,m)=>permitted(p,m,false),
   canWrite:(p,m)=>permitted(p,m,true),
   get profile(){return profile;},
