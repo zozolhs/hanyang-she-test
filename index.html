@@ -370,11 +370,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       <button id="sheMobileMenuToggle" class="she-mobile-menu-toggle" type="button"
         aria-controls="sheHeaderToolbar" aria-expanded="false">☰ 메뉴</button>
       <div id="sheHeaderToolbar" class="flex items-center space-x-2" data-mobile-open="false">
-        <button onclick="openWorkerGateModal()" class="hidden sm:inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold transition">
-          <span id="sheHeaderAccessLabel">🔐 접속·가입신청 화면</span>
-        </button>
-
-        <button onclick="openLoginSwitchModal()" class="flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200/80 text-xs font-medium text-slate-700 transition">
+        <button onclick="openLoginSwitchModal()" type="button" title="현재 계정 및 업무 권한 상세보기" aria-label="현재 계정 및 업무 권한 상세보기" class="flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200/80 text-xs font-medium text-slate-700 transition">
           <span class="w-2 h-2 rounded-full bg-emerald-500" id="currentUserDot"></span>
           <span id="currentUserBadge">접속중: 김안전</span>
           <span id="currentUserRoleBadge" class="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-blue-600 text-white">서버관리자</span>
@@ -8901,7 +8897,6 @@ function reconcileHeader(){
  updateAdminMaintenanceUI();
  if($('sheLogoutBtn'))$('sheLogoutBtn').style.display=state.authorized?'inline-flex':'none';
  if($('sheV24PasswordChange'))$('sheV24PasswordChange').style.display=state.authorized?'inline-flex':'none';
-if($('sheHeaderAccessLabel'))$('sheHeaderAccessLabel').textContent=state.authorized?'🔐 내 권한 보기':'🔐 접속·가입신청 화면';
 if($('sheRiskRefreshBtn'))$('sheRiskRefreshBtn').style.display=state.authorized&&state.view==='search'&&canSafetyView()?'inline-flex':'none';
  for(const mod of [...CFG.modules,'admin']){
   const c=document.querySelector(`[data-she-module="${mod}"]`);
