@@ -98,7 +98,7 @@ async function refresh(force=false){
       clearLegacy();
       // Full business-data synchronization is launched only once per session.
       // A permission check or browser focus must not reload all risk data.
-      if(permitted(profile,"safety_view") && notifiedToken!==token){
+      if(permitted(profile,"safety") && notifiedToken!==token){
         notifiedToken=token;
         document.dispatchEvent(new CustomEvent("she:authorized",{detail:profile}));
       }
