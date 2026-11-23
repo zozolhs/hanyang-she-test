@@ -5603,7 +5603,10 @@ body:not(.she-portal-active) #shePortal{display:none!important}
 
   // [핵심 해결 2] 상세보기 모달창이 열릴 때마다 이전 항목의 행 번호(8행) 캐시를 버리고 현재 항목의 실제 행 번호(307행 등)를 실시간으로 읽음!
   function enhanceDetailModalWithSerialAndCalibration() {
-    const allEls = Array.from(document.querySelectorAll("div, span, p"));
+    const modalRoot=document.getElementById("itemDetailModal");
+    if (!modalRoot || modalRoot.classList.contains("hidden")) return;
+    // Avoid rescanning the entire page on every DOM observer event.
+    const allEls = Array.from(modalRoot.querySelectorAll("div, span, p"));
     const rowLabelEl = allEls.find((el) => {
       if (el.children.length > 0) return false;
       const t = (el.textContent || "").trim();
