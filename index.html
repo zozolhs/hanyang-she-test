@@ -3659,7 +3659,11 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       };
 
       let totalItems = [];
-      const targetSheets = importAllSheets ? activeExcelWorkbook.SheetNames : [selectedSheet];
+      // Default: selected data sheet only. When all-sheets is explicitly
+      // enabled, omit cover/approval/index sheets from risk-item extraction.
+      const targetSheets = (importAllSheets ? activeExcelWorkbook.SheetNames : [selectedSheet])
+        .filter(name => name === selectedSheet ||
+          !/^(?:갑지|표지|목차|결재|승인|cover|index)$/i.test(String(name).trim()));
 
       targetSheets.forEach(sName => {
         const rows2D = activeExcelSheetRowsMap[sName] || [];
