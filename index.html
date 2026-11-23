@@ -5057,34 +5057,17 @@ body:not(.she-portal-active) #shePortal{display:none!important}
 
   function getSafeDuplicateKey(it) {
     if (!it || typeof it !== "object") return null;
-    const docKey = getItemDocKey(it);
-    const rowNum = getItemRowNumber(it);
-
-    const ignoreKeys = new Set([
-      "id", "no", "num", "number", "itemNo", "itemNumber", "seq", "index", "idx", "order",
-      "excelSerialNo", "createdAt", "updatedAt", "date", "approvedAt"
-    ]);
-
-    const contentParts = [];
-    const keys = Object.keys(it).sort();
-    for (let i = 0; i < keys.length; i++) {
-      const k = keys[i];
-      if (ignoreKeys.has(k)) continue;
-      const val = it[k];
-      if (typeof val === "string") {
-        const trimmed = val.replace(/\s+/g, "").trim();
-        if (trimmed.length > 0) {
-          contentParts.push(`${k}:${trimmed}`);
-        }
-      }
-    }
-
-    const joinedContent = contentParts.join("|");
-    if (joinedContent.length < 12 || rowNum === null) {
-      return null;
-    }
-
-    return `${docKey}__ROW:${rowNum}__${joinedContent}`;
+    // Stable identity is a document + evaluation + actual task + risk context,
+    // never only the mitigation text and never the Excel source row number.
+    const doc = String(it.docId || "").trim();
+    const norm = v => String(v ?? "").normalize("NFKC").replace(/\s+/g," ").trim().toLocaleLowerCase("ko");
+    const scope = [
+      doc, norm(it.evalType), norm(it.taskTitle || getItemWorkText(it)),
+      norm(it.causeObj), norm(it.hazardText),
+      norm(it.measureText || getItemMeasureText(it))
+    ];
+    if (!doc || !scope[2] || !scope[5]) return null;
+    return JSON.stringify(scope);
   }
 
   function applyTrueSerialToItemObject(it, serialNo) {
@@ -9134,16 +9117,9 @@ function portalSearch(e){
     return panel;
   }
   function riskResultIdentity(item, f) {
-    // Duplicate IDs identify the same stored record. Distinct IDs are merged
-    // only when source document, source coordinates AND content all agree.
+    const canonical = getSafeDuplicateKey(item);
+    if (canonical) return canonical;
     const id = String(item.id ?? '').trim();
-    const doc = String(item.docId ?? f.doc ?? '').trim();
-    const row = f.row.trim(), no = f.no.trim(), page = f.page.trim();
-    // Different database IDs can still represent a duplicate imported source row.
-    // Prefer source coordinates with full content, falling back to the record ID.
-    if (doc && (row || (page && no))) {
-      return 'src:' + JSON.stringify([doc,row,page,no,f.title,f.cause,f.hazard,f.measure]);
-    }
     return id ? 'id:' + id : null;
   }
   function fastRenderItemCards() {
