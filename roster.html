@@ -1186,8 +1186,8 @@ function showSaveError(error) {
   setSaveStatus('⚠ 저장 실패 · 변경사항 미저장', 'error');
 }
 
-async function loadRoster() {
-  if (!(await verifyRosterAccess(true))) return false;
+async function loadRoster(accessAlreadyVerified = false) {
+  if (!accessAlreadyVerified && !(await verifyRosterAccess(true))) return false;
   setSaveStatus('서버 연명부 불러오는 중…');
   const { data, error } = await rosterState.client.from(ROSTER_CONFIG.table)
     .select('id,items,documents,updated_at').eq('id', ROSTER_CONFIG.rosterRow).maybeSingle();
@@ -2208,7 +2208,7 @@ async function initializeRoster() {
     bindTableEvents();
     const accepted = await verifyRosterAccess(true);
     if (!accepted) return;
-    await loadRoster();
+    await loadRoster(true);
   } catch (error) {
     console.error('ROSTER 초기화 실패:',error);
     displayAccess('⚠️ 연명부 불러오기 실패', `데이터를 불러오지 못했습니다. ${error.message || String(error)}`);
