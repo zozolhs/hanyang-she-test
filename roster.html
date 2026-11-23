@@ -6,6 +6,7 @@
   <link rel="stylesheet" href="./mobile-spreadsheet-export.css?v=20261122-1">
   <link rel="stylesheet" href="./she-ux2026.css?v=20261123-duewindows1">
   <script src="./mobile-export-guard.js?v=20261122-1"></script>
+  <script src="./ehs-deferred-libs.js?v=20261123-perf1"></script>
   <!-- Browser-side baseline: does not alter login, account approval, or inline app scripts. -->
   <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta name="referrer" content="no-referrer">
@@ -14,8 +15,7 @@
     <script>document.documentElement.classList.add("roster-locked");</script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./she-v24-index.js?v=20261121-performance-batch1"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+    <!-- XLSX/ExcelJS load on first import/export; regular roster viewing is lightweight. -->
     <style>
         :root {
             --primary: #0052cc;
@@ -1534,10 +1534,11 @@ function formatRosterDownloadSheet(sheet,numberOfWorkers){
 async function exportRosterExcel() { if (window.SHEMobileExportGuard?.block("roster_excel")) return;
   if(!requireAccess()) return;
   const button=$('excelDownloadButton');
-  if(!window.ExcelJS) return alert('서식이 포함된 엑셀 다운로드 라이브러리를 불러오지 못했습니다. 네트워크를 확인하세요.');
   button.disabled=true;
-  button.textContent='↻ 엑셀 양식 작성 중…';
+  button.textContent='↻ 엑셀 도구 불러오는 중…';
   try {
+    await window.EHSLibs.ensure('exceljs');
+    button.textContent='↻ 엑셀 양식 작성 중…';
     const matrix=makeRosterExportMatrix(collectRows());
     const workbook=new ExcelJS.Workbook();
     // ExcelJS 4.4: OOXML default namespace workbook/sheets 구조로 정규화한 원본 양식입니다.
@@ -2080,11 +2081,12 @@ async function readRosterWorkbook(buffer) {
 }
 async function importRosterExcel(file) {
   if(!file||!requireAccess()) return;
-  if(!window.XLSX) return alert('엑셀 라이브러리를 불러오지 못했습니다.');
   if(rosterState.importing) return alert('이미 다른 엑셀 파일을 분석 중입니다.');
   rosterState.importing=true;
   const status=$('rosterImportStatus');
   try {
+    status.textContent='↻ 엑셀 도구 불러오는 중…';
+    await window.EHSLibs.ensure('xlsx');
     status.textContent=`↻ ${file.name} 분석 중…`;
     const buffer=await file.arrayBuffer();
     const book=await readRosterWorkbook(buffer);
