@@ -9300,11 +9300,14 @@ function portalSearch(e){
     // Duplicate IDs identify the same stored record. Distinct IDs are merged
     // only when source document, source coordinates AND content all agree.
     const id = String(item.id ?? '').trim();
-    if (id) return 'id:' + id;
     const doc = String(item.docId ?? f.doc ?? '').trim();
     const row = f.row.trim(), no = f.no.trim(), page = f.page.trim();
-    if (!doc || !(row || (page && no))) return null;
-    return 'src:' + JSON.stringify([doc,row,page,no,f.title,f.cause,f.hazard,f.measure]);
+    // Different database IDs can still represent a duplicate imported source row.
+    // Prefer source coordinates with full content, falling back to the record ID.
+    if (doc && (row || (page && no))) {
+      return 'src:' + JSON.stringify([doc,row,page,no,f.title,f.cause,f.hazard,f.measure]);
+    }
+    return id ? 'id:' + id : null;
   }
   function fastRenderItemCards() {
     const container = $('itemCardsContainer');
