@@ -83,16 +83,20 @@ function detail(uid){
   const irrelevant=key==="eduCrane"&&recordState(rec).welding;
   return [label,irrelevant?"해당 없음":value+(e.expired?" · 만료":e.soon?" · 도래 예정":"")];
  })]];
+ const sectionsGrid=node("div","she-smart-detail-sections");
  for(const [heading,items] of sections){
-  side.append(node("h4","she-smart-detail-title",heading));
+  const section=node("section","she-smart-detail-section");
+  section.append(node("h4","she-smart-detail-title",heading));
   const list=node("dl","she-smart-detail-list");
   for(const [label,value] of items){
    const dd=node("dd","",label==="교육구분"?undefined:(value||"—"));
    if(label==="교육구분")dd.append(educationTypeLabel(value));
    list.append(node("dt","",label),dd);
   }
-  side.append(list);
+  section.append(list);
+  sectionsGrid.append(section);
  }
+ side.append(sectionsGrid);
  if(window.SHESEC?.canWrite(rosterState.user,"roster")){
   const edit=node("button","she-smart-action primary","전체 표에서 수정");
   edit.type="button";edit.addEventListener("click",()=>{
@@ -102,7 +106,10 @@ function detail(uid){
    document.querySelectorAll(".edu-filter:checked").forEach(el=>el.checked=false);
    filterTable();
    requestAnimationFrame(()=>q("tableBody").querySelector('tr[data-uid="'+CSS.escape(rec.uid)+'"] input[data-field]')?.focus());
-  });side.append(edit);
+  });
+  const actions=node("div","she-smart-detail-actions");
+  actions.append(edit);
+  side.append(actions);
  }
  side.hidden=false;
 }
