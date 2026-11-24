@@ -90,13 +90,13 @@ function scheduleBeat(delay=BEAT_MS){
   clearTimeout(beatTimer);beatTimer=null;
   if(token&&sessionId&&!ending)beatTimer=setTimeout(sendPresence,delay);
 }
-async function sendPresence(){
+async function sendPresence(force=false){
   if(!token||!sessionId||ending||forcedEnd||beatPending)return;
   const now=Date.now(),age=now-latestActivity();
   if(age>=IDLE_MS){checkDeadline();return;}
   const shared=Number(readLocal(beatKey()))||0;
   const previous=Math.max(lastBeat,shared<=now?shared:0);
-  if(now-previous<BEAT_MS){scheduleBeat(BEAT_MS-(now-previous));return;}
+  if(!force&&now-previous<BEAT_MS){scheduleBeat(BEAT_MS-(now-previous));return;}
   const epoch=sessionEpoch;beatPending=true;
   try{
     await request("auth","presence",{activity_age_ms:Math.max(0,Math.floor(age))});
@@ -118,7 +118,9 @@ function startPresence(result,fresh=false){
   lastActivity=fresh?now:Math.max(validSaved,Number.isFinite(serverTime)?Math.min(now,serverTime):0);
   // Existing pre-rollout sessions are enrolled on first verified navigation.
   if(!lastActivity)lastActivity=now;
-  latestActivity();persistActivity();
+  latestActivity();
+  if(!fresh&&readLocal(activityKey())==="0"){expireIdle();return;}
+  persistActivity();
   checkDeadline();
   if(token&&sessionId)scheduleBeat(fresh?BEAT_MS:0);
   // Remove only obsolete, non-secret timestamp keys; never retain activity history.
@@ -132,9 +134,12 @@ function onActivity(e){
   const now=Date.now();
   // Avoid synchronously reading storage for every mouse move.
   if(now-lastPersist<1000){lastActivity=Math.max(lastActivity,now);return;}
-  if(readLocal(activityKey())==="0"||now-latestActivity()>=IDLE_MS){expireIdle();return;}
+  const age=now-latestActivity();
+  if(readLocal(activityKey())==="0"||age>=IDLE_MS){expireIdle();return;}
   lastActivity=now;
   persistActivity();
+  // A late genuine input must reach the server before the previous idle deadline.
+  if(age>=50*60000)void sendPresence(true);
 }
 for(const name of ["pointerdown","pointermove","keydown","wheel","touchstart"]){
   document.addEventListener(name,onActivity,{capture:true,passive:true});
@@ -238,10 +243,19 @@ function permitted(p,mod,write=false){
 async function refresh(force=false){
   if(ongoing)return ongoing;
   if(!force&&profile&&Date.now()-verifiedAt<10_000)return profile;
+  const epoch=sessionEpoch,session=token;
   ongoing=(async()=>{
     try{
       if(!token)throw failure("로그인이 필요합니다.",401);
-      const res=await request("auth","me");
+      const age=Date.now()-latestActivity();
+      const sharedBeat=sessionId?Number(readLocal(beatKey()))||0:0;
+      const attach=!!sessionId&&!forcedEnd&&!beatPending&&age>=0&&age<IDLE_MS&&Date.now()-Math.max(lastBeat,sharedBeat)>=BEAT_MS;
+      if(attach)beatPending=true;
+      let res;
+      try{res=await request("auth","me",attach?{activity_age_ms:Math.floor(age)}:{});}
+      finally{if(attach&&epoch===sessionEpoch){beatPending=false;scheduleBeat();}}
+      if(epoch!==sessionEpoch||session!==token)throw failure("로그인 세션이 변경되었습니다.",401);
+      if(attach&&res.presence_ok===true){lastBeat=Date.now();writeLocal(beatKey(),lastBeat);}
       profile=normalize(res.account);
       if(!profile||profile.status!=="approved")throw failure("승인된 계정이 아닙니다.",403);
       verifiedAt=Date.now();
@@ -257,7 +271,7 @@ async function refresh(force=false){
       }
       return profile;
     }catch(e){
-      if(e.status===401||e.status===403)reset();
+      if((e.status===401||e.status===403)&&epoch===sessionEpoch&&!forcedEnd)reset();
       throw e;
     }
   })();
