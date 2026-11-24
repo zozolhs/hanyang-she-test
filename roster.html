@@ -234,6 +234,19 @@
             }
         }
 
+        /* 간편조회 상세정보 글자 크기 +3pt (4 CSS px). */
+        #sheRosterDetail { font-size: 16px; line-height: 1.45; }
+        #sheRosterDetail .she-smart-detail-head h3 { font-size: 22px; }
+        #sheRosterDetail .she-smart-detail-title { font-size: 17px; }
+        #sheRosterDetail .she-smart-detail-list {
+            font-size: 16px;
+            grid-template-columns: min(40%, 140px) minmax(0, 1fr);
+            gap: 8px 12px;
+        }
+        #sheRosterDetail .she-smart-state { font-size: 15px; }
+        #sheRosterDetail .she-roster-education-label { font-size: 16px; }
+        #sheRosterDetail .she-smart-action { font-size: 17px; }
+
         /* 교육구분 색상: 전체 표와 간편 조회가 동일한 기준을 사용. */
         [data-education-type="입문"] { --roster-edu-color: #FFAEC9; }
         [data-education-type="수료"] { --roster-edu-color: #B5E61D; }
