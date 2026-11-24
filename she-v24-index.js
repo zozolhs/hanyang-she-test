@@ -113,7 +113,7 @@ function startPresence(result,fresh=false){
   if(sessionId===result.session_id){checkDeadline();return;}
   const sid=result.session_id,now=Date.now(),serverTime=Date.parse(result.last_activity_at||"");
   const saved=readTab(IDLE_SESSION_KEY)===sid?Number(readTab(IDLE_ACTIVITY_KEY)):0;
-  sessionId=sid;ending=false;
+  sessionId=sid;ending=false;writeTab(IDLE_SESSION_KEY,sid);
   const validSaved=saved>0&&saved<=now?saved:0;
   lastActivity=fresh?now:Math.max(validSaved,Number.isFinite(serverTime)?Math.min(now,serverTime):0);
   // Existing pre-rollout sessions are enrolled on first verified navigation.
