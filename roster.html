@@ -180,7 +180,7 @@
             text-align: center;
             font-size: 13px;
             white-space: nowrap;
-            min-width: 4050px;
+            min-width: 4210px;
         }
 
         th, td {
@@ -343,7 +343,7 @@
         <button type="button" id="sheSmartTransfer" class="she-smart-action primary" hidden disabled>선택 0명 교육일정으로 보내기</button>
       </div>
       <div class="she-smart-controls">
-        <input id="sheSmartSearch" type="search" autocomplete="off" placeholder="성명 · 근로번호 · 업체 · 직종 검색" aria-label="근로자 검색">
+        <input id="sheSmartSearch" type="search" autocomplete="off" placeholder="성명 · 근로번호 · 업체 · 직종 · 기종 검색" aria-label="근로자 검색">
         <select id="sheSmartCompany" aria-label="업체 선택"><option value="">전체 업체</option></select>
       </div>
       <div class="she-smart-quick" aria-label="근로자 상태 간편 필터">
@@ -507,6 +507,7 @@
                     <th width="130">직종</th>
                     <th width="200">공종 (최대 6단어)</th>
                     <th width="200">업체 (최대 6단어)</th>
+                    <th width="160">핸드폰 기종</th>
                     <th width="190">연락처 (11자리)</th>
                     <th width="110">교육구분</th>
                     <th width="140">퇴사일자</th>
@@ -570,6 +571,7 @@ const FIELD_DEFS = [
   { key:'job', label:'직종', placeholder:'직종' },
   { key:'process', label:'공종 (최대 6단어)', placeholder:'공종 입력' },
   { key:'company', label:'업체 (최대 6단어)', placeholder:'업체 입력' },
+  { key:'phoneModel', label:'핸드폰 기종', placeholder:'예: 갤럭시 S25' },
   { key:'phone', label:'연락처 (11자리)', placeholder:'010-0000-0000' },
   { key:'educationType', label:'교육구분', placeholder:'교육구분' },
   { key:'resignDate', label:'퇴사일자', placeholder:'YYYY-MM-DD', css:'col-resign' },
@@ -1509,15 +1511,15 @@ function buildExcelFilename() { return `한양이엔지_연명부_${getTodayDate
 
 const ROSTER_TEMPLATE_BASE64 = 'UEsDBBQAAAAIAES3cl2S6c2mtwAAABgBAAAPAAAAeGwvd29ya2Jvb2sueG1sjY85EsIwDEWv4lEPDjtksjQ0tHACx5GJh9jKWA5wfEyAnuovUvF+UT9dL+4Y2JIvYTHPQKDX1Fp/LWGMZraHuioeFG4N0U2kb88ldDEOuZSsO3SK5zSgTxdDwamYYrhKHgKqljvE6Hq5zLKtdMp6qIqp468KrxyWcHn7BYipO7UJBETIbTJntT00ZrXBXbPX6/Uh8U0MefiHgoyxGo+kR4c+fjAC9iqmtdzZgUHIqpA/JPnbWb0AUEsDBBQAAAAIAES3cl302H5E6wIAANsWAAANAAAAeGwvc3R5bGVzLnhtbO1YvW7bMBB+FUJ7Q0l2HKeQFaRpDXTpkgxdZYmSBVCkQNGpnCmvEKDdWqBDgT5A36pJ36H8kS0mkWPFdhynqAeZPN19993xSJH0jsoMg3PEipSSgeXs2RZAJKRRSpKBNeHxq7515HsFn2J0OkaIA6FPioE15jx/DWERjlEWFHs0R0S8iSnLAi66LIFFzlAQFdIow9C17R7MgpRYvhdTwgsQ0gnhwqVTSYSXC3AeYCUC0PdCiikDXDhAQqZEJMiQ1rn+eXXz7RL8/vX9+vMX9Q5qEP0cSckcz14bbwbV34pZE/tH+9xAFhuhUhKhEkUr58JZlcTmRvFWPCwZDazh0Fa/dcZpnXyrv0LgphjPp0bX0gLfywPOESND0QFV+2yaCweEElThKMUl6gkLpo67/wiLguI0kjySEzNb8ldlCxq2T4yq/kSWRpRFYsky86RF0lK3fA+jmAO1cA0sPlYLz50C7nW1K6npeyxNxi0NlKrvcZq30xeKkhfnNGtnoHVVQwezNKj7Vbw0rAaTJYE1WCwLrcFkg8FtmWjVEBUYIoxPJcrHeF6GHYFVxoBMsmHG34vRFDByWs+aonarpobRHd8LcJqQDBEuv8M8DeVCEYouYppGGS/G3X8i3MM1caGZIJ0uI1POwUqpAmW8idic2oFrOnBqByDIczwdUkV21hM2de+NMqv7xzNCUmTyG1OWXgggk2FLzt3DFUh/mGQjxIZqI2aQf+ZQnG4dSvffCeWFj0qLhWTJpNj2NOi1pdkm4VtO8cEC7u5upXhRJXReQIp3o4o/sSA/QyWf7f8fpNzf3apoUbs7tjwsGv97yXyJtftcH7nWY78rSTXJt14RdoW8uVE1tsKdRvLu9jcSjYsbrDb4xsHo1rFoLgXyLmRg/bn6evPj0hgCuEgHuKBjTIDFel1wAFwjL9A8hAhiUVmfP3qW6jdcU4gj4t0riRP7wSsJhdMS7Lj/1u6/2xDYf2YGmHyKQYb1RbX/F1BLAwQUAAAACABEt3Jd1EYi2yEDAAAsDgAAEwAAAHhsL3RoZW1lL3RoZW1lMS54bWy9V1lu2zAQvQqh/0a7FBlxgsQL+pGiQF2g37RELQ21QKTj5AAF+tF79HBF7lCa2ijJdJzFkQGby5t5j8PhUL64ekgxuEclSfJsquhnmgJQ5udBkkVTZUPDT+fK1eUFnNAYpQhkMEVT5WsYJj4CT7/+/Pv7WwHMQ0YmcKrElBYTVSU+w0JylhcoY3NhXqaQsm4ZqUEJt8xzilVD0xw1hUmmtN4XmH1llOwGfFyu/BElxwZ3+u6HPJIZLsE9xFOF+Qzy7Xf0QBWAIaFsYqpo/FGAenmhtlaYSowFwyV/GsPaIrgzuGEZrVtLy7It57pjMCqGMXDhLpyF03nkCOj7bLX6Hq+uMbMasICqmnu8z925qfcNBAZzZHBt7z59A7MzsEYGy+VMCKWAqpr2yMC+8W7mAwa7M3BGBq52PbfcvgFHxTjJ7kZwzXbMWbvkFhPm+PNevGdbS9do8B1MFTKtcpBRWd6l8GdeLhmA7zKkSQboY4FC6DPcDOJkXSbgNoliynngBMFnAD45CFAHnGmSPSvgAPUB0pauY1DFYPDQpNLIhAnGK/qI0S3h2kiOk2DJBnmHG7U7UcSs2fD1gFEJeRuUOf2R0HgVw4Lx6JwiIrXviIAiJywDFKlzXlCSjFZjjtukLgvaJv2SB9W4rmvdBIG0m9BsIdlbBt6LiKjB5h6O1OGaEh0d3VCHeaQOXXuJkHP9xUK8g0JUYXvYsQJwd3XYVl1+iQ8xCnYbVjto9vmEe+5ZsiUab431EXtOYhigxq8mUyLLPl17x10XpLjn+5V4nkSIcVjIq3ddHRcMnPV7YMvOrWnXi3tVNSlKQueQxBWOT7X3b9ax6IarfQSNp51yNeowhCgMkU8lI12XzdVe9k6/Fb3r5BuKylUcbMEab8pvkOWE7eosGCBICG0iwzqlkD0QR+xl1KcsGP3CUMew9yrQHQOIixjWVb93nis8b7d6hIVwqcNlqfuiuI6W73LXPW81KGiy0uzKD+lHXK6ecKkJtcaT1Bp5/bWPrXovunNFHaI8aVE2JfLMExVlR0Z4wuI7zGFVeLfjvcGfsWbk8j9QSwMEFAAAAAgARLdyXT8BzEVXAQAA0AQAABQAAAB4bC9zaGFyZWRTdHJpbmdzLnhtbI2UzU7CQBSFX4XMXgZdGEPaunGrLniCBgZoQn/SqcQlYKvdiQmEqpSAG6PpolCqmOALdWbewUEW7sxdTua7J+eeMxnl9NrslLrEpYZtqeiwXEElYtXthmG1VHTlNQ9O0KmmUOqVJGhRFbU9z6liTOttYuq0bDvEkjdN2zV1Tx7dFqaOS/QGbRPimR18VKkcY1M3LCRlDE35FapSR68TFUmSErdLkHZxqWBPU/AO+QcrPrdsMWWrUEQb0ABLtnyQ8lnABwmPt6AZ7i/ZewBGMx+G3sQs8PnzCGpDRCEfL0Q0hsm/9vkLzHSR5VCUTwK+WgPRlMXffBXBPORDPl0UecI+YPGJu/W+Qj4bwvzMkn3t0PhY1oM9qS+/yObQpMVtDjPwtGYpLDvxOJLLwVTjzY72lzDhSVikwBDSnriHFXFeO6sBI3jj8weY037C5qHc7o/G8pPSfgBQSwMEFAAAAAgARLdyXUIfqF9tAgAAgwgAABgAAAB4bC93b3Jrc2hlZXRzL3NoZWV0MS54bWyVll1zojAARf8Kk6fdhwoJirCjdHbX2k+rtR+2j6wGYVaIE9Lan7+BBIEkM3X7YMnhXBKvBB2df2Y76wPTIiX5GMCeAyycr8kmzbdj8M7iMx+ch6MDoX+LBGNmcT0vxiBhbP/Dtot1grOo6JE9zvmZmNAsYnxIt3axpzjaVKFsZyPH8ewsSnMQjio2rdQFtTY4jt53bEkOVzjdJowvYthzg/LPg/7AddDQBZYdjtZkV1SvVpbypSJgZdFn9f+QblgyBgGP+X13OADW+r1gJFsJDuu4CLoy6LaC/ilBXwb9/w0GMhgcg35vEAy9gYe+SEJHRssDmYXOae8TwjoLmyw6deK6Xohai4ZBgKD/5cT9OttvL9qcssXHWt0Tk4hF4YiSg0XL0/yS5cFPLhaVzu+NgtOP0BnZH2VUGr90A3aN38JALQN1jYl+DbdrXOhGv2tMdWPQNS51w+saV7ox7BrXuuF3jRvdCLrGraExpdQ7g6K0OhOK21aUWu+F0m8rSq9zw0RKsQuDojT7IBWv7SjdLk2O0u6jyVH6fTI5SsPPBgcpFb+YHKXjlclRSn41OUrLbyanqdnmu+649dBx66EqNODjuIolEcUbYFEcy5PpGDggXM5X376f8VXF7V0pwp54OFS7UCMTQYYNuainPJKpIH5DLgUJGnIlSPmUrNG1RLBBNzq6lQg16E4it0EzifoNupeotdC5tvSFRh40stTIo0aeNPKskReNrDTyqpG3NhE3gd16Fu+jLZ5FdJvmhbXDMb8FnB7/sKj4oq6OGdlXR/wSfwjjj/d6lPCvf0zLEW8yJoQdB+VUx18U4T9QSwMEFAAAAAAARLdyXRmQe2IoAQAAKAEAAAsAAABfcmVscy8ucmVsc++7vzw/eG1sIHZlcnNpb249IjEuMCIgZW5jb2Rpbmc9InV0Zi04Ij8+PFJlbGF0aW9uc2hpcHMgeG1sbnM9Imh0dHA6Ly9zY2hlbWFzLm9wZW54bWxmb3JtYXRzLm9yZy9wYWNrYWdlLzIwMDYvcmVsYXRpb25zaGlwcyI+PFJlbGF0aW9uc2hpcCBUeXBlPSJodHRwOi8vc2NoZW1hcy5vcGVueG1sZm9ybWF0cy5vcmcvb2ZmaWNlRG9jdW1lbnQvMjAwNi9yZWxhdGlvbnNoaXBzL29mZmljZURvY3VtZW50IiBUYXJnZXQ9Ii94bC93b3JrYm9vay54bWwiIElkPSJSOWVkMmQyOGY1MGFhNDhjZCIgLz48L1JlbGF0aW9uc2hpcHM+UEsDBBQAAAAIAES3cl0nLjbuDwEAAPICAAAaAAAAeGwvX3JlbHMvd29ya2Jvb2sueG1sLnJlbHO1kk1OwzAQha9ieU/s/DZBTbthw7b0AhN7nERN7Mh2oT0bC47EFTAFoQSxYJPNWH7jefpmPO+vb9v9ZRzIM1rXG13TOOKUoBZG9rqt6dmru5Lud9sDDuDDC9f1kyOhRLuadt5P94w50eEILjIT6pBRxo7gw9W2bAJxghZZwnnB7NyDLj3J8TrhfxyNUr3AByPOI2r/hzFz/jqgo+QItkVfU3YZvrUoeFHyKGt6KBQKAdjwJMMsjgUlbDUgH2pxyXOTvmI8oxJpKksspUwgzyrM1qRyHViUT96Gj/49rXlqhhenouAFqJxLyCq+WRPvxdiT6xD9Eu1H/mwgHPPpQVE1Ks1x05QiC3w3PLbY3N0HUEsDBBQAAAAIAES3cl2NgtmpFQEAAFMDAAATAAAAW0NvbnRlbnRfVHlwZXNdLnhtbK1TS07DMBC9SuQtip2yQAg16QLYAhJcwLInjVX/5JmW9mwsOBJXwHVQBAgpQu3GI9vzfv58vL0vV3tnqx0kNMG3bMEbVoFXQRu/btmW+vqarbrlyyECVrnVY8sGongjBKoBnEQeIvi804fkJOVpWoso1UauQVw2zZVQwRN4qunIwbrlHfRya6m63+flUTbDWXU79h2lWiZjtEZJytti5/UvkTr0vVGgg9q6DOEYE0iNAwA5y0vlThp/UYjFn5oJLP5P9CsVz8jSg4OJOEk85kNMRkP1JBM9SJf5xN4KpIMF5GdOWEjnpCnfD4zj4mQDhWY27CAT6GdK+fWcPfN37jkjryFtChBFKafn/2lm4p+MiPJFuk9QSwECFAMUAAAACABEt3JdkunNprcAAAAYAQAADwAAAAAAAAAAAAAApIEAAAAAeGwvd29ya2Jvb2sueG1sUEsBAhQDFAAAAAgARLdyXfTYfkTrAgAA2xYAAA0AAAAAAAAAAAAAAKSB5AAAAHhsL3N0eWxlcy54bWxQSwECFAMUAAAACABEt3Jd1EYi2yEDAAAsDgAAEwAAAAAAAAAAAAAApIH6AwAAeGwvdGhlbWUvdGhlbWUxLnhtbFBLAQIUAxQAAAAIAES3cl0/AcxFVwEAANAEAAAUAAAAAAAAAAAAAACkgUwHAAB4bC9zaGFyZWRTdHJpbmdzLnhtbFBLAQIUAxQAAAAIAES3cl1CH6hfbQIAAIMIAAAYAAAAAAAAAAAAAACkgdUIAAB4bC93b3Jrc2hlZXRzL3NoZWV0MS54bWxQSwECFAMUAAAAAABEt3JdGZB7YigBAAAoAQAACwAAAAAAAAAAAAAApIF4CwAAX3JlbHMvLnJlbHNQSwECFAMUAAAACABEt3JdJy427g8BAADyAgAAGgAAAAAAAAAAAAAApIHJDAAAeGwvX3JlbHMvd29ya2Jvb2sueG1sLnJlbHNQSwECFAMUAAAACABEt3JdjYLZqRUBAABTAwAAEwAAAAAAAAAAAAAApIEQDgAAW0NvbnRlbnRfVHlwZXNdLnhtbFBLBQYAAAAACAAIAAMCAABWDwAAAAA=';
 
-/* 다운로드: 업로드한 25열 원본 양식의 서식·열 제목을 유지하며 안전한 빈 템플릿으로 출력 */
+/* 다운로드: 원본 25열 양식의 서식을 보존하고 연락처 앞에 핸드폰 기종 1열을 추가. */
 const ROSTER_EXPORT_HEADERS = Object.freeze([
   'NO','근로번호','물산입사일','성명','성별','생년월일','혈액형','직종','공종',
-  '업체','연락처','교육구분','퇴사일자','재입사','직변','비고','공통','운반','화재',
+  '업체','핸드폰 기종','연락처','교육구분','퇴사일자','재입사','직변','비고','공통','운반','화재',
   '인화성','허가','밀폐','MSDS','용접','크레인'
 ]);
 const ROSTER_EXPORT_KEYS = Object.freeze([
   '__no','workerNo','samsungStartDate','name','gender','birth','blood','job','process',
-  'company','phone','educationType','resignDate','rehireDate','employeeId','notes',
+  'company','phoneModel','phone','educationType','resignDate','rehireDate','employeeId','notes',
   'eduCommon','edu13ho','edu38ho','edu4ho','edu35ho','eduClosed','eduMsds','edu2ho','eduCrane'
 ]);
 function makeRosterExportMatrix(records) {
@@ -1532,14 +1534,14 @@ function decodeTemplateBase64(base64) {
   for(let i=0;i<decoded.length;i++) bytes[i]=decoded.charCodeAt(i);
   return bytes;
 }
-// V19: preserve original A:Y header/style while adding presentation and real Excel rules.
+// Preserve original field styles, with one additional phone model column.
 // Excel conditional formats remain active after editing a downloaded workbook.
 const ROSTER_EXCEL_WIDTHS = Object.freeze([
-  6, 15, 15, 16, 8, 12, 11, 19, 17, 21, 18, 12, 15, 15, 13, 24,
+  6, 15, 15, 16, 8, 12, 11, 19, 17, 21, 22, 18, 12, 15, 15, 13, 24,
   20, 20, 20, 20, 20, 20, 20, 20, 20
 ]);
 function rosterExcelConditionalRules(){
-  const cell='Q2'; // Excel expands this relative reference across Q2:Y(lastRow).
+  const cell='R2'; // Excel expands this relative reference across R2:Z(lastRow).
   const date=`DATE(VALUE(LEFT(${cell},4)),VALUE(MID(${cell},6,2)),VALUE(MID(${cell},9,2)))`;
   const hours=`IFERROR(VALUE(TRIM(SUBSTITUTE(MID(${cell},12,30),"h",""))),0)`;
   const valid=`AND(${cell}<>"",LEN(${cell})>=13,IFERROR(ISNUMBER(SEARCH("h",${cell})),FALSE),IFERROR(LEFT(${cell},10)=TEXT(${date},"yyyy-mm-dd"),FALSE))`;
@@ -1560,9 +1562,9 @@ function formatRosterDownloadSheet(sheet,numberOfWorkers){
   ROSTER_EXCEL_WIDTHS.forEach((width,i)=>{sheet.getColumn(i+1).width=width;});
   sheet.getRow(1).height=Math.max(sheet.getRow(1).height||0,26);
   sheet.views=[{state:'frozen',ySplit:1,activeCell:'D2',showGridLines:true}];
-  sheet.autoFilter={from:{row:1,column:1},to:{row:Math.max(2,numberOfWorkers+1),column:25}};
+  sheet.autoFilter={from:{row:1,column:1},to:{row:Math.max(2,numberOfWorkers+1),column:ROSTER_EXPORT_KEYS.length}};
   // One range / three rules, not a per-cell 5,000 x 9 styling loop.
-  sheet.addConditionalFormatting({ref:`Q2:Y${Math.max(numberOfWorkers+1,2)}`,rules:rosterExcelConditionalRules()});
+  sheet.addConditionalFormatting({ref:`R2:Z${Math.max(numberOfWorkers+1,2)}`,rules:rosterExcelConditionalRules()});
 }
 async function exportRosterExcel() { if (window.SHEMobileExportGuard?.block("roster_excel")) return;
   if(!requireAccess()) return;
@@ -1575,18 +1577,30 @@ async function exportRosterExcel() { if (window.SHEMobileExportGuard?.block("ros
     const matrix=makeRosterExportMatrix(collectRows());
     const workbook=new ExcelJS.Workbook();
     // ExcelJS 4.4: OOXML default namespace workbook/sheets 구조로 정규화한 원본 양식입니다.
-    // 원본 A:Y 셀 서식·열 너비·2행 스타일 및 머리글은 변경하지 않습니다.
+    // 원본 A:Y를 검증한 뒤 새 K열을 추가하며 각 기존 필드의 스타일을 보존합니다.
     await workbook.xlsx.load(decodeTemplateBase64(ROSTER_TEMPLATE_BASE64));
     const sheet=workbook.getWorksheet('Sheet1')||workbook.worksheets[0];
     if(!sheet) throw new Error('원본 양식 Sheet1을 읽을 수 없습니다.');
-    const originalHeaders=ROSTER_EXPORT_HEADERS;
-    for(let c=1;c<=25;c++) {
+    const originalHeaders=ROSTER_EXPORT_HEADERS.filter((_,i)=>ROSTER_EXPORT_KEYS[i]!=='phoneModel');
+    for(let c=1;c<=originalHeaders.length;c++) {
       const actual=String(sheet.getCell(1,c).value??'').trim();
       if(actual!==originalHeaders[c-1]) throw new Error(`원본 양식 ${excelColLabel(c-1)}1 열 제목이 일치하지 않습니다.`);
     }
     const styleRow=sheet.getRow(2);
-    const baseStyles=Array.from({length:25},(_,c)=>styleRow.getCell(c+1).style);
+    const headerStyles=originalHeaders.map((_,i)=>({...sheet.getCell(1,i+1).style}));
+    const originalStyles=originalHeaders.map((_,i)=>({...styleRow.getCell(i+1).style}));
+    const modelIndex=ROSTER_EXPORT_KEYS.indexOf('phoneModel');
+    const oldIndex=i=>i<=modelIndex?i:i-1;
+    const baseStyles=ROSTER_EXPORT_KEYS.map((_,i)=>originalStyles[oldIndex(i)]);
     const baseHeight=styleRow.height||20;
+    // Rebuild only the header and blank template-row styles; do not splice
+    // merged cells or alter the original binary template.
+    ROSTER_EXPORT_HEADERS.forEach((header,i)=>{
+      const cell=sheet.getCell(1,i+1);
+      cell.value=header;
+      cell.style={...headerStyles[oldIndex(i)]};
+      styleRow.getCell(i+1).style={...baseStyles[i]};
+    });
     // 큰 파일은 일정 행마다 제어권을 양보해 검색창/버튼 UI가 멈추지 않도록 한다.
     for(let r=1;r<matrix.length;r++) {
       if (r > 1 && r % 160 === 0) {
@@ -1594,7 +1608,7 @@ async function exportRosterExcel() { if (window.SHEMobileExportGuard?.block("ros
         await new Promise(resolve => setTimeout(resolve, 0));
       }
       const dest=sheet.getRow(r+1);
-      for(let c=0;c<25;c++) {
+      for(let c=0;c<ROSTER_EXPORT_KEYS.length;c++) {
         const cell=dest.getCell(c+1);
         if(r>1) {
           // 기존 원본 2행 스타일을 새 행에도 복제한다.
@@ -1617,7 +1631,7 @@ async function exportRosterExcel() { if (window.SHEMobileExportGuard?.block("ros
     link.click();
     link.remove();
     setTimeout(()=>URL.revokeObjectURL(url),60000);
-    $('rosterImportStatus').textContent=`✓ 원본 양식 A:Y 기준 ${matrix.length-1}명 다운로드`;
+    $('rosterImportStatus').textContent=`✓ 핸드폰 기종 포함 ${matrix.length-1}명 다운로드`;
   } catch(error) {
     console.error('ROSTER 엑셀 다운로드 오류:',error);
     alert('엑셀 다운로드에 실패했습니다. '+(error.message||String(error)));
@@ -1634,6 +1648,7 @@ const ROSTER_IMPORT_ALIASES = Object.freeze({
   name:['성명','이름','근로자명','작업자성명','작업자명'],
   gender:['성별'],birth:['생년월일','생년','생일'],blood:['혈액형','혈액'],
   job:['직종','직무','직종명'],process:['공종','공종명'],company:['업체','업체명','소속업체','소속회사','회사명'],
+  phoneModel:['핸드폰기종','휴대폰기종','휴대전화기종','스마트폰기종','핸드폰모델','휴대폰모델','휴대전화모델','스마트폰모델','폰기종','기종','단말기기종','단말기모델','phonemodel'],
   phone:['연락처','휴대전화','휴대폰','전화번호','핸드폰번호'],
   educationType:['교육구분','교육유형','교육종류'],
   resignDate:['퇴사일자','퇴사일','퇴직일자'],rehireDate:['재입사','재입사일','재입사일자'],
@@ -2273,7 +2288,7 @@ window.addEventListener('beforeunload',event => {
 });
 
 </script>
-<script src="./roster-smart-view.js?v=20261124-education-type-colors1"></script>
+<script src="./roster-smart-view.js?v=20261124-phone-model1"></script>
 <script src="./mobile-back.js?v=20261121" defer></script>
 </body>
 </html>
