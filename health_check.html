@@ -1033,8 +1033,8 @@
             <tr class="${rowClass}">
               <td>${pageStart + idx + 1}</td>
               <td><b>${hcEscapeHtml(r.근로자명 || "-")}</b></td>
-              <td>${r.생년월일 || "-"}</td>
-              <td>${r.건강검진일자 || "-"}</td>
+              <td>${hcEscapeHtml(r.생년월일 || "-")}</td>
+              <td>${hcEscapeHtml(r.건강검진일자 || "-")}</td>
               <td><span class="badge ${badgeClass}">${hcEscapeHtml(r.검진결과)}</span></td>
               <td>${hcEscapeHtml(r.위험도)}</td>
               <td>${yBadge(r.질병소견자여부)}</td>
