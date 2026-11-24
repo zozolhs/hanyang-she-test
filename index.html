@@ -135,7 +135,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
 }
 #sheSecureAdmin table.she-admin-mobile-table {
   border-collapse:separate; border-spacing:0; table-layout:fixed;
-  width:100%; min-width:1070px!important; font-size:12px;
+  width:100%; min-width:1160px!important; font-size:12px;
 }
 #sheSecureAdmin .she-admin-mobile-table th,
 #sheSecureAdmin .she-admin-mobile-table td {
@@ -200,7 +200,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
     text-align:center!important; border:0; border-radius:8px;
     background:#f7faff;
   }
-  #sheSecureAdmin .she-admin-mobile-table tbody td:nth-child(-n+4) {
+  #sheSecureAdmin .she-admin-mobile-table tbody td:nth-child(-n+5) {
     background:#eef4fd; overflow-wrap:anywhere;
   }
   #sheSecureAdmin .she-admin-mobile-table tbody td::before {
@@ -4836,7 +4836,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="./she-v24-index.js?v=20261124-safety-revision-guard1"></script>
+<script src="./she-v24-index.js?v=20261124-session-presence1"></script>
 <script>
 (function() {
   const SUPABASE_URL = "https://ahmqthuympannqsrszvv.supabase.co";
@@ -9322,10 +9322,10 @@ function setupSecureAdmin(){
  <p style="margin:12px 0;font-size:12px;color:#475569">V24 아이디 계정 기반. 가입 승인과 권한은 서버에서 검증합니다.</p>
  <p style="font-size:12px;color:#475569;margin:8px 0">모듈별 열람·수정 권한을 따로 설정합니다. 수정 권한에는 열람 권한이 필요합니다.</p>
  <div class="she-admin-table-wrap"><table class="she-admin-mobile-table"><colgroup>
- <col style="width:11%"><col style="width:9%"><col style="width:11%"><col style="width:11%">
- <col span="8" style="width:5.5%"><col style="width:14%">
+ <col style="width:9%"><col style="width:8%"><col style="width:10%"><col style="width:10%"><col style="width:9%">
+ <col span="8" style="width:5%"><col style="width:14%">
  </colgroup><thead>
- <tr style="background:#eff6ff;text-align:center"><th rowspan="2">성명</th><th rowspan="2">부서</th><th rowspan="2">역할</th><th rowspan="2">상태</th><th colspan="2">SAFETY</th><th colspan="2">HEALTH</th><th colspan="2">ROSTER</th><th colspan="2">EDUCATION</th><th rowspan="2">동작</th></tr>
+ <tr style="background:#eff6ff;text-align:center"><th rowspan="2">성명</th><th rowspan="2">부서</th><th rowspan="2">역할</th><th rowspan="2">상태</th><th rowspan="2">접속 상태</th><th colspan="2">SAFETY</th><th colspan="2">HEALTH</th><th colspan="2">ROSTER</th><th colspan="2">EDUCATION</th><th rowspan="2">동작</th></tr>
  <tr style="background:#f5f8ff;text-align:center"><th>열람</th><th>수정</th><th>열람</th><th>수정</th><th>열람</th><th>수정</th><th>열람</th><th>수정</th></tr></thead>
  <tbody id="sheSecureUsers"></tbody></table></div>
  <p id="sheSecureMsg" class="she-admin-table-note" role="status" aria-live="polite"></p></div>`;
@@ -9389,8 +9389,33 @@ async function openSecureAdmin(){
  $('sheSecureAdmin').hidden=false;stopUserTimer();
  updateAdminMaintenanceUI();
  await Promise.all([refreshUsers(),refreshSignupStatus()]);
- // No background refresh: it would overwrite unsaved role/permission changes.
- // The panel provides explicit, guarded manual refresh instead.
+ // Only refresh presence cells; never reconstruct the permission table.
+ if(canControlUsers()&&!$('sheSecureAdmin').hidden&&!state.tabTimer)
+   state.tabTimer=setInterval(()=>{if(!document.hidden)void refreshPresence();},60000);
+}
+let presencePending=null;
+async function refreshPresence(){
+ if(!canControlUsers()||$('sheSecureAdmin')?.hidden!==false||document.hidden)return;
+ if(presencePending)return presencePending;
+ presencePending=(async()=>{
+  try{
+   const ids=new Set(await window.SHESEC.connectedUsers());
+   if(!canControlUsers()||$('sheSecureAdmin')?.hidden!==false)return;
+   for(const td of $('sheSecureUsers').querySelectorAll('[data-presence-account]')){
+    const online=ids.has(td.dataset.presenceAccount);
+    td.textContent=online?'● 접속 중':'● 미접속';
+    td.style.color=online?'#15803d':'#94a3b8';
+    td.style.fontWeight=online?'750':'600';
+    td.title='최근 접속 신호 기준';
+   }
+  }catch(e){
+   // Presence failure does not reload the account list or touch permissions.
+   for(const td of $('sheSecureUsers')?.querySelectorAll('[data-presence-account]')||[]){
+    td.textContent='—';td.style.color='#94a3b8';td.title='접속 상태 확인 실패';
+   }
+  }
+ })();
+ try{await presencePending;}finally{presencePending=null;}
 }
 async function refreshUsers(){
  if(!canControlUsers())return;
@@ -9413,6 +9438,7 @@ async function refreshUsers(){
    const statusLabels={pending:'승인 대기',approved:'승인 완료',blocked:'접속 차단',rejected:'승인 거절'};
    for(const v of ['pending','approved','blocked','rejected'])status.add(new Option(statusLabels[v]||v,v));
    status.value=u.status;status.disabled=mySelf;cell('').appendChild(status);
+   const presence=cell('—');presence.dataset.presenceAccount=u.id;presence.style.whiteSpace='nowrap';
    const checks={};
    for(const m of CFG.modules){
     const view=document.createElement('input');view.type='checkbox';
@@ -9487,11 +9513,12 @@ async function refreshUsers(){
    }
    actions.appendChild(group);
    // 모바일 카드에서 각 권한 열의 의미를 유지하며 표시합니다.
-   const mobileLabels=['성명','부서','역할','상태','SAFETY 열람','SAFETY 수정','HEALTH 열람','HEALTH 수정','ROSTER 열람','ROSTER 수정','EDUCATION 열람','EDUCATION 수정','동작'];
+   const mobileLabels=['성명','부서','역할','상태','접속 상태','SAFETY 열람','SAFETY 수정','HEALTH 열람','HEALTH 수정','ROSTER 열람','ROSTER 수정','EDUCATION 열람','EDUCATION 수정','동작'];
    Array.from(row.cells).forEach((td,i)=>{td.dataset.mobileLabel=mobileLabels[i]||'권한';});
    body.appendChild(row);
   }
   $('sheSecureMsg').textContent=`서버 회원 ${users.length}명 · 권한 변경 시 즉시 DB 반영`;
+  void refreshPresence();
  }catch(err){$('sheSecureMsg').textContent='⚠️ 인원 조회 실패: '+err.message;}
 }
 let maintenanceChangeBusy=false;
