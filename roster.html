@@ -214,6 +214,29 @@
             background: #fff;
         }
 
+        /* 교육구분 색상: 전체 표와 간편 조회가 동일한 기준을 사용. */
+        [data-education-type="입문"] { --roster-edu-color: #FFAEC9; }
+        [data-education-type="수료"] { --roster-edu-color: #B5E61D; }
+        [data-education-type="보수"] { --roster-edu-color: #FF7F27; }
+        #dataTable tbody tr:not(.she-roster-resigned) input[data-field="educationType"][data-education-type] {
+            background-color: var(--roster-edu-color) !important;
+            color: #17212f; font-weight: 700;
+        }
+        .she-roster-education-label {
+            display: inline-block; width: fit-content; max-width: 100%;
+            padding: 3px 8px; border-radius: 5px; font-size: 12px;
+            font-weight: 700; white-space: normal; overflow-wrap: anywhere;
+            background-color: #e2e8f0; color: #17212f;
+        }
+        #sheSmartRoster :not(.she-roster-resigned) > .she-smart-person-main .she-roster-education-label[data-education-type],
+        #sheSmartRoster .she-smart-detail:not(.she-roster-resigned) .she-roster-education-label[data-education-type] {
+            background-color: var(--roster-edu-color);
+            color: #17212f;
+        }
+        #sheSmartRoster .she-roster-resigned .she-roster-education-label {
+            background-color: #d0d5dc !important; color: #64748b !important;
+        }
+
         /* 교육 이수 상태별 박스 색상 스타일 */
         .edu-input.status-completed { background-color: #dcfce7 !important; border-color: #4ade80 !important; color: #166534; font-weight: 600; }
         .edu-input.status-under { background-color: #ffedd5 !important; border-color: #fb923c !important; color: #9a3412; font-weight: 600; }
@@ -921,6 +944,13 @@ function recordSearchText(rec) {
 function normalizeRosterJob(value) {
   return String(value ?? '').normalize('NFKC').replace(/[\s\u00a0\u200b-\u200d\u2060\ufeff]/g, '').trim();
 }
+// Display-only mapping; never changes the stored educationType value.
+function applyRosterEducationTypeColor(element, value) {
+  if (!element) return;
+  const type = String(value ?? '').normalize('NFKC').trim();
+  if (['입문','수료','보수'].includes(type)) element.dataset.educationType = type;
+  else delete element.dataset.educationType;
+}
 function createRow(record) {
   const data = record;
   const row = document.createElement('tr');
@@ -953,6 +983,7 @@ function createRow(record) {
     td.appendChild(input);
     row._rosterInputs[f.key] = input;
     if (EDU_KEYS.includes(f.key)) updateInputColor(input);
+    if (f.key === 'educationType') applyRosterEducationTypeColor(input, input.value);
   }
   // 기존 입력 필드를 그대로 사용하면서 모바일에서만 상세 항목을 펼칩니다.
   const headers = Array.from(document.querySelectorAll('#dataTable thead th'));
@@ -1092,6 +1123,8 @@ function patchRosterRow(row, record) {
       // 이전 레코드가 남긴 교육시간 색상을 다른 근로자에게 누출하지 않는다.
       updateInputColor(input);
     }
+    // Reused rows must never retain the previous worker's education type color.
+    if (field.key === 'educationType') applyRosterEducationTypeColor(input, nextValue);
   }
   if (rulesChanged) applyOccupationRulesToRow(row);
 }
@@ -2131,6 +2164,7 @@ function bindTableEvents() {
       markDirty();
     }
     if (target.classList.contains('edu-input')) updateInputColor(target);
+    if (key === 'educationType') applyRosterEducationTypeColor(target, value);
     if (key === 'resignDate') {
       const row = target.closest('tr');
       if (row) row.classList.toggle('she-roster-resigned',Boolean(String(value).trim()));
@@ -2159,6 +2193,7 @@ function bindTableEvents() {
       invalidateRecordCache(rec.uid);
       markDirty();
     }
+    if (target.dataset.field === 'educationType') applyRosterEducationTypeColor(target, target.value);
     if (['company','process','job'].includes(target.dataset.field)) updateFilterDropdowns();
     if (target.dataset.field === 'resignDate' && row) {
       row.classList.toggle('she-roster-resigned',Boolean(String(target.value).trim()));
@@ -2238,7 +2273,7 @@ window.addEventListener('beforeunload',event => {
 });
 
 </script>
-<script src="./roster-smart-view.js?v=20261123-duewindows1"></script>
+<script src="./roster-smart-view.js?v=20261124-education-type-colors1"></script>
 <script src="./mobile-back.js?v=20261121" defer></script>
 </body>
 </html>
