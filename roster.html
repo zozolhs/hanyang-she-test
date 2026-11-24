@@ -247,6 +247,40 @@
         #sheRosterDetail .she-roster-education-label { font-size: 16px; }
         #sheRosterDetail .she-smart-action { font-size: 17px; }
 
+        /* 상세정보: 충분한 폭에서 기본정보/교육현황을 좌우 배치. */
+        #sheRosterDetail { container-type: inline-size; }
+        #sheRosterDetail .she-smart-detail-sections {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr);
+            align-items: start;
+            gap: 12px;
+        }
+        #sheRosterDetail .she-smart-detail-section { min-width: 0; }
+        #sheRosterDetail .she-smart-detail-actions {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 18px;
+        }
+        @media (min-width: 901px) {
+            @container (min-width: 480px) {
+                #sheRosterDetail .she-smart-detail-sections {
+                    grid-template-columns: minmax(0, 55fr) minmax(0, 45fr);
+                    gap: 12px;
+                }
+                #sheRosterDetail .she-smart-detail-section + .she-smart-detail-section {
+                    border-left: 1px solid #d5e1ed;
+                    padding-left: 12px;
+                }
+                #sheRosterDetail .she-smart-detail-list {
+                    grid-template-columns: minmax(0, 43%) minmax(0, 1fr);
+                    column-gap: 8px;
+                }
+                #sheRosterDetail .she-smart-detail-list dt {
+                    overflow-wrap: anywhere;
+                }
+            }
+        }
+
         /* 교육구분 색상: 전체 표와 간편 조회가 동일한 기준을 사용. */
         [data-education-type="입문"] { --roster-edu-color: #FFAEC9; }
         [data-education-type="수료"] { --roster-edu-color: #B5E61D; }
@@ -2321,7 +2355,7 @@ window.addEventListener('beforeunload',event => {
 });
 
 </script>
-<script src="./roster-smart-view.js?v=20261124-phone-model1"></script>
+<script src="./roster-smart-view.js?v=20261124-detail-columns1"></script>
 <script src="./mobile-back.js?v=20261121" defer></script>
 </body>
 </html>
