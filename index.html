@@ -1652,6 +1652,25 @@ body:not(.she-portal-active) #shePortal{display:none!important}
        애플리케이션 핵심 데이터 및 동작 스크립트
   ========================================================== -->
   <script>
+    // Output-only XSS protection. Keep original imported/stored strings untouched.
+    function sheDisplayText(value) {
+      return String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+    function sheInlineId(value) {
+      // Existing inline handlers use single-quoted JS string arguments inside HTML attributes.
+      // Encode each unsafe UTF-16 code unit, not the actual record ID.
+      return String(value).replace(/[^A-Za-z0-9_.:-]/g, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4,'0'));
+    }
+    function sheSafeImageUrl(value) {
+      const raw = String(value || '');
+      if (!raw) return '';
+      try {
+        const parsed = new URL(raw, document.baseURI);
+        if (['https:','http:','blob:'].includes(parsed.protocol)) return raw;
+        if (parsed.protocol === 'data:' && /^data:image\/[a-z0-9.+-]+(?:;|,)/i.test(raw)) return raw;
+      } catch (_) {}
+      return '';
+    }
     // 1. 초기 문서 목록 데이터
     // Live risk documents are loaded exclusively from the authorized server.
     let documentsData = [];
@@ -2071,20 +2090,20 @@ body:not(.she-portal-active) #shePortal{display:none!important}
         const revNoText = doc.revNo || 'Rev.0';
         const revDateText = doc.revDate || '미기재';
         return `
-        <div onclick="openDocumentItems('${doc.id}')" class="bg-white rounded-xl border border-slate-200/90 p-6 hover:border-blue-400 hover:shadow-md transition cursor-pointer flex flex-col justify-between group">
+        <div onclick="openDocumentItems('${sheInlineId(doc.id)}')" class="bg-white rounded-xl border border-slate-200/90 p-6 hover:border-blue-400 hover:shadow-md transition cursor-pointer flex flex-col justify-between group">
           <div>
             <div class="flex items-center justify-between gap-2 mb-3">
               <div class="flex items-center gap-2 flex-wrap">
                 <span class="px-2.5 py-1 rounded-md bg-blue-50 text-[#1d6ce0] font-bold text-xs">
-                  ${doc.evalType}
+                  ${sheDisplayText(doc.evalType)}
                 </span>
                 <span class="text-xs font-semibold text-slate-400">
-                  ${doc.areaTag}
+                  ${sheDisplayText(doc.areaTag)}
                 </span>
                 <span class="px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold inline-flex items-center gap-1">
-                  <span>🔄 ${revNoText}</span>
+                  <span>🔄 ${sheDisplayText(revNoText)}</span>
                   <span class="text-emerald-400">|</span>
-                  <span>개정일 ${revDateText}</span>
+                  <span>개정일 ${sheDisplayText(revDateText)}</span>
                 </span>
                 ${isPdf ? `<span class="px-2 py-0.5 rounded bg-red-50 text-red-600 border border-red-200 text-[11px] font-bold">PDF 원본</span>` : ''}
                 ${(hasImages || doc.evalType === '작업장 평가') ? `<span class="px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 text-[11px] font-extrabold">🖼️ 원본 이미지 포함</span>` : ''}
@@ -2092,13 +2111,13 @@ body:not(.she-portal-active) #shePortal{display:none!important}
               ${adminMode ? `
               <div class="flex items-center gap-1.5 shrink-0">
                 <button
-                  onclick="openDirectReplaceModal('${doc.id}', event)"
+                  onclick="openDirectReplaceModal('${sheInlineId(doc.id)}', event)"
                   class="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold transition"
                 >
                   🔄 개정파일 덮어쓰기
                 </button>
                 <button
-                  onclick="openDocumentEditModal('${doc.id}', event)"
+                  data-she-doc-id="${sheDisplayText(doc.id)}" onclick="openDocumentEditModal('${sheInlineId(doc.id)}', event)"
                   class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-[#1d6ce0] border border-slate-200 text-xs font-bold transition"
                 >
                   ✎ 제목·개정 수정
@@ -2107,12 +2126,12 @@ body:not(.she-portal-active) #shePortal{display:none!important}
               ` : ''}
             </div>
             <h4 class="text-base sm:text-[17px] font-extrabold text-slate-900 group-hover:text-[#1d6ce0] transition mb-4">
-              ${doc.title}
+              ${sheDisplayText(doc.title)}
             </h4>
           </div>
           <div class="flex items-center justify-between pt-2 border-t border-slate-100">
             <span class="text-xs sm:text-sm text-slate-400 font-medium">
-              ${doc.displayCount.toLocaleString()}개 항목 · <span class="text-[11px] text-slate-400">${doc.fileName || '원본파일'}</span>
+              ${sheDisplayText(doc.displayCount.toLocaleString())}개 항목 · <span class="text-[11px] text-slate-400">${sheDisplayText(doc.fileName || '원본파일')}</span>
             </span>
             <span class="text-xs sm:text-sm font-bold text-[#1d6ce0] group-hover:translate-x-0.5 transition inline-flex items-center shrink-0">
               항목 보기 &gt;
@@ -2176,7 +2195,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
         const docObj = documentsData.find(d => d.id === selectedDocumentId);
         if (docObj) {
           titleEl.textContent = docObj.title;
-          subtitleEl.innerHTML = `${docObj.areaTag} · ${docObj.evalType} · ${docObj.displayCount.toLocaleString()}개 항목 · <strong class="text-emerald-700 font-bold">최신개정 ${docObj.revNo || 'Rev.0'} (${docObj.revDate || '미기재'})</strong>`;
+          subtitleEl.innerHTML = `${sheDisplayText(docObj.areaTag)} · ${sheDisplayText(docObj.evalType)} · ${sheDisplayText(docObj.displayCount.toLocaleString())}개 항목 · <strong class="text-emerald-700 font-bold">최신개정 ${sheDisplayText(docObj.revNo || 'Rev.0')} (${sheDisplayText(docObj.revDate || '미기재')})</strong>`;
           if (editDocBtn) editDocBtn.classList.toggle('hidden', !adminMode);
         }
       } else if (currentSearchQuery) {
@@ -2203,13 +2222,13 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       }
 
       container.innerHTML = filteredItems.map((item, idx) => `
-        <div onclick="openItemDetailModal('${item.id}')" class="bg-white rounded-xl border border-slate-200/90 item-card-accent p-5 sm:p-6 shadow-2xs hover:shadow-md hover:border-blue-300 transition cursor-pointer">
+        <div onclick="openItemDetailModal('${sheInlineId(item.id)}')" class="bg-white rounded-xl border border-slate-200/90 item-card-accent p-5 sm:p-6 shadow-2xs hover:shadow-md hover:border-blue-300 transition cursor-pointer">
           <div class="flex items-start justify-between gap-2 mb-3">
             <h4 class="text-base sm:text-lg font-extrabold text-slate-900">
-              ${item.taskTitle}
+              ${sheDisplayText(item.taskTitle)}
             </h4>
             <span class="text-xs font-medium text-slate-400 shrink-0">
-              ${idx + 1}번째 결과 (${item.itemNo})
+              ${idx + 1}번째 결과 (${sheDisplayText(item.itemNo)})
             </span>
           </div>
 
@@ -2218,20 +2237,20 @@ body:not(.she-portal-active) #shePortal{display:none!important}
               관련 내용 확인
             </span>
             <span class="px-2.5 py-1 rounded-md bg-blue-50 text-[#1d6ce0] border border-blue-200 text-xs font-bold">
-              ${item.evalType}
+              ${sheDisplayText(item.evalType)}
             </span>
             <span class="px-2.5 py-1 rounded-md bg-slate-100 text-slate-600 border border-slate-200 text-xs font-semibold">
-              기인물 · ${item.causeObj}
+              기인물 · ${sheDisplayText(item.causeObj)}
             </span>
             <span class="px-2.5 py-1 rounded-md bg-red-50 text-red-600 border border-red-200 text-xs font-bold">
-              위험요인 · ${item.hazardText}
+              위험요인 · ${sheDisplayText(item.hazardText)}
             </span>
           </div>
 
           <div class="bg-[#f8fafd] border border-slate-200/80 rounded-lg p-4 mb-4">
             <div class="text-xs font-bold text-[#1d6ce0] mb-1">원본 안전대책</div>
             <p class="text-xs sm:text-sm text-slate-700 leading-relaxed">
-              ${item.measureText}
+              ${sheDisplayText(item.measureText)}
             </p>
           </div>
 
@@ -2239,15 +2258,15 @@ body:not(.she-portal-active) #shePortal{display:none!important}
           <div class="bg-blue-50/50 border border-blue-200/80 rounded-xl p-3.5 mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div class="flex items-center gap-3 min-w-0">
               <img
-                src="${item.imageUrl}"
-                alt="${item.taskTitle}"
-                onclick="openOriginalImageViewer('${item.id}', event)"
+                src="${sheDisplayText(sheSafeImageUrl(item.imageUrl))}"
+                alt="${sheDisplayText(item.taskTitle)}"
+                onclick="openOriginalImageViewer('${sheInlineId(item.id)}', event)"
                 class="w-24 h-16 object-cover rounded-lg border border-blue-300 bg-white shadow-2xs shrink-0 hover:opacity-90 transition"
               />
               <div class="min-w-0">
                 <div class="flex items-center gap-1.5">
                   <span class="px-2 py-0.5 rounded bg-blue-600 text-white text-[10px] font-extrabold">원본 이미지 첨부됨</span>
-                  <span class="text-xs font-bold text-slate-800 truncate">${item.imageFileName || item.fileName}</span>
+                  <span class="text-xs font-bold text-slate-800 truncate">${sheDisplayText(item.imageFileName || item.fileName)}</span>
                 </div>
                 <p class="text-[11px] text-slate-500 mt-1">
                   우측 버튼을 클릭하면 고화질 원본 이미지 파일을 전체화면으로 확대해 볼 수 있습니다.
@@ -2256,7 +2275,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
             </div>
             <button
               type="button"
-              onclick="openOriginalImageViewer('${item.id}', event)"
+              onclick="openOriginalImageViewer('${sheInlineId(item.id)}', event)"
               class="px-3.5 py-2 rounded-lg bg-[#1d6ce0] hover:bg-blue-700 text-white text-xs font-bold shrink-0 shadow-2xs transition flex items-center gap-1.5 self-end sm:self-center"
             >
               <span>🖼️ 원본 이미지 크게 보기</span>
@@ -2266,11 +2285,11 @@ body:not(.she-portal-active) #shePortal{display:none!important}
 
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-500">
             <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <span><strong class="text-[#1d6ce0] font-bold">원본</strong> ${item.docName}</span>
-              <span><strong class="text-[#1d6ce0] font-bold">항목</strong> ${item.itemNo}</span>
-              <span><strong class="text-[#1d6ce0] font-bold">페이지</strong> ${item.pageNo}</span>
-              <span><strong class="text-[#1d6ce0] font-bold">원본행</strong> ${item.rowNo}</span>
-              ${item.duplicateInfo ? `<span class="text-slate-400">${item.duplicateInfo}</span>` : ''}
+              <span><strong class="text-[#1d6ce0] font-bold">원본</strong> ${sheDisplayText(item.docName)}</span>
+              <span><strong class="text-[#1d6ce0] font-bold">항목</strong> ${sheDisplayText(item.itemNo)}</span>
+              <span><strong class="text-[#1d6ce0] font-bold">페이지</strong> ${sheDisplayText(item.pageNo)}</span>
+              <span><strong class="text-[#1d6ce0] font-bold">원본행</strong> ${sheDisplayText(item.rowNo)}</span>
+              ${item.duplicateInfo ? `<span class="text-slate-400">${sheDisplayText(item.duplicateInfo)}</span>` : ''}
             </div>
             <span class="text-xs font-bold text-[#1d6ce0] shrink-0 self-end sm:self-center">
               원본 위치 및 상세보기 &gt;
@@ -2296,7 +2315,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       const imgNameEl = document.getElementById('modalImageFileName');
       if (item.imageUrl) {
         imgSection.classList.remove('hidden');
-        imgPreview.src = item.imageUrl;
+        imgPreview.src = sheSafeImageUrl(item.imageUrl);
         imgNameEl.textContent = item.imageFileName || item.fileName || '작업장평가_원본이미지.png';
       } else {
         imgSection.classList.add('hidden');
@@ -2435,7 +2454,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       document.getElementById('viewerImageTitle').textContent = item.taskTitle;
       document.getElementById('viewerImageFileName').textContent = `(${currentViewerImageName})`;
       const imgEl = document.getElementById('viewerFullImageEl');
-      imgEl.src = currentViewerImageUrl;
+      imgEl.src = sheSafeImageUrl(currentViewerImageUrl);
       imgEl.style.transform = `scale(${currentViewerZoom})`;
       document.getElementById('viewerZoomLevelText').textContent = '100% (원본크기)';
 
@@ -2468,7 +2487,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
     function downloadViewerOriginalImage() {
       if (!currentViewerImageUrl) return;
       const a = document.createElement('a');
-      a.href = currentViewerImageUrl;
+      const safeUrl = sheSafeImageUrl(currentViewerImageUrl); if (!safeUrl) return; a.href = safeUrl;
       a.download = currentViewerImageName || '작업장평가_원본이미지.svg';
       document.body.appendChild(a);
       a.click();
@@ -2529,8 +2548,8 @@ body:not(.she-portal-active) #shePortal{display:none!important}
           const hist = doc.revHistory || [{ revNo: doc.revNo || 'Rev.1', revDate: doc.revDate || '2026-11-11', fileName: doc.fileName || '', note: '등록' }];
           historyList.innerHTML = hist.map((h, i) => `
             <div class="flex items-center justify-between py-1 ${i === 0 ? 'font-bold text-emerald-700' : 'text-slate-500'}">
-              <span>${i === 0 ? '🟢 [현재 최신본] ' : '• '}${h.revNo} (${h.revDate}) - ${h.note || ''}</span>
-              <span class="truncate max-w-[180px] text-[10px] text-slate-400">${h.fileName || ''}</span>
+              <span>${i === 0 ? '🟢 [현재 최신본] ' : '• '}${sheDisplayText(h.revNo)} (${sheDisplayText(h.revDate)}) - ${sheDisplayText(h.note || '')}</span>
+              <span class="truncate max-w-[180px] text-[10px] text-slate-400">${sheDisplayText(h.fileName || '')}</span>
             </div>
           `).join('');
         }
@@ -2678,7 +2697,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       if (!selectEl) return;
 
       selectEl.innerHTML = documentsData.map(doc => `
-        <option value="${doc.id}">[${doc.revNo || 'Rev.0'}] ${doc.title} (${doc.displayCount}건)</option>
+        <option value="${sheDisplayText(doc.id)}">[${sheDisplayText(doc.revNo || 'Rev.0')}] ${sheDisplayText(doc.title)} (${sheDisplayText(doc.displayCount)}건)</option>
       `).join('');
 
       if (preselectDocId && documentsData.some(d => d.id === preselectDocId)) {
@@ -3496,7 +3515,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
           maxRows = rowCnt;
           bestSheetName = sName;
         }
-        return `<option value="${sName}">${sName} (총 ${rowCnt}행)</option>`;
+        return `<option value="${sheDisplayText(sName)}">${sheDisplayText(sName)} (총 ${rowCnt}행)</option>`;
       }).join('');
 
       sheetSelect.value = bestSheetName;
@@ -3532,7 +3551,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
             .filter(Boolean)
             .slice(0, 5)
             .join(' | ');
-          optionsHtml.push(`<option value="${r}">엑셀 ${r + 1}행이 표 제목 : ${rowPreview ? rowPreview.slice(0, 44) : '(빈 행)'}</option>`);
+          optionsHtml.push(`<option value="${r}">엑셀 ${r + 1}행이 표 제목 : ${sheDisplayText(rowPreview ? rowPreview.slice(0, 44) : '(빈 행)')}</option>`);
         }
         headerRowSelect.innerHTML = optionsHtml.join('');
         headerRowSelect.value = String(headerRowIdx);
@@ -3546,7 +3565,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       const populateColSelect = (selectId, selectedColIdx, allowNone) => {
         const el = document.getElementById(selectId);
         let html = allowNone ? `<option value="-1">(선택 안 함 / 기본값 '기타' 사용)</option>` : '';
-        html += headers.map(h => `<option value="${h.colIdx}">${h.displayLabel}</option>`).join('');
+        html += headers.map(h => `<option value="${sheDisplayText(h.colIdx)}">${sheDisplayText(h.displayLabel)}</option>`).join('');
         el.innerHTML = html;
         if (selectedColIdx >= 0 && selectedColIdx < headers.length) {
           el.value = String(selectedColIdx);
@@ -3723,11 +3742,11 @@ body:not(.she-portal-active) #shePortal{display:none!important}
 
       tbody.innerHTML = items.slice(0, 15).map((it, idx) => `
         <tr class="hover:bg-slate-50">
-          <td class="py-2 px-3 font-mono text-slate-500">${idx + 1}번 (${it.rowNo})</td>
-          <td class="py-2 px-3 font-bold text-slate-900">${it.taskTitle}</td>
-          <td class="py-2 px-3 text-slate-600 font-semibold">${it.causeObj}</td>
-          <td class="py-2 px-3 font-extrabold text-red-600">${it.hazardText}</td>
-          <td class="py-2 px-3 text-slate-700">${it.measureText}</td>
+          <td class="py-2 px-3 font-mono text-slate-500">${idx + 1}번 (${sheDisplayText(it.rowNo)})</td>
+          <td class="py-2 px-3 font-bold text-slate-900">${sheDisplayText(it.taskTitle)}</td>
+          <td class="py-2 px-3 text-slate-600 font-semibold">${sheDisplayText(it.causeObj)}</td>
+          <td class="py-2 px-3 font-extrabold text-red-600">${sheDisplayText(it.hazardText)}</td>
+          <td class="py-2 px-3 text-slate-700">${sheDisplayText(it.measureText)}</td>
         </tr>
       `).join('');
     }
@@ -4091,9 +4110,9 @@ body:not(.she-portal-active) #shePortal{display:none!important}
 
         return `
         <tr class="${u.status === 'pending' ? 'bg-amber-50/40' : 'hover:bg-slate-50'}">
-          <td class="py-3 px-4 font-bold text-slate-800">${u.name}</td>
-          <td class="py-3 px-4 text-slate-600 font-mono text-xs">${u.birth}</td>
-          <td class="py-3 px-4 text-slate-600">${u.dept} · <span class="text-slate-400">${u.role}</span></td>
+          <td class="py-3 px-4 font-bold text-slate-800">${sheDisplayText(u.name)}</td>
+          <td class="py-3 px-4 text-slate-600 font-mono text-xs">${sheDisplayText(u.birth)}</td>
+          <td class="py-3 px-4 text-slate-600">${sheDisplayText(u.dept)} · <span class="text-slate-400">${sheDisplayText(u.role)}</span></td>
           <td class="py-3 px-4">
             ${u.isAdmin
               ? `<span class="px-2.5 py-1 rounded-md bg-blue-50 text-[#1d6ce0] border border-blue-200 text-xs font-extrabold">🛡️ 서버관리자 (수정 가능)</span>`
@@ -4105,21 +4124,21 @@ body:not(.she-portal-active) #shePortal{display:none!important}
           </td>
           <td class="py-3 px-4 text-right whitespace-nowrap space-x-1">
             ${u.status === 'pending' ? `
-              <button onclick="approvePendingUser('${u.id}')" class="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold shadow-2xs transition">
+              <button onclick="approvePendingUser('${sheInlineId(u.id)}')" class="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold shadow-2xs transition">
                 ✓ 가입 승인
               </button>
             ` : `
-              <button onclick="toggleUserAccess('${u.id}')" class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition ${u.allowed ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'}">
+              <button onclick="toggleUserAccess('${sheInlineId(u.id)}')" class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition ${u.allowed ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'}">
                 ${u.allowed ? '권한차단' : '승인허용'}
               </button>
             `}
-            <button onclick="openUserEditModal('${u.id}')" class="px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#1d6ce0] border border-blue-200 text-xs font-bold transition">
+            <button onclick="openUserEditModal('${sheInlineId(u.id)}')" class="px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#1d6ce0] border border-blue-200 text-xs font-bold transition">
               ✎ 정보수정
             </button>
-            <button onclick="deleteUserById('${u.id}')" class="px-2.5 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-xs font-bold transition">
+            <button onclick="deleteUserById('${sheInlineId(u.id)}')" class="px-2.5 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-xs font-bold transition">
               🗑️ 삭제
             </button>
-            <button onclick="switchActiveUser('${u.id}')" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold transition">
+            <button onclick="switchActiveUser('${sheInlineId(u.id)}')" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold transition">
               전환
             </button>
           </td>
@@ -4326,10 +4345,10 @@ body:not(.she-portal-active) #shePortal{display:none!important}
         }
 
         return `
-        <div onclick="switchActiveUser('${u.id}')" class="p-3.5 rounded-xl border ${currentLoggedInUser.id === u.id ? 'border-[#1d6ce0] bg-blue-50/40' : 'border-slate-200 hover:bg-slate-50'} flex items-center justify-between cursor-pointer transition">
+        <div onclick="switchActiveUser('${sheInlineId(u.id)}')" class="p-3.5 rounded-xl border ${currentLoggedInUser.id === u.id ? 'border-[#1d6ce0] bg-blue-50/40' : 'border-slate-200 hover:bg-slate-50'} flex items-center justify-between cursor-pointer transition">
           <div>
-            <div class="text-sm font-bold text-slate-800">${u.name} <span class="text-xs font-mono text-slate-400 font-normal">(${u.birth})</span></div>
-            <div class="text-xs text-slate-500 mt-0.5">${u.dept} · <strong>${u.role}</strong></div>
+            <div class="text-sm font-bold text-slate-800">${sheDisplayText(u.name)} <span class="text-xs font-mono text-slate-400 font-normal">(${sheDisplayText(u.birth)})</span></div>
+            <div class="text-xs text-slate-500 mt-0.5">${sheDisplayText(u.dept)} · <strong>${sheDisplayText(u.role)}</strong></div>
           </div>
           ${badgeHtml}
         </div>
@@ -4423,13 +4442,13 @@ body:not(.she-portal-active) #shePortal{display:none!important}
         dot.className = 'w-2 h-2 rounded-full bg-amber-500';
         if (overlayTitle) overlayTitle.textContent = '서버관리자 가입 승인 대기 중입니다';
         if (overlayIconBox) overlayIconBox.className = 'w-16 h-16 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-5';
-        deniedInfo.innerHTML = `<strong>${currentLoggedInUser.name} (${currentLoggedInUser.birth} / ${currentLoggedInUser.dept})</strong> 님의 열람 신청이 정상 접수되었습니다.<br/>서버관리자가 권한 페이지에서 <strong>[가입 승인]</strong>을 완료한 후 열람하실 수 있습니다.`;
+        deniedInfo.innerHTML = `<strong>${sheDisplayText(currentLoggedInUser.name)} (${sheDisplayText(currentLoggedInUser.birth)} / ${sheDisplayText(currentLoggedInUser.dept)})</strong> 님의 열람 신청이 정상 접수되었습니다.<br/>서버관리자가 권한 페이지에서 <strong>[가입 승인]</strong>을 완료한 후 열람하실 수 있습니다.`;
         overlay.classList.remove('hidden');
       } else {
         dot.className = 'w-2 h-2 rounded-full bg-red-500';
         if (overlayTitle) overlayTitle.textContent = '접속 권한이 제한되었습니다';
         if (overlayIconBox) overlayIconBox.className = 'w-16 h-16 rounded-full bg-red-50 text-red-600 flex items-center justify-center mx-auto mb-5';
-        deniedInfo.innerHTML = `<strong>${currentLoggedInUser.name} (${currentLoggedInUser.birth} / ${currentLoggedInUser.dept})</strong> 님은 관리자에 의해 접속 권한이 제한(차단)된 상태입니다.<br/>안전관리 시스템 열람이 불가능합니다.`;
+        deniedInfo.innerHTML = `<strong>${sheDisplayText(currentLoggedInUser.name)} (${sheDisplayText(currentLoggedInUser.birth)} / ${sheDisplayText(currentLoggedInUser.dept)})</strong> 님은 관리자에 의해 접속 권한이 제한(차단)된 상태입니다.<br/>안전관리 시스템 열람이 불가능합니다.`;
         overlay.classList.remove('hidden');
       }
     }
@@ -5654,12 +5673,12 @@ body:not(.she-portal-active) #shePortal{display:none!important}
 
     rowLabelEl.textContent = "원본 표 순번";
     if (serialNo !== null && serialNo !== undefined) {
-      const desiredRowHtml = `<span class="hy-orig-serial-highlight">원본 ${serialNo}번</span> <span style="font-size:12px;color:#64748b;font-weight:600;margin-left:4px;">(엑셀 ${excelRowNum}행)</span>`;
+      const desiredRowHtml = `<span class="hy-orig-serial-highlight">원본 ${sheDisplayText(serialNo)}번</span> <span style="font-size:12px;color:#64748b;font-weight:600;margin-left:4px;">(엑셀 ${sheDisplayText(excelRowNum)}행)</span>`;
       if (rowValueEl.innerHTML !== desiredRowHtml) {
         rowValueEl.innerHTML = desiredRowHtml;
       }
       if (itemNoLabelEl && itemNoLabelEl.nextElementSibling) {
-        const desiredItemHtml = `<span style="color:#1d4ed8;font-weight:800;">원본 ${serialNo}번 항목</span>`;
+        const desiredItemHtml = `<span style="color:#1d4ed8;font-weight:800;">원본 ${sheDisplayText(serialNo)}번 항목</span>`;
         if (itemNoLabelEl.nextElementSibling.innerHTML !== desiredItemHtml) {
           itemNoLabelEl.nextElementSibling.innerHTML = desiredItemHtml;
         }
@@ -5732,9 +5751,9 @@ body:not(.she-portal-active) #shePortal{display:none!important}
         if (sp.children.length <= 2) {
           const spTxt = (sp.textContent || "").trim();
           if (excelRowNum && (spTxt === `원본행 ${excelRowNum}행` || spTxt === `원본행${excelRowNum}행` || spTxt.includes(`(엑셀 ${excelRowNum}행)`))) {
-            sp.innerHTML = `<strong style="color:#047857;background:#ecfdf5;border:1px solid #6ee7b7;padding:1px 6px;border-radius:5px;">원본 ${serialNo}번</strong> <span style="color:#64748b;font-size:11.5px;">(엑셀 ${excelRowNum}행)</span>`;
+            sp.innerHTML = `<strong style="color:#047857;background:#ecfdf5;border:1px solid #6ee7b7;padding:1px 6px;border-radius:5px;">원본 ${sheDisplayText(serialNo)}번</strong> <span style="color:#64748b;font-size:11.5px;">(엑셀 ${sheDisplayText(excelRowNum)}행)</span>`;
           } else if (cardItemNo && (spTxt === `항목 ${cardItemNo}번 항목` || spTxt === `항목 ${cardItemNo}` || spTxt === `항목 ${cardItemNo}번`)) {
-            sp.innerHTML = `항목 <strong style="color:#1d4ed8;">${serialNo}번</strong>`;
+            sp.innerHTML = `항목 <strong style="color:#1d4ed8;">${sheDisplayText(serialNo)}번</strong>`;
           } else if (sp.children.length === 0 && /^\d+번째\s*결과/.test(spTxt)) {
             cardEl._hyOrderSpan = sp;
             const ord = displayOrderIdx || serialNo;
@@ -7362,7 +7381,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       // card. Title matching is unsafe when two imported documents share a name.
       const editAction = editBtn.getAttribute("onclick") || "";
       const match = editAction.match(/openDocumentEditModal\(['"]([^'"]+)['"]/);
-      const docId = match?.[1];
+      const docId = editBtn.dataset.sheDocId ?? match?.[1];
       if (!docId || !getPrimaryArray("docs").some(d => String(d.id) === docId))
         return;
       const delBtn = document.createElement("button");
@@ -8148,7 +8167,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
         emptyBox.hyIsEmptyNotice = true;
         emptyBox._hyManagedCard = true;
         emptyBox.style.cssText = "padding:36px 20px;text-align:center;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;color:#475569;font-size:14px;font-weight:600;";
-        emptyBox.innerHTML = `🔍 현재 선택한 문서 내에서 <b>'${currentSubFilterKeyword}'</b> 검색어와 일치하는 항목이 없습니다.<br><span style="font-size:12px;color:#94a3b8;font-weight:400;">검색어를 지우거나 다른 키워드(작업명, 위험요인, 안전대책, 번호 등)로 검색해 보세요.</span>`;
+        emptyBox.innerHTML = `🔍 현재 선택한 문서 내에서 <b>'${sheDisplayText(currentSubFilterKeyword)}'</b> 검색어와 일치하는 항목이 없습니다.<br><span style="font-size:12px;color:#94a3b8;font-weight:400;">검색어를 지우거나 다른 키워드(작업명, 위험요인, 안전대책, 번호 등)로 검색해 보세요.</span>`;
         container.appendChild(emptyBox);
         container._hyShownCount = 0;
       } else {
@@ -8244,8 +8263,8 @@ body:not(.she-portal-active) #shePortal{display:none!important}
             전체 파일 (${totalMaster.toLocaleString()}건)
           </button>
           ${docEntries.map(([dName, cnt]) => `
-            <button type="button" class="hy-doc-filter-chip ${currentSubFilterDocName === dName ? "active" : ""}" data-doc="${dName.replace(/"/g, "&quot;")}">
-              📄 ${dName} (${cnt.toLocaleString()}건)
+            <button type="button" class="hy-doc-filter-chip ${currentSubFilterDocName === dName ? "active" : ""}" data-doc="${sheDisplayText(dName)}">
+              📄 ${sheDisplayText(dName)} (${cnt.toLocaleString()}건)
             </button>
           `).join("")}
         </div>
@@ -8254,7 +8273,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       chipsHtml = `
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;">
           <span style="font-size:12.5px;font-weight:800;color:#1e40af;">
-            📂 [${singleDocTitle}] 문서 전용 상세 검색창 <span style="font-weight:500;color:#64748b;font-size:11.5px;">(총 ${totalMaster.toLocaleString()}개 항목 중에서만 빠르게 찾아줍니다)</span>
+            📂 [${sheDisplayText(singleDocTitle)}] 문서 전용 상세 검색창 <span style="font-weight:500;color:#64748b;font-size:11.5px;">(총 ${totalMaster.toLocaleString()}개 항목 중에서만 빠르게 찾아줍니다)</span>
           </span>
         </div>
       `;
@@ -8268,8 +8287,8 @@ body:not(.she-portal-active) #shePortal{display:none!important}
           <input
             id="hyDocLocalSearchInput"
             type="text"
-            placeholder="${placeholderText}"
-            value="${currentSubFilterKeyword.replace(/"/g, "&quot;")}"
+            placeholder="${sheDisplayText(placeholderText)}"
+            value="${sheDisplayText(currentSubFilterKeyword)}"
             autocomplete="off"
           />
           <button id="hyDocLocalSearchClearBtn" type="button" title="검색어 지우기">✕</button>
