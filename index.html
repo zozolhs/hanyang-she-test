@@ -736,6 +736,10 @@ body:not(.she-portal-active) #shePortal{display:none!important}
           </p>
         </div>
 
+        <div id="modalSourceRoles" class="hidden flex flex-wrap gap-2 mb-5 text-xs sm:text-sm">
+          <span class="she-badge she-badge-slate">조치자 · <span id="modalActionBy"></span></span>
+          <span class="she-badge she-badge-slate">확인자 · <span id="modalCheckedBy"></span></span>
+        </div>
         <div class="mb-7">
           <div class="text-xs sm:text-sm font-bold text-[#1d6ce0] mb-1.5">안전대책 (원본)</div>
           <p id="modalMeasureText" class="text-sm sm:text-[15px] text-slate-700 leading-relaxed">
@@ -1310,6 +1314,8 @@ body:not(.she-portal-active) #shePortal{display:none!important}
                     <th class="py-2 px-3 w-32 text-blue-700">작업명</th>
                     <th class="py-2 px-3 w-28">기인물</th>
                     <th class="py-2 px-3 w-36 text-red-600">위험요인</th>
+                    <th class="py-2 px-3 w-28">조치자</th>
+                    <th class="py-2 px-3 w-28">확인자</th>
                     <th class="py-2 px-3 text-emerald-700">원본 안전대책 ([사고] 배지 및 본문 통합)</th>
                   </tr>
                 </thead>
@@ -2241,12 +2247,13 @@ body:not(.she-portal-active) #shePortal{display:none!important}
             <span class="px-2.5 py-1 rounded-md bg-red-50 text-red-600 border border-red-200 text-xs font-bold">
               위험요인 · ${sheDisplayText(item.hazardText)}
             </span>
+            ${riskSourceParts(item) ? `<span class="she-badge she-badge-slate">조치자 · ${sheDisplayText(riskSourceParts(item).actionBy || '미기재')}</span><span class="she-badge she-badge-slate">확인자 · ${sheDisplayText(riskSourceParts(item).checkedBy || '미기재')}</span>` : ''}
           </div>
 
           <div class="bg-[#f8fafd] border border-slate-200/80 rounded-lg p-4 mb-4">
             <div class="text-xs font-bold text-[#1d6ce0] mb-1">원본 안전대책</div>
             <p class="text-xs sm:text-sm text-slate-700 leading-relaxed">
-              ${sheDisplayText(item.measureText)}
+              ${sheDisplayText(riskDisplayedMeasure(item))}
             </p>
           </div>
 
@@ -2304,7 +2311,11 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       document.getElementById('modalEvalTypeBadge').textContent = item.evalType;
       document.getElementById('modalTaskTitle').textContent = item.taskTitle;
       document.getElementById('modalHazardText').textContent = item.hazardText;
-      document.getElementById('modalMeasureText').textContent = item.measureText;
+      const sourceParts = riskSourceParts(item);
+      document.getElementById('modalMeasureText').textContent = riskDisplayedMeasure(item);
+      document.getElementById('modalSourceRoles').classList.toggle('hidden', !sourceParts);
+      document.getElementById('modalActionBy').textContent = sourceParts?.actionBy || '미기재';
+      document.getElementById('modalCheckedBy').textContent = sourceParts?.checkedBy || '미기재';
 
       const imgSection = document.getElementById('modalImageSection');
       const imgPreview = document.getElementById('modalOriginalImagePreview');
@@ -2332,7 +2343,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       document.getElementById('editEvalType').value = item.evalType;
       document.getElementById('editCauseObj').value = item.causeObj;
       document.getElementById('editHazardText').value = item.hazardText;
-      document.getElementById('editMeasureText').value = item.measureText;
+      document.getElementById('editMeasureText').value = riskDisplayedMeasure(item);
       document.getElementById('editPageNo').value = item.pageNo;
       document.getElementById('editRowNo').value = item.rowNo;
       document.getElementById('editRevInfo').value = item.revInfo;
@@ -2424,7 +2435,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       item.evalType = document.getElementById('editEvalType').value;
       item.causeObj = document.getElementById('editCauseObj').value.trim();
       item.hazardText = document.getElementById('editHazardText').value.trim();
-      item.measureText = document.getElementById('editMeasureText').value.trim();
+      riskSaveDisplayedMeasure(item, document.getElementById('editMeasureText').value.trim());
       item.pageNo = document.getElementById('editPageNo').value.trim() || '1페이지';
       item.rowNo = document.getElementById('editRowNo').value.trim() || '1행';
       item.revInfo = document.getElementById('editRevInfo').value.trim() || '미기재';
@@ -3448,6 +3459,63 @@ body:not(.she-portal-active) #shePortal{display:none!important}
     }
 
     // 지정된 가로 열 범위 [startCol, endCol] 안에서 셀 텍스트를 추출 (안전대책의 경우 [사고] 배지와 본문을 자동 결합)
+    // Optional Excel-source fields: keep the legacy measureText unchanged for
+    // existing duplicate keys, server validation, search and row linking.
+    function riskSourceParts(item) {
+      const parts = item?.excelSourceParts;
+      if (!parts || typeof parts.body !== 'string' || !parts.body ||
+          typeof parts.actionBy !== 'string' || typeof parts.checkedBy !== 'string') return null;
+      const raw = String(item.measureText ?? '');
+      return raw === parts.body || raw.startsWith(parts.body + ' ') ? parts : null;
+    }
+
+    function riskDisplayedMeasure(item) {
+      return riskSourceParts(item)?.body ?? item.measureText;
+    }
+
+    function riskSourceColumns(rows2D, headerRowIdx, colMap, spans) {
+      if (headerRowIdx < 0 || colMap.measureCol < 0) return null;
+      const tokens = (rows2D[headerRowIdx] || []).map(cleanHeaderToken);
+      const unique = label => {
+        const matches = [];
+        tokens.forEach((token, i) => { if (token === label) matches.push(i); });
+        return matches.length === 1 ? matches[0] : -1;
+      };
+      const action = unique('조치자'), check = unique('확인자');
+      const m = colMap.measureCol;
+      if (!['위험성감소대책','감소대책','안전대책','개선대책','안전보건조치','안전조치','예방대책','관리대책'].includes(tokens[m]) ||
+          action <= m || check <= m || action === check) return null;
+      // Only explicit source headers may terminate the body. Do not infer
+      // names from commas, name length, or text in the mitigation itself.
+      const boundary = tokens.findIndex((t, c) => c > m &&
+        ['잔여위험성','개선후위험성','개선후','조치자','확인자'].includes(t));
+      if (boundary <= m) return null;
+      return { action, check, bodySpan: [m, Math.min(spans.measureSpan[1], boundary - 1)] };
+    }
+
+    function riskExtractSourceParts(row, columns, rawMeasure) {
+      if (!columns) return null;
+      const body = readSpanText(row, columns.bodySpan, true);
+      if (!body || !(rawMeasure === body || rawMeasure.startsWith(body + ' '))) return null;
+      const read = col => String(row[col] ?? '').trim();
+      return { body, actionBy: read(columns.action), checkedBy: read(columns.check) };
+    }
+
+    function riskSaveDisplayedMeasure(item, value) {
+      const parts = riskSourceParts(item);
+      if (!parts || !value) {
+        item.measureText = value;
+        if (item.excelSourceParts) delete item.excelSourceParts;
+        return;
+      }
+      // A no-op edit is byte-identical; an intentional body edit retains
+      // the original suffix so existing dedup/storage semantics stay intact.
+      if (value !== parts.body) {
+        item.measureText = value + item.measureText.slice(parts.body.length);
+        item.excelSourceParts = { ...parts, body: value };
+      }
+    }
+
     function readSpanText(row, span, isMeasureSpan) {
       const [sCol, eCol] = span;
       if (sCol < 0) return '';
@@ -3595,6 +3663,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
         : true;
 
       const spans = computeColumnSpans(rows2D, headerRowIdx, colMap);
+      const sourceColumns = riskSourceColumns(rows2D, headerRowIdx, colMap, spans);
       const startRow = headerRowIdx >= 0 ? headerRowIdx + 1 : 0;
 
       for (let r = startRow; r < rows2D.length; r++) {
@@ -3632,6 +3701,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
         const finalCause = (rawCause ? rawCause : (useForwardFill ? lastValidCauseObj : '')) || '기타';
         const finalHazard = (rawHazard ? rawHazard : (useForwardFill ? lastValidHazardText : '')) || '위험요인 미기재';
         const finalMeasure = rawMeasure;
+        const excelSourceParts = riskExtractSourceParts(row, sourceColumns, rawMeasure);
 
         // A열(순서 열)에 적힌 원래 항목 번호가 있으면 참고하여 페이지 계산
         const seqNum = parseInt(String(row[0] || '').trim(), 10);
@@ -3644,6 +3714,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
           causeObj: finalCause,
           hazardText: finalHazard,
           measureText: finalMeasure,
+          ...(excelSourceParts ? { excelSourceParts } : {}),
           itemNo: `${!isNaN(seqNum) && seqNum > 0 ? seqNum : (extracted.length + 1)}번 항목`,
           pageNo: `${approxPage}페이지`,
           duplicateInfo: '',
@@ -3728,7 +3799,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       if (items.length === 0) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="5" class="py-6 text-center text-red-600 font-bold">
+            <td colspan="7" class="py-6 text-center text-red-600 font-bold">
               ⚠️ 현재 선택한 열(Column)에서 추출된 데이터가 없습니다. 위 드롭다운에서 [데이터 시작 방식]이나 [안전대책 열]을 변경해 보세요!
             </td>
           </tr>
@@ -3742,7 +3813,9 @@ body:not(.she-portal-active) #shePortal{display:none!important}
           <td class="py-2 px-3 font-bold text-slate-900">${sheDisplayText(it.taskTitle)}</td>
           <td class="py-2 px-3 text-slate-600 font-semibold">${sheDisplayText(it.causeObj)}</td>
           <td class="py-2 px-3 font-extrabold text-red-600">${sheDisplayText(it.hazardText)}</td>
-          <td class="py-2 px-3 text-slate-700">${sheDisplayText(it.measureText)}</td>
+          <td class="py-2 px-3 text-slate-700">${sheDisplayText(riskSourceParts(it)?.actionBy || '—')}</td>
+          <td class="py-2 px-3 text-slate-700">${sheDisplayText(riskSourceParts(it)?.checkedBy || '—')}</td>
+          <td class="py-2 px-3 text-slate-700">${sheDisplayText(riskDisplayedMeasure(it))}</td>
         </tr>
       `).join('');
     }
@@ -9088,6 +9161,7 @@ function portalSearch(e){
   }
   function createRiskCard(item, idx) {
     const f = fieldsOf(item);
+    const sourceParts = riskSourceParts(item);
     let correctNo = f.no;
     if (window.sheV32?.lookupSerial) {
       try {
@@ -9107,9 +9181,10 @@ function portalSearch(e){
         <span class="she-badge she-badge-blue">${esc(f.eval || '위험성평가')}</span>
         <span class="she-badge she-badge-slate">기인물 · ${esc(f.cause)}</span>
         <span class="she-badge she-badge-red">위험요인 · ${esc(f.hazard)}</span>
+        ${sourceParts ? `<span class="she-badge she-badge-slate">조치자 · ${esc(sourceParts.actionBy || '미기재')}</span><span class="she-badge she-badge-slate">확인자 · ${esc(sourceParts.checkedBy || '미기재')}</span>` : ''}
         ${f.rev ? `<span class="she-badge she-badge-green">${esc(f.rev)} · ${esc(f.approved)}</span>` : ''}
       </div>
-      <div class="she-measure"><strong>원본 안전대책</strong><p>${esc(f.measure)}</p></div>
+      <div class="she-measure"><strong>원본 안전대책</strong><p>${esc(riskDisplayedMeasure(item) ?? f.measure)}</p></div>
       ${f.image && /^(data:image\/|https:\/\/)/.test(f.image)
         ? `<div class="she-image-row"><img loading="lazy" src="${esc(f.image)}" alt="첨부 원본 이미지"><span>🖼️ ${esc(f.imageName || '첨부 원본 이미지')} · 상세보기에서 확대 가능</span></div>` : ''}
       <div class="she-risk-meta"><span>원본 ${esc(f.doc)} · 항목 ${esc(correctNo)}번 · 페이지 ${esc(f.page)} · 원본행 ${esc(f.row)}</span><b>원본 위치 및 상세보기 →</b></div>`;
