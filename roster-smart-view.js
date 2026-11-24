@@ -17,6 +17,11 @@ function node(tag,cls,txt){
  const n=document.createElement(tag);if(cls)n.className=cls;
  if(txt!==undefined)n.textContent=String(txt);return n;
 }
+function educationTypeLabel(value){
+ const label=node("span","she-roster-education-label",String(value??"").trim()||"—");
+ if(typeof applyRosterEducationTypeColor==="function")applyRosterEducationTypeColor(label,value);
+ return label;
+}
 function allowedToTransfer(){
  return rosterState.authorized&&rosterState.ready&&
    window.SHESEC?.canWrite(rosterState.user,"education")===true;
@@ -82,7 +87,9 @@ function detail(uid){
   side.append(node("h4","she-smart-detail-title",heading));
   const list=node("dl","she-smart-detail-list");
   for(const [label,value] of items){
-   list.append(node("dt","",label),node("dd","",value||"—"));
+   const dd=node("dd","",label==="교육구분"?undefined:(value||"—"));
+   if(label==="교육구분")dd.append(educationTypeLabel(value));
+   list.append(node("dt","",label),dd);
   }
   side.append(list);
  }
@@ -146,6 +153,11 @@ function render(){
    node("span","",rec.company||"업체 미입력"),
    node("small","",(rec.workerNo||"근로번호 미입력")+" · "+(rec.job||"직종 미입력"))
   );
+  if(String(rec.educationType??"").trim()){
+   const label=educationTypeLabel(rec.educationType);
+   label.setAttribute("aria-label","교육구분: "+String(rec.educationType).trim());
+   main.insertBefore(label,main.lastElementChild);
+  }
   main.addEventListener("click",()=>detail(rec.uid));
   item.append(main,node("span","she-smart-state "+kind,tag));root.append(item);
  }
