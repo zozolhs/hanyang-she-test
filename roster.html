@@ -214,6 +214,26 @@
             background: #fff;
         }
 
+        /* 간편조회: 검색/업체 필터와 목록/상세 패널의 열 경계를 일치시킨다. */
+        @media (min-width: 901px) {
+            #sheSmartRoster .she-smart-controls,
+            #sheSmartRoster .she-smart-body {
+                display: grid;
+                grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+                gap: 12px;
+            }
+            #sheSmartRoster #sheSmartSearch,
+            #sheSmartRoster #sheSmartCompany,
+            #sheSmartRoster #sheRosterDetail {
+                width: 100%;
+                min-width: 0;
+                box-sizing: border-box;
+            }
+            #sheSmartRoster .she-smart-body > div {
+                min-width: 0;
+            }
+        }
+
         /* 교육구분 색상: 전체 표와 간편 조회가 동일한 기준을 사용. */
         [data-education-type="입문"] { --roster-edu-color: #FFAEC9; }
         [data-education-type="수료"] { --roster-edu-color: #B5E61D; }
