@@ -46,7 +46,7 @@ function status(rec){
 function matches(rec,term,company){
  const st=recordState(rec);
  if(company&&rec.company!==company)return false;
- if(term&&![rec.name,rec.workerNo,rec.company,rec.job,rec.process].join(" ").normalize("NFKC").toLowerCase().includes(term))return false;
+ if(term&&![rec.name,rec.workerNo,rec.company,rec.job,rec.process,rec.phoneModel].join(" ").normalize("NFKC").toLowerCase().includes(term))return false;
  if(quick==="active"&&st.resigned)return false;
  if(quick==="resigned"&&!st.resigned)return false;
  if(quick==="expired"&&(!st.expired||st.resigned))return false;
@@ -73,7 +73,7 @@ function detail(uid){
  const general=[["근로번호",rec.workerNo],["업체",rec.company],["직종",rec.job],
    ["공종",rec.process],["재직 상태",recordState(rec).resigned?"퇴사":"재직"],
    ["성별",rec.gender],["생년월일",rec.birth],["혈액형",rec.blood],
-   ["연락처",rec.phone],["교육구분",rec.educationType],
+   ["핸드폰 기종",rec.phoneModel],["연락처",rec.phone],["교육구분",rec.educationType],
    ["물산입사일",rec.samsungStartDate],["퇴사일",rec.resignDate],
    ["재입사",rec.rehireDate],["정기교육",rec.eduRegular],
    ["직변",rec.employeeId],["비고",rec.notes]];
@@ -151,7 +151,7 @@ function render(){
   main.type="button";main.append(
    node("strong","",rec.name||"성명 미입력"),
    node("span","",rec.company||"업체 미입력"),
-   node("small","",(rec.workerNo||"근로번호 미입력")+" · "+(rec.job||"직종 미입력"))
+   node("small","",(rec.workerNo||"근로번호 미입력")+" · "+(rec.job||"직종 미입력")+(String(rec.phoneModel??"").trim()?" · "+String(rec.phoneModel).trim():""))
   );
   if(String(rec.educationType??"").trim()){
    const label=educationTypeLabel(rec.educationType);
