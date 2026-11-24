@@ -18,6 +18,131 @@ const versions=new Map(),fullRows=new Map();
 // Read caches exist only in this browser tab's memory, never in persistent storage.
 const pendingRows=new Map(),pendingBatches=new Map();
 let sessionEpoch=0,educationRosterCache=null,educationRosterPending=null;
+// Presence is current state only. The opaque bearer stays in sessionStorage.
+const IDLE_MS=3600000, BEAT_MS=60000, IDLE_PREFIX="she_v24_idle_test:";
+const IDLE_SESSION_KEY=IDLE_PREFIX+"session", IDLE_ACTIVITY_KEY=IDLE_PREFIX+"activity";
+let sessionId=null,lastActivity=0,lastPersist=0,lastBeat=0,beatTimer=null,deadlineTimer=null,beatPending=false,ending=false,busyWrites=0;
+const readLocal=k=>{try{return localStorage.getItem(k);}catch{return null;}};
+const writeLocal=(k,v)=>{try{localStorage.setItem(k,String(v));}catch{}};
+const readTab=k=>{try{return sessionStorage.getItem(k);}catch{return null;}};
+const writeTab=(k,v)=>{try{sessionStorage.setItem(k,String(v));}catch{}};
+function activityKey(){return sessionId?IDLE_PREFIX+"activity:"+sessionId:null;}
+function beatKey(){return sessionId?IDLE_PREFIX+"beat:"+sessionId:null;}
+function latestActivity(){
+  const key=activityKey(), now=Date.now();
+  const shared=key?Number(readLocal(key)):0;
+  if(shared>0&&shared<=now)lastActivity=Math.max(lastActivity,shared);
+  return lastActivity;
+}
+function persistActivity(){
+  writeTab(IDLE_ACTIVITY_KEY,lastActivity);
+  const key=activityKey();if(key&&Number(readLocal(key))<lastActivity)writeLocal(key,lastActivity);
+  lastPersist=lastActivity;
+}
+function stopPresence(){
+  clearTimeout(deadlineTimer);clearTimeout(beatTimer);
+  deadlineTimer=beatTimer=null;beatPending=false;lastBeat=0;lastActivity=0;lastPersist=0;sessionId=null;ending=false;
+  try{sessionStorage.removeItem(IDLE_SESSION_KEY);sessionStorage.removeItem(IDLE_ACTIVITY_KEY);}catch{}
+}
+function protectWrite(fn){
+  busyWrites++;
+  return Promise.resolve().then(fn).finally(()=>{
+    busyWrites=Math.max(0,busyWrites-1);
+    if(!busyWrites&&token&&sessionId&&Date.now()-latestActivity()>=IDLE_MS)expireIdle();
+  });
+}
+function expireIdle(){
+  if(ending||!token)return;
+  if(busyWrites){clearTimeout(deadlineTimer);deadlineTimer=setTimeout(checkDeadline,1000);return;}
+  ending=true;
+  const expiredToken=token,key=activityKey();
+  // No advance warning; native beforeunload protection remains for unsaved work.
+  // A pending mutation is never aborted by this timer.
+  if(key)writeLocal(key,0);
+  try{void fetch(ENDPOINT+"she-v24-auth",{method:"POST",
+    headers:{"Content-Type":"application/json",Authorization:"Bearer "+expiredToken},
+    credentials:"omit",keepalive:true,body:JSON.stringify({action:"logout"})}).catch(()=>{});}catch{}
+  reset();
+  ending=true;
+  // Cover the previous document immediately, including when native unsaved-work
+  // navigation protection is triggered. The existing login gate handles re-entry.
+  if(document.body){
+    const shield=document.createElement("div");
+    shield.id="sheIdleLock";shield.setAttribute("role","status");
+    shield.style.cssText="position:fixed;inset:0;z-index:2147483647;background:#f1f5f9;display:grid;place-items:center;color:#16286e;font:700 16px sans-serif;";
+    const link=document.createElement("a");link.href="./index.html";link.textContent="로그인 세션이 만료되었습니다. 다시 로그인";
+    shield.append(link);document.body.append(shield);
+    // Block access to the former document even if the unload prompt is cancelled.
+    for(const child of document.body.children)if(child!==shield)child.inert=true;
+  }
+  location.replace(new URL("./index.html",location.href).href);
+}
+function checkDeadline(){
+  clearTimeout(deadlineTimer);deadlineTimer=null;
+  if(!token||!sessionId||ending)return;
+  const remaining=IDLE_MS-(Date.now()-latestActivity());
+  if(remaining<=0){expireIdle();return;}
+  deadlineTimer=setTimeout(checkDeadline,remaining);
+}
+function scheduleBeat(delay=BEAT_MS){
+  clearTimeout(beatTimer);beatTimer=null;
+  if(token&&sessionId&&!ending)beatTimer=setTimeout(sendPresence,delay);
+}
+async function sendPresence(){
+  if(!token||!sessionId||ending||beatPending)return;
+  const now=Date.now(),age=now-latestActivity();
+  if(age>=IDLE_MS){checkDeadline();return;}
+  const shared=Number(readLocal(beatKey()))||0;
+  const previous=Math.max(lastBeat,shared<=now?shared:0);
+  if(now-previous<BEAT_MS){scheduleBeat(BEAT_MS-(now-previous));return;}
+  const epoch=sessionEpoch;beatPending=true;
+  try{
+    await request("auth","presence",{activity_age_ms:Math.max(0,Math.floor(age))});
+    if(epoch===sessionEpoch&&sessionId){lastBeat=Date.now();writeLocal(beatKey(),lastBeat);}
+  }catch(e){
+    // Transient network/maintenance errors must not clear data or restart modules.
+    // Authentication expiry is handled by the shared request guard.
+  }finally{
+    if(epoch===sessionEpoch){beatPending=false;scheduleBeat();}
+  }
+}
+function startPresence(result,fresh=false){
+  if(!token||typeof result.session_id!=="string")return; // compatible with pre-update API
+  if(sessionId===result.session_id){checkDeadline();return;}
+  const sid=result.session_id,now=Date.now(),serverTime=Date.parse(result.last_activity_at||"");
+  const saved=readTab(IDLE_SESSION_KEY)===sid?Number(readTab(IDLE_ACTIVITY_KEY)):0;
+  sessionId=sid;ending=false;
+  const validSaved=saved>0&&saved<=now?saved:0;
+  lastActivity=fresh?now:Math.max(validSaved,Number.isFinite(serverTime)?Math.min(now,serverTime):0);
+  // Existing pre-rollout sessions are enrolled on first verified navigation.
+  if(!lastActivity)lastActivity=now;
+  latestActivity();persistActivity();
+  checkDeadline();
+  if(token&&sessionId)scheduleBeat(fresh?BEAT_MS:0);
+  // Remove only obsolete, non-secret timestamp keys; never retain activity history.
+  try{for(let i=localStorage.length-1;i>=0;i--){
+    const k=localStorage.key(i);
+    if(k&&k.startsWith(IDLE_PREFIX)&&k!==activityKey()&&k!==beatKey()&&now-Number(localStorage.getItem(k))>9*3600000)localStorage.removeItem(k);
+  }}catch{}
+}
+function onActivity(e){
+  if(!e.isTrusted||!token||!sessionId||ending)return;
+  const now=Date.now();
+  if(now-latestActivity()>=IDLE_MS){checkDeadline();return;}
+  lastActivity=now;
+  if(now-lastPersist>=1000)persistActivity();
+}
+for(const name of ["pointerdown","pointermove","keydown","wheel","touchstart"]){
+  document.addEventListener(name,onActivity,{capture:true,passive:true});
+}
+window.addEventListener("storage",e=>{
+  if(!sessionId||e.key!==activityKey())return;
+  if(e.newValue==="0"&&token){expireIdle();return;}
+  latestActivity();checkDeadline();
+});
+document.addEventListener("visibilitychange",()=>{if(!document.hidden&&token&&sessionId){checkDeadline();void sendPresence();}});
+window.addEventListener("pageshow",()=>{if(token&&sessionId){checkDeadline();void sendPresence();}});
+
 function clearLegacy(){
   for(const k of LEGACY_KEYS)sessionStorage.removeItem(k);
 }
@@ -30,10 +155,11 @@ function failure(message,status){
   const err=new Error(message);err.status=status;return err;
 }
 async function request(kind,action,data={}){
+  const currentToken=token,epoch=sessionEpoch;
   let response;
   // Only timeout idempotent reads. Aborting an import commit could make a
   // successful server transaction look like a failed upload to the operator.
-  const readOnly = kind==="auth" && action==="me" ||
+  const readOnly = kind==="auth" && ["me","presence","presence_users"].includes(action) ||
     kind==="store" && ["store_get","store_get_batch","store_list","store_counts"].includes(action);
   const controller=readOnly ? new AbortController() : null;
   let timeoutId=null;
@@ -59,7 +185,15 @@ async function request(kind,action,data={}){
   try{value=await response.json();}
   catch{throw failure("서버 응답 형식이 올바르지 않습니다.",503);}
   if(!response.ok){
-    if(response.status===401&&action!=="login")reset();
+    if(response.status===401&&action!=="login"&&currentToken===token&&epoch===sessionEpoch){
+      if(sessionId&&/세션이 만료/.test(String(value.error||""))){
+        // Expired server session: lock immediately after in-flight writes settle.
+        lastActivity=Date.now()-IDLE_MS;
+        if(activityKey())writeLocal(activityKey(),lastActivity);
+        if(busyWrites){clearTimeout(deadlineTimer);deadlineTimer=setTimeout(checkDeadline,1000);}
+        else expireIdle();
+      }else reset();
+    }
     throw failure(String(value.error||"서버 요청이 거부됐습니다.").slice(0,240),response.status);
   }
   return value;
@@ -75,6 +209,7 @@ function normalize(a){
   };
 }
 function reset(){
+  stopPresence();
   sessionEpoch++;
   setToken(null);profile=null;verifiedAt=0;notifiedToken=null;versions.clear();fullRows.clear();
   pendingRows.clear();pendingBatches.clear();
@@ -106,6 +241,8 @@ async function refresh(force=false){
       profile=normalize(res.account);
       if(!profile||profile.status!=="approved")throw failure("승인된 계정이 아닙니다.",403);
       verifiedAt=Date.now();
+      startPresence(res);
+      if(!token)throw failure("로그인 세션이 만료되었습니다.",401);
       // Old login flags must not authorize any server action.
       clearLegacy();
       // Full business-data synchronization is launched only once per session.
@@ -135,11 +272,12 @@ async function guard(mod="safety_view",force=true){
 }
 async function login(login_id,password){
   reset();
-  const result=await request("auth","login",{login_id,password});
+  const result=await request("auth","login",{login_id,password,presence_v1:true});
   if(!result.token||result.account?.status!=="approved")
     throw failure("로그인 세션을 발급받지 못했습니다.",403);
   setToken(result.token);
   profile=normalize(result.account);
+  startPresence(result,true);
   verifiedAt=Date.now();
   clearLegacy();
   return profile;
@@ -148,8 +286,14 @@ async function register(login_id,password,display_name,department){
   return request("auth","register",{login_id,password,display_name,department});
 }
 async function logout(){
+  const key=activityKey();
   try{if(token)await request("auth","logout");}
-  finally{reset();}
+  finally{if(key)writeLocal(key,0);reset();}
+}
+async function connectedUsers(){
+  if(profile?.role!=="super_admin"||!token)throw failure("최고관리자 권한이 필요합니다.",403);
+  const result=await request("auth","presence_users");
+  return Array.isArray(result.connected)?result.connected:[];
 }
 async function changePassword(old_password,new_password){
   await refresh(true);
@@ -457,6 +601,10 @@ class StoreQuery {
   maybeSingle(){this.isSingle=true;return this.execute();}
   single(){this.isSingle=true;return this.execute();}
   async execute(){
+    if(this.mode==="select")return this.executeOriginal();
+    return protectWrite(()=>this.executeOriginal());
+  }
+  async executeOriginal(){
     if(this.table!=="hanyang_safety_store")
       return {data:null,error:failure("허용되지 않은 데이터 테이블입니다.",403)};
     try{
@@ -542,11 +690,14 @@ const client=Object.freeze({
       upsert(data){return new StoreQuery("upsert",table,data).execute();}
     };
   },
-  rpc,channel
+  rpc:(name,args)=>name==="she_confirm_education_v2"?protectWrite(()=>rpc(name,args)):rpc(name,args),channel
 });
 window.SHESEC=Object.freeze({
-  client,refresh,guard,login,register,logout,users,setUser,deleteUser,
-  maintenance,registrationStatus,setRegistration,changePassword,importSafetyDocument,saveSafetySnapshot,deleteSafetyDocument,
+  client,refresh,guard,login,register,logout,users,connectedUsers,setUser,deleteUser,
+  maintenance,registrationStatus,setRegistration,changePassword,
+  importSafetyDocument:(...args)=>protectWrite(()=>importSafetyDocument(...args)),
+  saveSafetySnapshot:(...args)=>protectWrite(()=>saveSafetySnapshot(...args)),
+  deleteSafetyDocument:(...args)=>protectWrite(()=>deleteSafetyDocument(...args)),
   permit:(p,m)=>permitted(p,m,false),
   canWrite:(p,m)=>permitted(p,m,true),
   get profile(){return profile;},
