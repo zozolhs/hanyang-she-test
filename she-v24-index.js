@@ -21,7 +21,7 @@ let sessionEpoch=0,educationRosterCache=null,educationRosterPending=null;
 // Presence is current state only. The opaque bearer stays in sessionStorage.
 const IDLE_MS=3600000, BEAT_MS=60000, IDLE_PREFIX="she_v24_idle_test:";
 const IDLE_SESSION_KEY=IDLE_PREFIX+"session", IDLE_ACTIVITY_KEY=IDLE_PREFIX+"activity";
-let sessionId=null,lastActivity=0,lastPersist=0,lastBeat=0,beatTimer=null,deadlineTimer=null,beatPending=false,ending=false,busyWrites=0;
+let sessionId=null,lastActivity=0,lastPersist=0,lastBeat=0,beatTimer=null,deadlineTimer=null,beatPending=false,ending=false,forcedEnd=false,busyWrites=0;
 const readLocal=k=>{try{return localStorage.getItem(k);}catch{return null;}};
 const writeLocal=(k,v)=>{try{localStorage.setItem(k,String(v));}catch{}};
 const readTab=k=>{try{return sessionStorage.getItem(k);}catch{return null;}};
@@ -41,18 +41,19 @@ function persistActivity(){
 }
 function stopPresence(){
   clearTimeout(deadlineTimer);clearTimeout(beatTimer);
-  deadlineTimer=beatTimer=null;beatPending=false;lastBeat=0;lastActivity=0;lastPersist=0;sessionId=null;ending=false;
+  deadlineTimer=beatTimer=null;beatPending=false;lastBeat=0;lastActivity=0;lastPersist=0;sessionId=null;ending=false;forcedEnd=false;
   try{sessionStorage.removeItem(IDLE_SESSION_KEY);sessionStorage.removeItem(IDLE_ACTIVITY_KEY);}catch{}
 }
 function protectWrite(fn){
   busyWrites++;
   return Promise.resolve().then(fn).finally(()=>{
     busyWrites=Math.max(0,busyWrites-1);
-    if(!busyWrites&&token&&sessionId&&Date.now()-latestActivity()>=IDLE_MS)expireIdle();
+    if(!busyWrites&&token&&sessionId&&(forcedEnd||Date.now()-latestActivity()>=IDLE_MS))expireIdle();
   });
 }
 function expireIdle(){
   if(ending||!token)return;
+  forcedEnd=true;
   if(busyWrites){clearTimeout(deadlineTimer);deadlineTimer=setTimeout(checkDeadline,1000);return;}
   ending=true;
   const expiredToken=token,key=activityKey();
@@ -80,6 +81,7 @@ function expireIdle(){
 function checkDeadline(){
   clearTimeout(deadlineTimer);deadlineTimer=null;
   if(!token||!sessionId||ending)return;
+  if(forcedEnd||readLocal(activityKey())==="0"){expireIdle();return;}
   const remaining=IDLE_MS-(Date.now()-latestActivity());
   if(remaining<=0){expireIdle();return;}
   deadlineTimer=setTimeout(checkDeadline,remaining);
@@ -89,7 +91,7 @@ function scheduleBeat(delay=BEAT_MS){
   if(token&&sessionId&&!ending)beatTimer=setTimeout(sendPresence,delay);
 }
 async function sendPresence(){
-  if(!token||!sessionId||ending||beatPending)return;
+  if(!token||!sessionId||ending||forcedEnd||beatPending)return;
   const now=Date.now(),age=now-latestActivity();
   if(age>=IDLE_MS){checkDeadline();return;}
   const shared=Number(readLocal(beatKey()))||0;
@@ -126,18 +128,20 @@ function startPresence(result,fresh=false){
   }}catch{}
 }
 function onActivity(e){
-  if(!e.isTrusted||!token||!sessionId||ending)return;
+  if(!e.isTrusted||!token||!sessionId||ending||forcedEnd)return;
   const now=Date.now();
-  if(now-latestActivity()>=IDLE_MS){checkDeadline();return;}
+  // Avoid synchronously reading storage for every mouse move.
+  if(now-lastPersist<1000){lastActivity=Math.max(lastActivity,now);return;}
+  if(readLocal(activityKey())==="0"||now-latestActivity()>=IDLE_MS){expireIdle();return;}
   lastActivity=now;
-  if(now-lastPersist>=1000)persistActivity();
+  persistActivity();
 }
 for(const name of ["pointerdown","pointermove","keydown","wheel","touchstart"]){
   document.addEventListener(name,onActivity,{capture:true,passive:true});
 }
 window.addEventListener("storage",e=>{
   if(!sessionId||e.key!==activityKey())return;
-  if(e.newValue==="0"&&token){expireIdle();return;}
+  if(e.newValue==="0"&&token){forcedEnd=true;expireIdle();return;}
   latestActivity();checkDeadline();
 });
 document.addEventListener("visibilitychange",()=>{if(!document.hidden&&token&&sessionId){checkDeadline();void sendPresence();}});
@@ -188,8 +192,8 @@ async function request(kind,action,data={}){
     if(response.status===401&&action!=="login"&&currentToken===token&&epoch===sessionEpoch){
       if(sessionId&&/세션이 만료/.test(String(value.error||""))){
         // Expired server session: lock immediately after in-flight writes settle.
-        lastActivity=Date.now()-IDLE_MS;
-        if(activityKey())writeLocal(activityKey(),lastActivity);
+        forcedEnd=true;
+        if(activityKey())writeLocal(activityKey(),0);
         if(busyWrites){clearTimeout(deadlineTimer);deadlineTimer=setTimeout(checkDeadline,1000);}
         else expireIdle();
       }else reset();
