@@ -51,7 +51,7 @@
 
         .control-panel {
             display: grid;
-            grid-template-columns: minmax(220px, 2fr) repeat(6, minmax(130px, 1fr));
+            grid-template-columns: minmax(220px, 2fr) repeat(5, minmax(130px, 1fr));
             gap: 12px;
             margin-bottom: 15px;
             background: #f1f5f9;
@@ -63,7 +63,6 @@
 
         .control-group { display: flex; flex-direction: column; gap: 6px; }
         .control-group label { font-weight: 600; font-size: 13px; color: var(--text-sub); }
-        .roster-hour-filter-help { color:var(--text-sub); font-size:11px; line-height:1.45; }
 
         input, select {
             padding: 10px 12px;
@@ -126,6 +125,23 @@
             border: 1px solid #86efac;
         }
         .checkbox-label input { cursor: pointer; width: 16px; height: 16px; }
+        .roster-filter-hours {
+            display:flex; flex-wrap:wrap; align-items:center; gap:6px;
+            margin-left:auto; padding-left:14px; border-left:1px solid #86efac;
+            min-width:0; max-width:100%; color:#14532d;
+        }
+        .roster-filter-hours-title { font-size:13px; font-weight:700; white-space:nowrap; }
+        .roster-filter-hour-option {
+            display:inline-flex; align-items:center; gap:4px; white-space:nowrap;
+            padding:4px 8px; border:1px solid #86efac; border-radius:4px;
+            font-size:13px; font-weight:600; background:#fff; cursor:pointer;
+        }
+        .roster-filter-hour-option input { margin:0; width:14px; height:14px; accent-color:#15803d; cursor:pointer; }
+        .roster-filter-hour-option:has(input:checked) { background:#dcfce7; border-color:#16a34a; }
+        .roster-filter-hour-option:focus-within { outline:2px solid #15803d; outline-offset:2px; }
+        @media (max-width:720px) {
+            .roster-filter-hours { flex-basis:100%; margin-left:0; padding:10px 0 0; border-left:0; border-top:1px solid #86efac; }
+        }
 
         .btn {
             padding: 9px 16px;
@@ -480,16 +496,6 @@
                 <option value="active">만료 교육이 없는 인원</option>
             </select>
         </div>
-        <div class="control-group">
-            <label for="filterEducationHours">교육시간 필터</label>
-            <select id="filterEducationHours" onchange="filterTable()" title="교육별 등록 시간 기준으로 정확히 2h, 4h 또는 8h인 근로자를 조회합니다.">
-                <option value="">전체 교육시간</option>
-                <option value="2">2h</option>
-                <option value="4">4h</option>
-                <option value="8">8h</option>
-            </select>
-            <small class="roster-hour-filter-help">교육 항목을 체크하면 해당 항목 모두에 선택 시간이 적용됩니다.</small>
-        </div>
     </div>
 
     <!-- 엑셀 업로드 중복·충돌 처리 보고서 (데이터는 기존 명부를 무조건 덮어쓰지 않음) -->
@@ -505,7 +511,8 @@
     <!-- ⚡ 퀵 일괄 입력 툴바 -->
     <div class="quick-tool-box">
         <span class="title">⚡ 퀵 일괄 입력 툴바:</span>
-        <div class="hour-radio-group">
+        <span style="font-size:12px;font-weight:700;color:#004080;">입력시간</span>
+        <div class="hour-radio-group" role="radiogroup" aria-label="일괄 입력 교육시간">
             <label><input type="radio" name="quickHour" value="2h"> 2h</label>
             <label><input type="radio" name="quickHour" value="4h"> 4h</label>
             <label><input type="radio" name="quickHour" value="8h" checked> 8h</label>
@@ -534,6 +541,20 @@
         <label class="checkbox-label"><input type="checkbox" class="edu-filter" value="col-msds" onchange="filterTable()"> MSDS</label>
         <label class="checkbox-label"><input type="checkbox" class="edu-filter" value="col-crane" onchange="filterTable()"> 크레인</label>
         <label class="checkbox-label"><input type="checkbox" class="edu-filter" value="col-2ho" onchange="filterTable()"> 2호(용접)</label>
+        <div class="roster-filter-hours" role="radiogroup" aria-labelledby="rosterFilterHoursLabel" title="교육 미선택 시 해당 시간의 교육이 하나라도 있는 인원, 교육 선택 시 선택한 모든 교육의 시간이 일치하는 인원을 조회합니다."
+             onchange="if(event.target.name==='rosterFilterHour'){document.getElementById('filterEducationHours').value=event.target.value;filterTable();}">
+            <span class="roster-filter-hours-title" id="rosterFilterHoursLabel">조회 교육시간</span>
+            <label class="roster-filter-hour-option"><input type="radio" name="rosterFilterHour" value="" checked> 전체</label>
+            <label class="roster-filter-hour-option"><input type="radio" name="rosterFilterHour" value="2"> 2h</label>
+            <label class="roster-filter-hour-option"><input type="radio" name="rosterFilterHour" value="4"> 4h</label>
+            <label class="roster-filter-hour-option"><input type="radio" name="rosterFilterHour" value="8"> 8h</label>
+            <select id="filterEducationHours" hidden aria-hidden="true" tabindex="-1">
+                <option value="">전체 교육시간</option>
+                <option value="2">2h</option>
+                <option value="4">4h</option>
+                <option value="8">8h</option>
+            </select>
+        </div>
     </div>
 
     <div class="action-bar">
@@ -1488,7 +1509,12 @@ function filterTable(resetPage = true) {
   const process = $('filterProcess').value;
   const resign = $('filterResign').value;
   const due = $('filterDueDate').value;
-  const selectedHour = Number($('filterEducationHours').value) || 0;
+  const filterHourValue = $('filterEducationHours').value;
+  const selectedHour = Number(filterHourValue) || 0;
+  // Keep the visible lookup radios synchronized with existing reset paths.
+  for (const option of document.querySelectorAll('input[name="rosterFilterHour"]')) {
+    option.checked = option.value === filterHourValue;
+  }
   const eduFilters = Array.from(document.querySelectorAll('.edu-filter:checked'))
     .map(el => CLASS_TO_EDU[el.value]).filter(Boolean);
   const signature = [company, job, process, resign, due, selectedHour, ...eduFilters].join('\u0002');
