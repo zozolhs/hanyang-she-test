@@ -14,7 +14,7 @@
     <!-- 공개키 기반 접속: 로그인 상태는 sessionStorage만 사용 -->
     <script>document.documentElement.classList.add("roster-locked");</script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="./she-v24-index.js?v=20261124-session-presence-final1"></script>
+  <script src="./she-v24-index.js?v=20261126-extension1"></script>
     <!-- XLSX/ExcelJS load on first import/export; regular roster viewing is lightweight. -->
     <style>
         :root {
@@ -98,6 +98,12 @@
             align-items: center;
         }
         .hour-radio-group { flex-wrap:wrap; }
+        #rosterHealthHeader[hidden],#rosterHealthFilterGroup[hidden],#dataTable .roster-health-cell[hidden],#sheSmartHealthQuick[hidden]{display:none!important}
+        .roster-health-cell[data-state="hold"],.roster-health-badge[data-state="hold"]{color:#991b1b;background:#fee2e2;font-weight:700}
+        .roster-health-cell[data-state="cleared"],.roster-health-badge[data-state="cleared"]{color:#1d4ed8;background:#dbeafe;font-weight:700}
+        .roster-health-badge{display:inline-block;padding:3px 6px;border-radius:5px;font-size:12px;white-space:nowrap}
+        #dataTable .roster-health-cell{font-size:13px;white-space:nowrap}
+
         .hour-radio-group label { font-size: 12px; font-weight: 700; color: #004080; cursor: pointer; display: flex; align-items: center; gap: 3px; }
 
         .status-filter-box {
@@ -474,6 +480,7 @@
         <button type="button" class="she-ux-chip" data-she-roster-quick="month1" aria-pressed="false">1개월 내 도래</button>
         <button type="button" class="she-ux-chip" data-she-roster-quick="month2" aria-pressed="false">2개월 내 도래</button>
         <button type="button" class="she-ux-chip" data-she-roster-quick="incomplete" aria-pressed="false">필수교육 미이수</button>
+        <button type="button" class="she-ux-chip" id="sheSmartHealthQuick" data-she-roster-quick="health" aria-pressed="false" hidden>보건관리 대상</button>
         <button type="button" class="she-ux-chip" data-she-roster-quick="resigned" aria-pressed="false">퇴사자</button>
       </div>
       <div id="sheSmartSummary" class="she-ux-muted" role="status" aria-live="polite">조회 준비 중</div>
@@ -532,6 +539,10 @@
                 <option value="month2">2개월 이내 도래 예정자만 보기</option>
                 <option value="active">만료 교육이 없는 인원</option>
             </select>
+        </div>
+        <div class="control-group" id="rosterHealthFilterGroup" hidden>
+            <label for="filterHealthStatus">보건관리 상태 (담당자 전용)</label>
+            <select id="filterHealthStatus" onchange="filterTable()"><option value="">전체 인원</option><option value="active">보건관리 대상</option><option value="cleared">입사 가능 확인</option></select>
         </div>
     </div>
 
@@ -663,6 +674,7 @@
                     <th class="highlight-col" width="140">크레인</th>
                     <th width="140">정기교육</th>
                     <th width="140">물산입사일</th>
+                    <th width="150" id="rosterHealthHeader" hidden>보건관리 상태</th>
                     <th width="120">직변</th>
                     <th width="200">비고</th>
                 </tr>
@@ -754,12 +766,73 @@ const rosterState = {
   saveQueued: false,
   autosavePaused: false,
   debounceTimer: null,
-  serverDataLoaded: false
+  serverDataLoaded: false,
+  serverEducationOver8: new Map()
 };
 const $ = (id) => document.getElementById(id);
+let rosterHealthFlags=new Map(),rosterHealthReady=false,rosterHealthOwner=null,rosterHealthPending=null,rosterHealthLast=0,rosterHealthSeq=0,rosterHealthFailed=false;
+function rosterHealthAllowed(){
+  return Boolean(rosterState.authorized&&rosterState.user&&window.SHESEC?.canWrite(rosterState.user,"roster")&&
+    window.SHESEC?.profile?.id===rosterState.user.id&&window.SHESEC.canWrite(window.SHESEC.profile,"roster"));
+}
+function rosterHealthAvailable(){return rosterHealthAllowed()&&rosterHealthReady;}
+function rosterHealthFlag(record){
+  return rosterHealthAvailable()?rosterHealthFlags.get(record.uid)||'':'';
+}
+function rosterHealthLabel(record){
+  const flag=rosterHealthFlag(record);
+  return flag==='cleared'?'입사 가능 확인':flag?'보건관리 대상':'';
+}
+function patchRosterHealthCell(row,record){
+  const cell=row._healthCell;if(!cell)return;
+  const allowed=rosterHealthAllowed(),flag=rosterHealthFlag(record);
+  cell.hidden=!allowed;cell.dataset.state=flag;
+  cell.textContent=!allowed?'':rosterHealthAvailable()?(rosterHealthLabel(record)||'—'):rosterHealthFailed?'조회 실패':'확인 중';
+}
+function renderRosterHealthControls(){
+  const allowed=rosterHealthAllowed(),ready=rosterHealthAvailable();
+  $('rosterHealthHeader').hidden=!allowed;
+  $('rosterHealthFilterGroup').hidden=!ready;
+  $('sheSmartHealthQuick').hidden=!ready;
+  if(!ready)$('filterHealthStatus').value='';
+  if(!allowed||!ready)document.querySelectorAll('.roster-health-badge').forEach(n=>n.remove());
+  if(rosterState.ready&&rosterState.authorized){
+    rosterView.filterEpoch++;filterTable(false);
+  }else document.querySelectorAll('#dataTable .roster-health-cell').forEach(n=>{n.hidden=true;n.textContent='';n.dataset.state='';});
+}
+function clearRosterHealth(){
+  const changed=rosterHealthOwner!==null||rosterHealthReady||rosterHealthFlags.size>0;
+  rosterHealthSeq++;rosterHealthOwner=null;rosterHealthReady=false;rosterHealthFailed=false;rosterHealthLast=0;rosterHealthFlags.clear();rosterHealthPending=null;
+  if(changed||!$('rosterHealthHeader').hidden)renderRosterHealthControls();
+}
+async function refreshRosterHealth(force=false){
+  if(!rosterHealthAllowed()||!window.SHESEC?.healthFollowup){clearRosterHealth();return;}
+  const owner=rosterState.user.id;
+  if(rosterHealthOwner!==owner){clearRosterHealth();rosterHealthOwner=owner;renderRosterHealthControls();}
+  if(rosterHealthPending||(!force&&Date.now()-rosterHealthLast<30000))return;
+  const seq=++rosterHealthSeq;
+  const promise=(async()=>{
+    try{
+      const res=await window.SHESEC.healthFollowup.flags();
+      if(seq!==rosterHealthSeq||!rosterHealthAllowed()||rosterState.user.id!==owner)return;
+      const next=new Map((res.flags||[]).filter(x=>typeof x.worker_uid==='string'&&['hold','retest','results','cleared'].includes(x.status)).map(x=>[x.worker_uid,x.status==='cleared'?'cleared':'hold']));
+      const changed=!rosterHealthReady||next.size!==rosterHealthFlags.size||[...next].some(([k,v])=>rosterHealthFlags.get(k)!==v);
+      rosterHealthFlags=next;rosterHealthReady=true;rosterHealthFailed=false;rosterHealthLast=Date.now();
+      if(changed)renderRosterHealthControls();
+    }catch(error){
+      if(seq!==rosterHealthSeq)return;
+      if(!rosterHealthAllowed()||error.status===401||error.status===403){clearRosterHealth();return;}
+      rosterHealthFlags.clear();rosterHealthReady=false;rosterHealthFailed=true;rosterHealthLast=Date.now();renderRosterHealthControls();
+    }
+  })();
+  rosterHealthPending=promise;
+  try{await promise;}finally{if(rosterHealthPending===promise)rosterHealthPending=null;}
+}
+document.addEventListener('she:session-reset',clearRosterHealth);
 
 function displayAccess(title, detail, isMaintenance = false) {
   rosterState.authorized = false;
+  clearRosterHealth();
   document.documentElement.classList.add('roster-locked');
   $('rosterAccessTitle').textContent = title;
   $('rosterAccessText').textContent = detail;
@@ -822,7 +895,7 @@ async function verifyRosterAccess(force = false) {
       rosterState.lastVerifiedAt = Date.now();
       $('rosterAuthBadge').textContent = rosterState.isSuper ? '🛡️ 최고관리자' :
         `📋 ROSTER 관리자 · ${result.profile.name}`;
-      unlockAccess(); return true;
+      unlockAccess(); void refreshRosterHealth(); return true;
     } catch (error) {
       rosterState.authorized = false;
       console.error('ROSTER 권한 확인 오류',error);
@@ -936,7 +1009,7 @@ function validateEduInput(input) {
       value = `${parts[1]} ${parts[2]}h`;
     }
     const exact = value.match(/^(\d{4}-\d{2}-\d{2})\s+(\d+(?:\.\d+)?)h$/i);
-    if (!exact || !strictDate(exact[1]) || Number(exact[2]) > 8 || Number(exact[2]) < 0) {
+    if (!exact || !strictDate(exact[1]) || (Number(exact[2]) > 8 && input.dataset.beforeFocus!==before) || Number(exact[2]) < 0) {
       alert('교육 입력값을 확인해 주세요. 예: 2026-11-18 8h (시간 0~8h)');
       input.value = before;
       input.classList.add('roster-invalid');
@@ -965,7 +1038,7 @@ function hasValidEducationEntry(value) {
   const match = String(value ?? '').trim().match(/^(\d{4}-\d{2}-\d{2})\s+(\d+(?:\.\d+)?)h$/i);
   if (!match || !strictDate(match[1])) return false;
   const hours = Number(match[2]);
-  return Number.isFinite(hours) && hours > 0 && hours <= 8;
+  return Number.isFinite(hours) && hours > 0;
 }
 function applyOccupationRulesToRow(row) {
   if (!row) return;
@@ -1129,6 +1202,10 @@ function createRow(record) {
     row._rosterInputs[f.key] = input;
     if (EDU_KEYS.includes(f.key)) updateInputColor(input);
     if (f.key === 'educationType') applyRosterEducationTypeColor(input, input.value);
+    if(f.key==='samsungStartDate'){
+      const healthCell=row.insertCell();healthCell.className='roster-health-cell';row._healthCell=healthCell;
+      patchRosterHealthCell(row,data);
+    }
   }
   // 기존 입력 필드를 그대로 사용하면서 모바일에서만 상세 항목을 펼칩니다.
   const headers = Array.from(document.querySelectorAll('#dataTable thead th'));
@@ -1271,6 +1348,7 @@ function patchRosterRow(row, record) {
     // Reused rows must never retain the previous worker's education type color.
     if (field.key === 'educationType') applyRosterEducationTypeColor(input, nextValue);
   }
+  patchRosterHealthCell(row,record);
   if (rulesChanged) applyOccupationRulesToRow(row);
 }
 function showRosterPage() {
@@ -1344,10 +1422,10 @@ function validateRecordsForSave(items) {
       let valid=eduValid.get(val);
       if(valid===undefined){
         const match=val.match(/^(\d{4}-\d{2}-\d{2})\s+(\d+(?:\.\d+)?)h$/i);
-        valid=Boolean(match&&strictDate(match[1])&&Number(match[2])>0&&Number(match[2])<=8);
+        valid=Boolean(match&&strictDate(match[1])&&Number.isFinite(Number(match[2]))&&Number(match[2])>0);
         eduValid.set(val,valid);
       }
-      if(!valid)throw new Error(`${index+1}번째 행의 교육 입력 형식이 올바르지 않습니다: ${val}`);
+      if(!valid || (parseEducation(val).hours>8 && rosterState.serverEducationOver8.get(row.uid+'::'+key)!==val))throw new Error(`${index+1}번째 행의 교육 입력 형식이 올바르지 않습니다: ${val}`);
     }
     for (const key of ['resignDate', 'rehireDate', 'samsungStartDate']) {
       const val = String(row[key] || '').trim();
@@ -1377,7 +1455,13 @@ async function loadRoster(accessAlreadyVerified = false) {
   rosterState.serverDataLoaded = true;
   rosterState.dirty = false;
   rosterState.autosavePaused = false;
-  renderRows(data ? readServerRecords(data) : []);
+  const loaded=data?readServerRecords(data):[];
+  rosterState.serverEducationOver8.clear();
+  for(const row of loaded){
+    const uid=row.uid||row._uid||row.id;
+    if(uid)for(const key of EDU_KEYS){const val=String(row[key]||'').trim();if(parseEducation(val).hours>8)rosterState.serverEducationOver8.set(uid+'::'+key,val);}
+  }
+  renderRows(loaded);
   setSaveStatus(data ? `✓ 서버 동기화 완료 · ${new Date().toLocaleTimeString('ko-KR')}` : '서버에 저장된 연명부 없음 · 새로 등록 가능', 'success');
   return true;
 }
@@ -1466,7 +1550,7 @@ async function saveRoster(manual = true) {
 
 async function reloadRoster() {
   if (rosterState.dirty && !confirm('저장되지 않은 변경사항이 있습니다. 서버 데이터를 다시 불러오면 해당 변경사항이 사라집니다. 계속할까요?')) return;
-  try { await loadRoster(); }
+  try { await loadRoster(); void refreshRosterHealth(true); }
   catch (error) { showSaveError(error); alert('서버 새로고침 실패: ' + (error.message || String(error))); }
 }
 
@@ -1564,6 +1648,7 @@ function filterTable(resetPage = true) {
   const process = $('filterProcess').value;
   const resign = $('filterResign').value;
   const due = $('filterDueDate').value;
+  const healthFilter=rosterHealthAvailable()?$('filterHealthStatus').value:'';
   const filterHourValue = $('filterEducationHours').value;
   const selectedHour = Number(filterHourValue) || 0;
   // Keep the visible lookup radios synchronized with existing reset paths.
@@ -1572,7 +1657,7 @@ function filterTable(resetPage = true) {
   }
   const eduFilters = Array.from(document.querySelectorAll('.edu-filter:checked'))
     .map(el => CLASS_TO_EDU[el.value]).filter(Boolean);
-  const signature = [company, job, process, resign, due, selectedHour, ...eduFilters].join('\u0002');
+  const signature = [company, job, process, resign, due, healthFilter, selectedHour, ...eduFilters].join('\u0002');
   const progressive = Boolean(query && rosterView.lastSearchQuery &&
     query.startsWith(rosterView.lastSearchQuery) &&
     signature === rosterView.lastFilterSignature &&
@@ -1585,6 +1670,8 @@ function filterTable(resetPage = true) {
     if (company && rec.company !== company) continue;
     if (job && rec.job !== job) continue;
     if (process && rec.process !== process) continue;
+    if(healthFilter==='active'&&!rosterHealthFlag(rec))continue;
+    if(healthFilter==='cleared'&&rosterHealthFlag(rec)!=='cleared')continue;
     if (query && !recordSearchText(rec).includes(query)) continue;
     if (checkEducation) {
       // Multiple selected education types keep their existing AND semantics.
@@ -2464,7 +2551,7 @@ window.addEventListener('beforeunload',event => {
 });
 
 </script>
-<script src="./roster-smart-view.js?v=20261125-select-all1"></script>
+<script src="./roster-smart-view.js?v=20261126-health1"></script>
 <script src="./mobile-back.js?v=20261121" defer></script>
 </body>
 </html>
