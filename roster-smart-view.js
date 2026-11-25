@@ -23,6 +23,8 @@ function educationTypeLabel(value){
  if(typeof applyRosterEducationTypeColor==="function")applyRosterEducationTypeColor(label,value);
  return label;
 }
+const healthAvailable=()=>typeof rosterHealthAvailable==="function"&&rosterHealthAvailable();
+const healthLabel=rec=>healthAvailable()?rosterHealthLabel(rec):"";
 function allowedToTransfer(){
  return rosterState.authorized&&rosterState.ready&&
    window.SHESEC?.canWrite(rosterState.user,"education")===true;
@@ -50,6 +52,7 @@ function matches(rec,term,company){
  if(term&&![rec.name,rec.workerNo,rec.company,rec.job,rec.process,rec.phoneModel].join(" ").normalize("NFKC").toLowerCase().includes(term))return false;
  if(quick==="active"&&st.resigned)return false;
  if(quick==="resigned"&&!st.resigned)return false;
+ if(quick==="health"&&!healthLabel(rec))return false;
  if(quick==="expired"&&(!st.expired||st.resigned))return false;
  if(quick==="soon"&&(!st.soon||st.resigned))return false;
  if(quick==="month1"&&(!st.month1||st.resigned))return false;
@@ -78,6 +81,7 @@ function detail(uid){
    ["물산입사일",rec.samsungStartDate],["퇴사일",rec.resignDate],
    ["재입사",rec.rehireDate],["정기교육",rec.eduRegular],
    ["직변",rec.employeeId],["비고",rec.notes]];
+ if(healthAvailable())general.push(["보건관리 상태",healthLabel(rec)||"—"]);
  const sections=[["기본 정보",general],["교육별 이수 현황",eduFields.map(([key,label])=>{
   const e=parseEducation(rec[key]);
   const value=String(rec[key]||"").trim()||"미이수";
@@ -103,7 +107,7 @@ function detail(uid){
   edit.type="button";edit.addEventListener("click",()=>{
    hideDetail();setMode("full");
    const input=q("searchInput");input.value=String(rec.workerNo||rec.name||"");
-   for(const id of ["filterCompany","filterJob","filterProcess","filterResign","filterDueDate","filterEducationHours"])q(id).value="";
+   for(const id of ["filterCompany","filterJob","filterProcess","filterResign","filterDueDate","filterEducationHours","filterHealthStatus"])if(q(id))q(id).value="";
    document.querySelectorAll(".edu-filter:checked").forEach(el=>el.checked=false);
    filterTable();
    requestAnimationFrame(()=>q("tableBody").querySelector('tr[data-uid="'+CSS.escape(rec.uid)+'"] input[data-field]')?.focus());
@@ -116,6 +120,9 @@ function detail(uid){
 }
 function render(){
  if(mode!=="smart"||!rosterState.ready||!rosterState.authorized)return;
+ if(quick==="health"&&!healthAvailable()){
+  quick="active";page=0;document.querySelectorAll("[data-she-roster-quick]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.sheRosterQuick==="active")));
+ }
  const account=rosterState.user?.id||null;
  if(lastAccount!==account){selected.clear();lastAccount=account;}
  const all=rosterView.records||[];
@@ -169,6 +176,8 @@ function render(){
    label.setAttribute("aria-label","교육구분: "+String(rec.educationType).trim());
    main.insertBefore(label,main.lastElementChild);
   }
+  const health=healthLabel(rec);
+  if(health){const badge=node("span","roster-health-badge",health);badge.dataset.state=health==="입사 가능 확인"?"cleared":"hold";main.insertBefore(badge,main.lastElementChild);}
   main.addEventListener("click",()=>detail(rec.uid));
   item.append(main,node("span","she-smart-state "+kind,tag));root.append(item);
  }
