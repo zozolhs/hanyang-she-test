@@ -14,7 +14,7 @@
   <title>한양이엔지 EHS 플랫폼 | EDUCATION 교육관리</title>
   <script>document.documentElement.classList.add("edu-locked");</script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="./she-v24-index.js?v=20261124-session-presence-final1"></script>
+  <script src="./she-v24-index.js?v=20261126-extension1"></script>
   <!-- XLSX loads only when an attendance Excel file is selected. -->
   <style>
     :root {
@@ -1566,6 +1566,7 @@
     state.reportDraftNotes = {};
     state.confirmId = null;
     state.confirmDraft = new Map();
+    state.confirmDetails = new Map();
     state.pendingConfirm = false;
     state.participantTimer = null;
     state.batchPage = 0;
@@ -1573,7 +1574,20 @@
     state.batchBaseCache = null;
     state.batchTimer = null;
     const STATUS_IRIS = Object.freeze({scheduled:'예정',ongoing:'진행 중',completed:'완료',postponed:'연기',cancelled:'취소'});
-    const ATTENDANCE = Object.freeze({attended:'참석',postponed:'연기',cancelled:'취소',absent:'미참석'});
+    const ATTENDANCE = Object.freeze({attended:'참석',partial:'부분 이수(조퇴)',postponed:'연기',cancelled:'취소',absent:'미참석'});
+    const ATTENDANCE_REASONS=Object.freeze({personal:'개인사정',company:'업체 요청',work:'현장 업무 복귀',health:'건강상 사유',no_notice:'사전 연락 없음',other:'기타'});
+    function partialHours(e,key){
+      const h=Number(e.attendeeActualHours?.[key]??e.attendeeDetails?.[key]?.hours);
+      return e.attendeeOutcomes?.[key]==='partial'&&Number.isFinite(h)&&h>0&&h<Number(e.hours)?h:0;
+    }
+    function attendanceReason(e,key){
+      const d=e.attendeeDetails?.[key];if(!d)return '';
+      return [ATTENDANCE_REASONS[d.reason]||'',String(d.note||'')].filter(Boolean).join(' · ');
+    }
+    function actualAttendanceKeys(e){
+      const normal=reportEventAttendees(e);
+      return [...new Set([...normal,...(e.attendeeKeys||[]).filter(k=>partialHours(e,k)>0)])];
+    }
     const REPORT_NOT_JOINED = Object.freeze({none:'미등록',postponed:'연기',cancelled:'취소',absent:'미수강'});
 
     function kstClock() {
@@ -1695,6 +1709,12 @@
       const outcomes = e.attendeeOutcomes && typeof e.attendeeOutcomes==='object' && !Array.isArray(e.attendeeOutcomes)
         ? Object.fromEntries(Object.entries(e.attendeeOutcomes).filter(([k,v])=>attendeeLookup.has(k)&&ATTENDANCE[v])) : {};
       const confirmedKeys = Array.isArray(e.confirmedKeys) ? e.confirmedKeys.filter(k=>typeof k==='string') : null;
+      const validKeys=attendeeLookup;
+      const actualHours=e.attendeeActualHours&&typeof e.attendeeActualHours==='object'&&!Array.isArray(e.attendeeActualHours)
+        ? Object.fromEntries(Object.entries(e.attendeeActualHours).filter(([k,v])=>validKeys.has(k)&&typeof v==='number'&&Number.isFinite(v)&&v>=0&&v<=24)):{};
+      const details=e.attendeeDetails&&typeof e.attendeeDetails==='object'&&!Array.isArray(e.attendeeDetails)
+        ? Object.fromEntries(Object.entries(e.attendeeDetails).filter(([k,v])=>validKeys.has(k)&&v&&typeof v==='object'&&ATTENDANCE_REASONS[v.reason]).map(([k,v])=>[k,{reason:v.reason,note:String(v.note||'').slice(0,250),hours:Number(v.hours)||0}])):{};
+
       return {
         id:String(e.id||e.uid||makeId()),kind,title:String(e.title||e.name||(kind==='iris'?'홍채등록':'')).trim(),
         category:CATEGORIES[e.category] ? e.category : 'other',
@@ -1705,7 +1725,7 @@
         endTime:String(e.endTime||e.end||'13:00'),hours:e.hours===null||e.hours===undefined||e.hours===''?4:Number(e.hours),
         location:String(e.location||''),instructor:String(e.instructor||''),irisGuide:String(e.irisGuide||''),
         courseKey:COURSE_LABELS[e.courseKey]?e.courseKey:'',
-        attendeeKeys:[...new Set(attendees)],attendeeOutcomes:outcomes,
+        attendeeKeys:[...new Set(attendees)],attendeeOutcomes:outcomes,attendeeActualHours:actualHours,attendeeDetails:details,
         confirmedKeys,confirmedAt:String(e.confirmedAt||''),confirmedBy:String(e.confirmedBy||''),
         guests:[...new Set(Array.isArray(e.guests)?e.guests.map(String).filter(Boolean):[])],
         notes:String(e.notes||''),createdAt:String(e.createdAt||new Date().toISOString())
@@ -1756,7 +1776,7 @@
         info.appendChild(el('p','',e.kind==='iris'
           ? `${e.date} (${['일','월','화','수','목','금','토'][strictDate(e.date)?.getDay()??0]}) | ${e.location||'장소 미정'} | 인솔자: ${e.irisGuide||'미입력'}`
           : `${e.date} ${e.startTime}~${e.endTime} (${e.hours}h) | ${e.location||'장소 미정'}`));
-        const active = e.confirmedKeys || e.attendeeKeys;
+        const active = e.status==='completed'&&e.kind==='education'?actualAttendanceKeys(e):(e.confirmedKeys || e.attendeeKeys);
         const count=e.kind==='iris'? e.attendeeKeys.length : active.length + e.guests.length;
         const ready=e.kind==='iris'? e.attendeeKeys.filter(key=>rosterComplete(state.workerIndex.get(key)||{})).length : 0;
         info.appendChild(el('p','',e.kind==='iris'
@@ -1814,7 +1834,7 @@
         top.appendChild(el('span','cal-badge ' + eventBadge(e),statusAtTime(e)));
         card.appendChild(top);
         card.appendChild(el('h3','',((e.kind==='iris'?'🔐 홍채등록':(CATEGORIES[e.category]||'교육')) + ' | ' + e.title)));
-        const active = e.confirmedKeys || e.attendeeKeys || [];
+        const active = e.status==='completed'&&e.kind==='education'?actualAttendanceKeys(e):(e.confirmedKeys || e.attendeeKeys || []);
         const count = e.kind==='iris' ? (e.attendeeKeys||[]).length : active.length + (e.guests||[]).length;
         const addDetail = (label,value) => {
           const p = el('p','day-agenda-meta');
@@ -1964,10 +1984,11 @@
       if(!item.courseKey)return [];
       const problems=[];
       for(const key of item.attendeeKeys) {
-        if(item.attendeeOutcomes?.[key]&&item.attendeeOutcomes[key]!=='attended')continue;
+        if(item.attendeeOutcomes?.[key]&&!['attended','partial'].includes(item.attendeeOutcomes[key]))continue;
         const w=state.workerIndex.get(key);if(!w)continue;
         const old=educationState(w[item.courseKey]).hours;
-        if(old+item.hours>8+1e-7)problems.push(`${w.name} (${w.workerNo||key}) · ${COURSE_LABELS[item.courseKey]}: 기존 ${old}h + 신규 ${item.hours}h = ${Number((old+item.hours).toFixed(3))}h (8h 초과)`);
+        const h=item.attendeeOutcomes?.[key]==='partial'?partialHours(item,key):item.hours;
+        if(old+h>8+1e-7)problems.push(`${w.name} (${w.workerNo||key}) · ${COURSE_LABELS[item.courseKey]}: 기존 ${old}h + 신규 ${h}h = ${Number((old+h).toFixed(3))}h (8h 초과)`);
       }
       return problems;
     }
@@ -2025,9 +2046,9 @@
       if(state.dirty||state.savePaused)return alert('미저장 일정이 있습니다. 서버 저장 상태를 확인한 후 확정하세요.');
       if(!state.rosterReady)return alert('연명부 조회에 실패했습니다. 연명부를 새로고침하세요.');
       if(!e.courseKey && !confirm('연명부 연계 항목이 없습니다. 완료 확정해도 연명부 교육시간은 반영되지 않습니다. 계속하시겠습니까?'))return;
-      state.confirmId=id;state.confirmDraft=new Map();state.confirmPage=0;
+      state.confirmId=id;state.confirmDraft=new Map();state.confirmDetails=new Map();state.confirmPage=0;
       $('confirmTitle').textContent=`교육완료 확정 · ${e.title}`;
-      $('confirmSummary').textContent=`${e.date} · ${e.hours}h · ${COURSE_LABELS[e.courseKey]||'연명부 연계 없음'} | 실제 참석자만 교육시간이 누적됩니다.`;
+      $('confirmSummary').textContent=`${e.date} · ${e.hours}h · ${COURSE_LABELS[e.courseKey]||'연명부 연계 없음'}`;
       for(const key of e.attendeeKeys) {
         const w=state.workerIndex.get(key);
         state.confirmDraft.set(key,!w||!workerEligible(w,e.courseKey)?'absent':e.attendeeOutcomes?.[key]||'attended');
@@ -2044,17 +2065,23 @@
       const start=state.confirmPage*perPage;
       const root=$('confirmAttendees'),table=el('table','batch-report-table');
       const head=el('thead'),tr=el('tr');
-      ['근로자','현재 교육값','참석 상태'].forEach(x=>tr.append(el('th','',x)));
+      ['근로자','현재 교육값','참석 상태','실제 시간(h)','사유','비고(선택)'].forEach(x=>tr.append(el('th','',x)));
       head.append(tr);table.append(head);
       const body=el('tbody');
       for(const key of keys.slice(start,start+perPage)) {
         const w=state.workerIndex.get(key),r=el('tr');
         r.append(el('td','',w?`${w.name} (${w.workerNo||key})`:key));
         r.append(el('td','',w?(w[e.courseKey]||'미이수'):'연명부 일치 없음'));
-        const td=el('td'),select=el('select');select.dataset.key=key;
-        for(const [v,label] of Object.entries(ATTENDANCE))select.add(new Option(label,v));
+        const td=el('td'),select=el('select');select.dataset.key=key;select.dataset.confirmField='status';
+        for(const [v,label] of Object.entries(ATTENDANCE)){const opt=new Option(label,v);if(v==='partial'&&e.hours<=.5)opt.disabled=true;select.add(opt);}
         select.value=state.confirmDraft.get(key)||'absent';
-        td.append(select);r.append(td);body.append(r);
+        td.append(select);r.append(td);
+        const hour=el('input');hour.type='number';hour.min='.5';hour.step='.5';hour.max=String(Math.max(.5,Math.ceil(e.hours*2-1)/2));hour.style.width='75px';hour.dataset.key=key;hour.dataset.confirmField='hours';hour.setAttribute('aria-label','실제 참석시간');
+        const reason=el('select');reason.dataset.key=key;reason.dataset.confirmField='reason';reason.setAttribute('aria-label','참석 예외 사유');
+        reason.add(new Option('사유 선택',''));for(const [v,t] of Object.entries(ATTENDANCE_REASONS))reason.add(new Option(t,v));
+        const memo=el('input');memo.type='text';memo.maxLength=250;memo.placeholder='진단명 등 상세 건강정보 제외';memo.dataset.key=key;memo.dataset.confirmField='note';memo.setAttribute('aria-label','추가 비고');
+        for(const control of [hour,reason,memo]){const c=el('td');c.append(control);r.append(c);}
+        updateConfirmRow(r,e,key);body.append(r);
       }
       table.append(body);
       const pager=el('div','page-toolbar'),count=el('span','',`전체 ${keys.length}명 · ${state.confirmPage+1}/${pages} 페이지 · ${start+1}~${Math.min(keys.length,start+perPage)}명 표시`);
@@ -2063,7 +2090,27 @@
       prev.addEventListener('click',()=>{state.confirmPage--;renderConfirmAttendees();});
       next.addEventListener('click',()=>{state.confirmPage++;renderConfirmAttendees();});
       pager.append(count,prev,next);
-      root.replaceChildren(table,pager);
+      root.replaceChildren(table,pager);updateConfirmSummary(e);
+    }
+    function confirmDetail(key,e){
+      if(!state.confirmDetails.has(key))state.confirmDetails.set(key,{hours:Math.max(.5,Math.min(1,Math.ceil(e.hours*2-1)/2)),reason:'',note:''});
+      return state.confirmDetails.get(key);
+    }
+    function updateConfirmRow(row,e,key){
+      const status=state.confirmDraft.get(key),d=confirmDetail(key,e);
+      const h=row.querySelector('[data-confirm-field="hours"]'),reason=row.querySelector('[data-confirm-field="reason"]'),memo=row.querySelector('[data-confirm-field="note"]');
+      if(!h||!reason||!memo)return;
+      h.disabled=status!=='partial';h.value=status==='partial'?String(d.hours):status==='attended'?String(e.hours):'0';
+      reason.disabled=memo.disabled=status==='attended';reason.value=status==='attended'?'':d.reason;memo.value=status==='attended'?'':d.note;
+    }
+    function updateConfirmSummary(e){
+      let full=0,partial=0,excluded=0,actual=0;
+      for(const [key,st] of state.confirmDraft){
+        if(st==='attended'){full++;actual+=e.hours;}
+        else if(st==='partial'){partial++;const h=Number(state.confirmDetails.get(key)?.hours);if(Number.isFinite(h)&&h>0&&h<e.hours)actual+=h;}
+        else excluded++;
+      }
+      $('confirmSummary').textContent=`${e.date} · 예정 ${e.hours}h | 정상 ${full}명 · 부분 ${partial}명 · 미참석 등 ${excluded}명 · 실제 반영 ${Number(actual.toFixed(3))}인시`;
     }
     function closeConfirm() {if(state.pendingConfirm)return;$('confirmModal').hidden=true;state.confirmId=null;}
     async function commitConfirm() {
@@ -2072,24 +2119,32 @@
       if(!e||!pastEducationEnd(e))return alert('교육 상태가 변경됐습니다. 다시 조회하세요.');
       if(state.dirty)return alert('저장되지 않은 변경사항이 있습니다. 먼저 저장하세요.');
       const outcomes=Object.fromEntries(state.confirmDraft);
-      const validation=[];
+      const validation=[],details={},actualHours={};
       for(const [key,status] of Object.entries(outcomes)){
-        if(status!=='attended')continue;
+        const person=state.workerIndex.get(key),label=person?.name||key;
+        if(status!=='attended'){
+          const d=confirmDetail(key,e),h=status==='partial'?Number(d.hours):0;
+          if(!ATTENDANCE_REASONS[d.reason])validation.push(`${label}: 참석 예외 사유 선택 필요`);
+          if(status==='partial'&&(!Number.isFinite(h)||h<=0||h>=e.hours||h*2%1!==0))validation.push(`${label}: 예정시간 미만의 실제 시간을 0.5h 단위로 입력`);
+          details[key]={reason:d.reason,note:String(d.note||'').trim(),hours:h};actualHours[key]=h;
+        }else actualHours[key]=e.hours;
+        if(!['attended','partial'].includes(status))continue;
         const w=state.workerIndex.get(key);
         if(!w)validation.push(`${key}: 연명부에서 확인 불가`);
         else if(!workerEligible(w,e.courseKey))validation.push(`${w.name}: 교육대상자가 아닙니다.`);
         else if(!/^(worker:|uid:)/.test(key))validation.push(`${w.name}: 안정적인 고유번호 없음`);
       }
       if(validation.length)return alert(`교육완료 확정 불가 (${validation.length}명)\n${validation.slice(0,12).join('\n')}\n근로번호/대상자 구분을 확인하세요.`);
-      if(!showHourWarnings({...e,attendeeOutcomes:outcomes},true))return;
-      if(!confirm(`${e.title}\n실제 참석 ${Object.values(outcomes).filter(v=>v==='attended').length}명에 대해 교육완료를 확정하고 연명부 교육시간을 누적하겠습니까?\n확정 후에는 직접 수정·삭제할 수 없습니다.`))return;
+      if(!showHourWarnings({...e,attendeeOutcomes:outcomes,attendeeActualHours:actualHours},true))return;
+      if(!confirm(`${e.title}\n정상 참석 ${Object.values(outcomes).filter(v=>v==='attended').length}명 / 부분 이수 ${Object.values(outcomes).filter(v=>v==='partial').length}명\n개인별 실제 교육시간을 누적하겠습니까?\n확정 후에는 직접 수정·삭제할 수 없습니다.`))return;
       state.pendingConfirm=true;$('commitConfirmBtn').disabled=true;
       try{
         if(!(await verifyAccess(true)))throw Error('권한 확인 실패');
         // 교육일정 + 연명부 저장을 PostgreSQL 트랜잭션 1회로 처리. 동일 일정 중복 확정 방지.
-        const response=await state.client.rpc('she_confirm_education_v2',{
-          p_event_id:e.id,p_expected_updated_at:state.scheduleTimestamp,p_attendance:outcomes
-        });
+        const hasExceptions=Object.keys(details).length>0;
+        const args={p_event_id:e.id,p_expected_updated_at:state.scheduleTimestamp,p_attendance:outcomes};
+        if(hasExceptions)args.p_details=details;
+        const response=await state.client.rpc(hasExceptions?'she_confirm_education_details':'she_confirm_education_v2',args);
         if(response.error)throw response.error;
         state.pendingConfirm=false;$('commitConfirmBtn').disabled=false;closeConfirm();
         state.lastScheduleFetch=0;state.lastRosterFetch=0;
@@ -2244,7 +2299,7 @@
         && cache.workers===state.workerIndex && cache.notes===state.reportDraftNotes) return cache;
       const completed=new Map(state.events.filter(e=>e.kind==='education'&&e.status==='completed').map(e=>[e.id,e]));
       const events=ids.map(id=>completed.get(id)).filter(Boolean);
-      const indexedEvents=events.map(e=>({e,attended:new Set(reportEventAttendees(e)),registered:new Set(e.attendeeKeys)}));
+      const indexedEvents=events.map(e=>({e,attended:new Set(reportEventAttendees(e)),partial:new Set(e.attendeeKeys.filter(k=>partialHours(e,k)>0)),registered:new Set(e.attendeeKeys)}));
       const keys=new Set();
       for(const {e} of indexedEvents)for(const key of e.attendeeKeys)keys.add(key);
       for(const noteId of Object.keys(state.reportDraftNotes)) {
@@ -2259,9 +2314,10 @@
         .join(' ').toLocaleLowerCase('ko');
       let allDone=0;
       for(const p of people)if(indexedEvents.length && indexedEvents.every(({attended})=>attended.has(p.key)))allDone++;
-      const attendedCount=indexedEvents.reduce((sum,x)=>sum+x.attended.size,0);
+      const partialCount=indexedEvents.reduce((sum,x)=>sum+x.partial.size,0);
+      const attendedCount=indexedEvents.reduce((sum,x)=>sum+x.attended.size,0)+partialCount;
       cache={selected,events:state.events,workers:state.workerIndex,notes:state.reportDraftNotes,
-        items:indexedEvents,people,allDone,attendedCount};
+        items:indexedEvents,people,allDone,attendedCount,partialCount};
       state.batchBaseCache=cache;
       return cache;
     }
@@ -2276,7 +2332,7 @@
       state.batchColumnPage=Math.max(0,Math.min(state.batchColumnPage,maxColumnPage));
       const colStart=state.batchColumnPage*columnSize;
       const visibleEvents=indexedEvents.slice(colStart,colStart+columnSize);
-      $('batchSummary').textContent=`선택 교육 ${indexedEvents.length}건 · 중복 제외 수강인원 ${base.people.length}명 · 전체 교육 이수 ${base.allDone}명 · 개별 교육 이수 건수 ${base.attendedCount}건. ※ 특이사항 상태는 연명부의 확정 이력을 임의로 수정하지 않습니다.`;
+      $('batchSummary').textContent=`선택 교육 ${indexedEvents.length}건 · 중복 제외 수강인원 ${base.people.length}명 · 전체 교육 이수 ${base.allDone}명 · 개별 참석 ${base.attendedCount}건 (부분 ${base.partialCount}건). ※ 특이사항 상태는 연명부의 확정 이력을 임의로 수정하지 않습니다.`;
       const root=$('batchMatrix');root.replaceChildren();
       if(!indexedEvents.length){root.append(el('div','empty-state','완료된 교육 일정을 하나 이상 선택하세요.'));return;}
       if(indexedEvents.length>columnSize){
@@ -2296,8 +2352,9 @@
         const tr=el('tr');tr.append(el('td','',`${w?.name||key} / ${w?.company||'-'} / ${w?.workerNo||''}`));
         for(const {e,attended:attendedSet,registered:registeredSet} of visibleEvents) {
           const td=el('td'),attended=attendedSet.has(key),registered=registeredSet.has(key),noteId=`${e.id}::${key}`;
-          const note=state.reportDraftNotes[noteId]||{},label=el('div','',attended?'✓ 이수 확정':registered?`· ${ATTENDANCE[e.attendeeOutcomes?.[key]]||'미참석'} (확정 제외)`:'— 해당 교육 미등록');
-          label.style.color=attended?'#15803d':'#475569';td.append(label);
+          const note=state.reportDraftNotes[noteId]||{},part=partialHours(e,key),label=el('div','',attended?`✓ 이수 확정 (${e.hours}h)`:part?`부분 이수 ${part}h`:registered?`· ${ATTENDANCE[e.attendeeOutcomes?.[key]]||'미참석'} (확정 제외)`:'— 해당 교육 미등록');
+          label.style.color=attended?'#15803d':part?'#b45309':'#475569';td.append(label);
+          const reason=attendanceReason(e,key);if(reason)td.append(el('small','field-hint',reason));
           if(!registered){
             const select=el('select');select.dataset.noteId=noteId;select.dataset.kind='status';
             for(const [v,t] of Object.entries(REPORT_NOT_JOINED))select.add(new Option(t,v));
@@ -2380,9 +2437,9 @@
         const targets=new Set([...registered,...attended]),keys=new Set([...targets,...byEvent.get(e.id)]),groups=new Map();
         for(const key of keys){
           const w=people.get(key),n=notes[e.id+'::'+key]||{};
-          const company=clean(w?.company)||'업체 미확인',actual=attended.has(key),isTarget=targets.has(key),outcome=e.attendeeOutcomes?.[key];
-          const label=actual?'참석':!isTarget?({postponed:'연기',cancelled:'취소',absent:'미수강'}[n.status]||'미등록'):outcome==='postponed'?'연기':outcome==='cancelled'?'취소':outcome==='attended'?'미확정':'미참석';
-          const row={key,no:clean(w?.workerNo)||clean(key).replace(/^worker:/,'')||'미확인',company,name:clean(w?.name)||'미확인',label,actual,isTarget,memo:clean(n.memo)};
+          const company=clean(w?.company)||'업체 미확인',part=partialHours(e,key),normal=attended.has(key),actual=normal||part>0,isTarget=targets.has(key),outcome=e.attendeeOutcomes?.[key];
+          const label=part?'부분 이수':normal?'참석':!isTarget?({postponed:'연기',cancelled:'취소',absent:'미수강'}[n.status]||'미등록'):outcome==='postponed'?'연기':outcome==='cancelled'?'취소':outcome==='attended'?'미확정':'미참석';
+          const row={key,no:clean(w?.workerNo)||clean(key).replace(/^worker:/,'')||'미확인',company,name:clean(w?.name)||'미확인',label,actual,isTarget,partial:part>0,hours:part|| (normal?Number(e.hours):0),memo:[clean(attendanceReason(e,key)),clean(n.memo)].filter(Boolean).join(' / ')};
           if(isTarget)targetKeys.add(key);if(actual)attendedKeys.add(key);
           if(!groups.has(company))groups.set(company,[]);
           groups.get(company).push(row);
@@ -2390,11 +2447,12 @@
         const companies=[...groups].sort((a,b)=>cmp(a[0],b[0])).map(([company,rows])=>{
           rows.sort((a,b)=>cmp(a.no,b.no)||cmp(a.name,b.name)||cmp(a.key,b.key));
           const target=rows.filter(x=>x.isTarget).length,actual=rows.filter(x=>x.actual).length;
-          return {company,rows,target,actual,other:target-actual,unregistered:rows.length-target};
+          return {company,rows,target,actual,partial:rows.filter(x=>x.partial).length,other:target-actual,unregistered:rows.length-target};
         });
-        return {title:clean(e.title)||'교육명 미기재',date:clean(e.date),hours:Number(e.hours)||0,target:targets.size,actual:attended.size,other:targets.size-attended.size,companies,legacy:!Array.isArray(e.confirmedKeys)};
+        const actual=companies.reduce((n,g)=>n+g.actual,0),partial=companies.reduce((n,g)=>n+g.partial,0);
+        return {title:clean(e.title)||'교육명 미기재',date:clean(e.date),hours:Number(e.hours)||0,target:targets.size,actual,partial,other:targets.size-actual,companies,legacy:!Array.isArray(e.confirmedKeys)};
       });
-      return {title:clean(title)||'교육 결과 보고서',memo:clean(memo),events,unique:targetKeys.size,uniqueAttended:attendedKeys.size,allDone:[...targetKeys].filter(key=>base.items.every(x=>x.attended.has(key))).length,attendedCount:events.reduce((n,e)=>n+e.actual,0),legacy:events.some(e=>e.legacy)};
+      return {title:clean(title)||'교육 결과 보고서',memo:clean(memo),events,unique:targetKeys.size,uniqueAttended:attendedKeys.size,allDone:[...targetKeys].filter(key=>base.items.every(x=>x.attended.has(key))).length,attendedCount:events.reduce((n,e)=>n+e.actual,0),partialCount:events.reduce((n,e)=>n+e.partial,0),legacy:events.some(e=>e.legacy)};
     }
     function batchPptxBuild(Pptx,model){
       const pptx=new Pptx();pptx.layout='LAYOUT_WIDE';pptx.author='HANYANG ENG';pptx.subject='교육 결과 보고서';pptx.title=model.title;
@@ -2439,14 +2497,14 @@
         while(end<rows.length&&end-start<max&&(used+heights[end]<=cap||end===start)){used+=heights[end];end++;}
         return {end,rows:rows.slice(start,end),heights:heights.slice(start,end),used};
       }
-      const ew=[4.03,1.65,1,1.25,1.25,1.55,1.40],eh=['교육명','교육일자','시간','대상(명)','참석(명)','미참석 등(명)','참석률'];
-      const evRows=model.events.map(e=>[cell(e.title,{align:'left'}),cell(date(e.date)),cell(e.hours+'h'),cell(number(e.target)),cell(number(e.actual)),cell(number(e.other),{color:e.other?red:ink}),cell(rate(e.actual,e.target))]);
+      const ew=[3.30,1.60,.80,1.12,1.12,1.0,1.55,1.64],eh=['교육명','교육일자','시간','대상(명)','참석(명)','부분(명)','미참석 등(명)','참석률'];
+      const evRows=model.events.map(e=>[cell(e.title,{align:'left'}),cell(date(e.date)),cell(e.hours+'h'),cell(number(e.target)),cell(number(e.actual)),cell(number(e.partial)),cell(number(e.other),{color:e.other?red:ink}),cell(rate(e.actual,e.target))]);
       const evH=evRows.map(r=>hFor(r.map(c=>c.text),ew,12,.29));
-      const cw=[3.05,4.03,1.15,1.15,1.55,1.20],ch=['업체','교육명','대상(명)','참석(명)','미참석 등(명)','참석률'];
-      const coRows=model.events.flatMap(e=>e.companies.map(g=>[cell(g.company,{align:'left'}),cell(e.title+' / '+date(e.date),{align:'left'}),cell(number(g.target)),cell(number(g.actual)),cell(number(g.other),{color:g.other?red:ink}),cell(rate(g.actual,g.target))]));
+      const cw=[2.35,3.60,1.15,1.15,1.10,1.50,1.28],ch=['업체','교육명','대상(명)','참석(명)','부분(명)','미참석 등(명)','참석률'];
+      const coRows=model.events.flatMap(e=>e.companies.map(g=>[cell(g.company,{align:'left'}),cell(e.title+' / '+date(e.date),{align:'left'}),cell(number(g.target)),cell(number(g.actual)),cell(number(g.partial)),cell(number(g.other),{color:g.other?red:ink}),cell(rate(g.actual,g.target))]));
       const coH=coRows.map(r=>hFor(r.map(c=>c.text),cw,11,.27));
       const first=frame('교육 결과 보고서',period,model.title);
-      txt(first,'중복 제외 대상 '+number(model.unique)+'명  |  참석 실인원 '+number(model.uniqueAttended)+'명  |  전체 교육 이수 '+number(model.allDone)+'명  |  개별 참석 '+number(model.attendedCount)+'건',X,1.83,TW,.31,{fontSize:14,bold:true,color:navy});
+      txt(first,'중복 제외 대상 '+number(model.unique)+'명  |  참석 실인원 '+number(model.uniqueAttended)+'명  |  전체 교육 이수 '+number(model.allDone)+'명  |  개별 참석 '+number(model.attendedCount)+'건 (부분 '+number(model.partialCount)+'건)',X,1.83,TW,.31,{fontSize:13,bold:true,color:navy});
       section(first,'1. 교육별 실시 결과',2.27);
       let ep=take(evRows,evH,0,1.30,4);
       if(ep.used>1.30)ep={end:0,rows:[],heights:[],used:0};
@@ -2459,7 +2517,7 @@
       txt(first,'3. 차수 메모 / 특이사항',X,6.00,TW,.24,{fontSize:13,bold:true,color:navy});
       const memo=model.memo||'미기재',memoFits=lines(memo,TW,12)<=2;
       txt(first,memoFits?memo:'차수 메모 전문은 별도 페이지에 표시됩니다.',X,6.28,TW,.37,{fontSize:12});
-      txt(first,'※ 미참석 등: 대상 중 확정 참석 제외. 미등록 주석 대상은 분모 제외.'+(model.legacy?' 일부 기존 완료 기록은 기존 보고서 기준 적용.':''),X,6.72,TW,.18,{fontSize:9,color:gray});
+      txt(first,'※ 참석에는 부분 이수 포함. 미등록 주석 대상은 분모 제외.'+(model.legacy?' 일부 기존 완료 기록은 기존 보고서 기준 적용.':''),X,6.72,TW,.18,{fontSize:9,color:gray});
       for(let p=ep.end;p<evRows.length;){
         const s=frame('교육별 실시 결과 (계속)',period,model.title),part=take(evRows,evH,p,4.55,20);
         table(s,eh,part.rows,1.95,ew,part.heights);p=part.end;
@@ -2475,17 +2533,17 @@
           txt(s,chars.slice(i,i+450).join(''),X,2.03,TW,4.62,{fontSize:15,valign:'top'});
         }
       }
-      const dw=[.60,1.65,2.25,1.65,1.25,4.73],dh=['NO','근로번호','업체','이름','참석 여부','비고'];
+      const dw=[.55,1.55,2.05,1.55,1.55,1.0,3.88],dh=['NO','근로번호','업체','이름','참석 여부','이수시간','비고'];
       for(const e of model.events){
         if(!e.companies.length){const s=frame('교육 참석자 명단',date(e.date)+' / '+e.hours+'h',e.title);txt(s,'등록된 근로자 없음',X,2.03,TW,.55,{color:gray});continue;}
         for(const g of e.companies){
-          const rows=g.rows.map((r,i)=>[cell(i+1),cell(r.no),cell(r.company,{align:'left'}),cell(r.name),cell(r.label,{color:r.actual?ink:r.isTarget?red:gray,bold:!r.actual&&r.isTarget}),cell(r.memo||'—',{align:'left'})]);
+          const rows=g.rows.map((r,i)=>[cell(i+1),cell(r.no),cell(r.company,{align:'left'}),cell(r.name),cell(r.label,{color:r.partial?'B45309':r.actual?ink:r.isTarget?red:gray,bold:r.partial||(!r.actual&&r.isTarget)}),cell(r.isTarget?r.hours+'h':'—'),cell(r.memo||'—',{align:'left'})]);
           const hs=rows.map(r=>hFor(r.map(c=>c.text),dw,12,.245));
           for(let p=0;p<rows.length;){
             const part=take(rows,hs,p,4.35,20);
             const s=frame('교육 참석자 명단',date(e.date)+' / '+e.hours+'h',e.title);
             txt(s,g.company,X,1.83,6.1,.38,{fontSize:18,bold:true,color:navy});
-            txt(s,'대상 '+number(g.target)+'명 / 참석 '+number(g.actual)+'명 / 미참석 등 '+number(g.other)+'명'+(g.unregistered?' / 미등록 주석 '+number(g.unregistered)+'명':''),X+6.12,1.87,TW-6.12,.29,{fontSize:12,align:'right'});
+            txt(s,'대상 '+number(g.target)+'명 / 참석 '+number(g.actual)+'명 (부분 '+number(g.partial)+'명) / 미참석 등 '+number(g.other)+'명'+(g.unregistered?' / 미등록 주석 '+number(g.unregistered)+'명':''),X+6.12,1.87,TW-6.12,.29,{fontSize:12,align:'right'});
             table(s,dh,part.rows,2.25,dw,part.heights);p=part.end;
           }
         }
@@ -2713,12 +2771,26 @@
         renderAttendeeOptions();
       });
       $('clearAttendeesBtn').addEventListener('click',()=>{state.draftAttendees.clear();renderAttendeeOptions();});
-      $('confirmModal').addEventListener('click',e=>{if(e.target===$('confirmModal'))closeConfirm();});
+      // Keep attendance exceptions in the draft on accidental backdrop clicks.
       $('closeConfirmBtn').addEventListener('click',closeConfirm);$('cancelConfirmBtn').addEventListener('click',closeConfirm);
       $('commitConfirmBtn').addEventListener('click',commitConfirm);
       $('confirmAttendees').addEventListener('change',e=>{
-        const t=e.target;
-        if(t.tagName==='SELECT' && t.dataset.key && state.confirmDraft.has(t.dataset.key))state.confirmDraft.set(t.dataset.key,t.value);
+        const t=e.target,key=t.dataset.key,field=t.dataset.confirmField;
+        if(!key||!state.confirmDraft.has(key))return;
+        const event=state.events.find(x=>x.id===state.confirmId);if(!event)return;
+        const d=confirmDetail(key,event);
+        if(field==='status'){state.confirmDraft.set(key,t.value);updateConfirmRow(t.closest('tr'),event,key);}
+        else if(field==='reason')d.reason=t.value;
+        else if(field==='hours')d.hours=t.value;
+        else if(field==='note')d.note=t.value;
+        updateConfirmSummary(event);
+      });
+      $('confirmAttendees').addEventListener('input',e=>{
+        const t=e.target,key=t.dataset.key,field=t.dataset.confirmField;
+        if(!key||!state.confirmDraft.has(key)||!['hours','note'].includes(field))return;
+        const event=state.events.find(x=>x.id===state.confirmId);if(!event)return;
+        confirmDetail(key,event)[field]=t.value;
+        if(field==='hours')updateConfirmSummary(event);
       });
       $('newBatchReportBtn').addEventListener('click',()=>openBatch());
       $('closeBatchBtn').addEventListener('click',closeBatch);$('cancelBatchBtn').addEventListener('click',closeBatch);
@@ -2737,7 +2809,7 @@
 
   </script>
 <script src="./education-workflow.js?v=20261122-ux1"></script>
-<script src="./education-attendee-view.js?v=20261122-2"></script>
+<script src="./education-attendee-view.js?v=20261126-partial1"></script>
 <script src="./education-monthly-quickview.js?v=20261123-pendingfirst1"></script>
 <script src="./education-dashboard-lookup.js?v=20261123-no-regular1"></script>
 <script src="./mobile-back.js?v=20261121" defer></script>
