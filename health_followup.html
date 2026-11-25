@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>한양이엔지 EHS | 건강검진 사후관리</title>
-<script src="./she-v24-index.js?v=20261126-extension1"></script>
+<script src="./she-v24-index.js?v=20261126-extension2"></script>
 <style>
 :root{color-scheme:light;--navy:#172c65;--blue:#1d6ce0;--line:#d7e2ee;--muted:#64748b;--bg:#f2f6fb}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:#1e293b;font-family:'Malgun Gothic',system-ui,sans-serif;font-size:15px}button,input,select,textarea{font:inherit}button{cursor:pointer}button:disabled{cursor:not-allowed;opacity:.55}[hidden]{display:none!important}
@@ -18,13 +18,13 @@ main{max-width:1460px;margin:auto;padding:20px}.notice,.panel,.stats>div{backgro
  <div id="message" class="msg" role="status" hidden></div>
  <section class="stats" aria-label="관리 현황">
   <div><small id="totalLabel">현재 관리 건수</small><strong id="total">—</strong></div>
-  <div><small>현재 페이지 · 7일 내 조치</small><strong id="due">—</strong></div>
-  <div><small>현재 페이지 · 조치일 경과</small><strong id="overdue">—</strong></div>
-  <div><small>현재 페이지 · 14일 이상 지연</small><strong id="longDelay">—</strong></div>
+  <div><small>7일 내 조치</small><strong id="due">—</strong></div>
+  <div><small>조치일 경과</small><strong id="overdue">—</strong></div>
+  <div><small>14일 이상 지연</small><strong id="longDelay">—</strong></div>
  </section>
  <div class="workspace">
  <section class="panel"><div class="heading"><h2>사후관리 대상자</h2><div><button id="refresh" type="button">새로고침</button> <button id="newCase" type="button" class="primary">+ 대상자 등록</button></div></div>
- <div class="controls"><select id="scope" aria-label="관리 범위"><option value="active">관리 중</option><option value="all">전체 및 종결</option></select><input id="search" type="search" placeholder="현재 페이지 성명·근로번호·업체 검색" aria-label="현재 페이지 검색"><select id="quick" aria-label="현재 페이지 필터"><option value="">전체 상태</option><option value="due">7일 내 조치</option><option value="overdue">조치일 경과</option><option value="long">14일 이상 지연</option><option value="hold">입사 보류</option><option value="retest">재검진·재측정</option><option value="results">결과 대기</option><option value="cleared">입사 가능 확인</option><option value="entered">입사 완료</option><option value="closed">기타 종결</option></select></div>
+ <div class="controls"><select id="scope" aria-label="관리 범위"><option value="active">관리 중</option><option value="all">전체 및 종결</option></select><input id="search" type="search" placeholder="성명·근로번호·업체 검색" aria-label="전체 관리대상 검색"><select id="quick" aria-label="전체 관리대상 필터"><option value="">전체 상태</option><option value="due">7일 내 조치</option><option value="overdue">조치일 경과</option><option value="long">14일 이상 지연</option><option value="hold">입사 보류</option><option value="retest">재검진·재측정</option><option value="results">결과 대기</option><option value="cleared">입사 가능 확인</option><option value="entered">입사 완료</option><option value="closed">기타 종결</option></select></div>
  <p id="listHint" class="hint">서버 목록을 불러오는 중입니다.</p>
  <div class="tablewrap"><table><thead><tr><th>성명 / 업체</th><th>최초 사유</th><th>입사 지연</th><th>다음 조치</th><th>상태</th><th>이력</th></tr></thead><tbody id="caseRows"></tbody></table></div>
  <div class="pager"><button type="button" id="prev">← 이전</button><span id="pageInfo" class="hint"></span><button type="button" id="next">다음 →</button></div>
@@ -61,7 +61,7 @@ const overdue=c=>active(c)&&c.next_action&&c.next_action<today();
 const long=c=>active(c)&&days(c)>=14;
 const normalize=v=>String(v??'').normalize('NFKC').toLocaleLowerCase('ko').trim();
 function el(tag,text,cls){const n=document.createElement(tag);if(text!==undefined)n.textContent=String(text);if(cls)n.className=cls;return n;}
-let authorized=false,account=null,generation=0,cases=[],workers=new Map(),offset=0,total=0,selected=null,historyOffset=0,historyTotal=0,formMode='',busy=false,dirty=false,loading=false,verifying=false,historySeq=0;
+let authorized=false,account=null,generation=0,cases=[],workers=new Map(),offset=0,total=0,selected=null,historyOffset=0,historyTotal=0,formMode='',busy=false,dirty=false,loading=false,verifying=false,historySeq=0,listSeq=0,searchTimer=null,workersReady=false,scopeStats={scopeTotal:0,due:0,overdue:0,longDelay:0};
 function message(text,kind=''){const box=$('message');box.textContent=text;box.className='msg '+kind;box.hidden=!text;}
 function closeDetail(force=false){
  if(!force&&(busy||dirty&&!confirm('작성 중인 내용을 닫으시겠습니까?')))return false;
@@ -69,7 +69,7 @@ function closeDetail(force=false){
  $('personSummary').replaceChildren();$('historyRows').replaceChildren();$('detailBody').hidden=true;$('detailEmpty').hidden=false;$('closeDetail').hidden=true;$('detailTitle').textContent='개인별 관리 이력';return true;
 }
 function lock(reason){
- authorized=false;account=null;generation++;loading=false;dirty=false;cases=[];workers.clear();offset=0;total=0;
+ authorized=false;account=null;generation++;listSeq++;clearTimeout(searchTimer);loading=false;dirty=false;cases=[];workers.clear();workersReady=false;offset=0;total=0;scopeStats={scopeTotal:0,due:0,overdue:0,longDelay:0};
  $('caseRows').replaceChildren();$('worker').replaceChildren();$('search').value='';$('candidateSearch').value='';closeDetail(true);
  $('app').hidden=true;$('gate').hidden=false;$('gateText').textContent=reason;message('');
 }
@@ -86,27 +86,28 @@ async function verify(){
  finally{verifying=false;}
 }
 async function loadPage({candidates=false}={}){
- if(!authorized||loading)return;
- const epoch=generation;loading=true;$('refresh').disabled=true;$('prev').disabled=true;$('next').disabled=true;
+ if(!authorized)return;
+ const epoch=generation,seq=++listSeq;
+ loading=true;$('refresh').disabled=true;$('prev').disabled=true;$('next').disabled=true;$('newCase').disabled=!workersReady;
+ $('listHint').textContent='전체 관리대상 조회 중…';
  try{
-  const results=await Promise.all([api().list(offset,$('scope').value==='active'),candidates?api().candidates():Promise.resolve(null)]);
-  if(epoch!==generation||!authorized)return;
-  const result=results[0];total=Number(result.total)||0;
-  if(offset>=total&&offset>0){offset=Math.max(0,Math.floor(Math.max(0,total-1)/200)*200);loading=false;return loadPage({candidates});}
-  cases=Array.isArray(result.cases)?result.cases:[];
-  if(results[1])workers=new Map((results[1].workers||[]).map(w=>[w.uid,w]));
-  renderList();
- }catch(e){if(epoch===generation){if(e.status===401||e.status===403)lock('보건 권한이 만료되거나 변경되었습니다.');else message(e.message||'목록 조회 실패','error');}}
- finally{if(epoch===generation){loading=false;$('refresh').disabled=false;updatePager();}}
+  const candidateRequest=candidates?api().candidates().then(result=>{
+    if(epoch===generation&&authorized){workers=new Map((result.workers||[]).map(w=>[w.uid,w]));workersReady=true;$('newCase').disabled=false;if(formMode==='new')renderCandidates();}
+  }):Promise.resolve();
+  const [result]=await Promise.all([api().list(offset,$('scope').value==='active',$('search').value.trim().slice(0,100),$('quick').value),candidateRequest]);
+  if(epoch!==generation||seq!==listSeq||!authorized)return;
+  total=Number(result.total)||0;scopeStats=result;
+  if(offset>=total&&offset>0){offset=Math.max(0,Math.floor(Math.max(0,total-1)/200)*200);return loadPage();}
+  cases=Array.isArray(result.cases)?result.cases:[];renderList();
+ }catch(e){if(epoch===generation&&seq===listSeq){if(e.status===401||e.status===403)lock('보건 권한이 만료되거나 변경되었습니다.');else{message(e.message||'목록 조회 실패','error');$('listHint').textContent='최신 조회 실패 · 이전 조회 결과일 수 있습니다.';}}}
+ finally{if(epoch===generation&&seq===listSeq){loading=false;$('refresh').disabled=false;$('newCase').disabled=!workersReady;updatePager();}}
 }
 function updatePager(){$('prev').disabled=loading||offset===0;$('next').disabled=loading||offset+200>=total;$('pageInfo').textContent=total?(offset+1)+'~'+Math.min(total,offset+200)+' / '+total+'건':'0건';}
 function renderList(){
- const term=normalize($('search').value),quick=$('quick').value;
- const filtered=cases.filter(c=>(!term||[c.worker_name,c.worker_no,c.company].some(v=>normalize(v).includes(term)))&&(!quick||(quick==='due'?due(c):quick==='overdue'?overdue(c):quick==='long'?long(c):c.status===quick)));
- filtered.sort((a,b)=>Number(active(b))-Number(active(a))||String(a.next_action||'9999').localeCompare(String(b.next_action||'9999'))||days(b)-days(a));
- $('totalLabel').textContent=$('scope').value==='active'?'현재 관리 건수':'누적 관리 건수';$('total').textContent=total+'건';
- $('due').textContent=cases.filter(due).length+'건';$('overdue').textContent=cases.filter(overdue).length+'건';$('longDelay').textContent=cases.filter(long).length+'건';
- $('listHint').textContent='검색 및 상세 필터는 현재 페이지에 적용됩니다. 목록 '+cases.length+'건 중 '+filtered.length+'건 표시 (전체 '+total+'건)';
+ const filtered=cases;
+ $('totalLabel').textContent=$('scope').value==='active'?'현재 관리 건수':'누적 관리 건수';$('total').textContent=(Number(scopeStats.scopeTotal)||0)+'건';
+ $('due').textContent=(Number(scopeStats.due)||0)+'건';$('overdue').textContent=(Number(scopeStats.overdue)||0)+'건';$('longDelay').textContent=(Number(scopeStats.longDelay)||0)+'건';
+ $('listHint').textContent='전체 관리대상 검색 결과 '+total+'건 · 현재 '+filtered.length+'건 표시 · 상단 통계는 선택한 관리 범위 전체 기준';
  const frag=document.createDocumentFragment();
  for(const c of filtered){
   const tr=el('tr');if(selected?.id===c.id)tr.className='selected';
@@ -145,7 +146,7 @@ function showDetail(title){
  $('detailEmpty').hidden=true;$('detailBody').hidden=false;$('closeDetail').hidden=false;$('detailTitle').textContent=title;
 }
 function newCase(){
- if(!authorized||!closeDetail())return;
+ if(!authorized||!workersReady||!closeDetail())return;
  showDetail('신규 사후관리 등록');$('personSummary').textContent='연명부에서 필수 5종 교육 완료 및 물산입사일 미입력 근로자를 선택합니다.';
  $('historySection').hidden=true;displayForm('new');
 }
@@ -197,8 +198,9 @@ $('caseForm').addEventListener('submit',async e=>{
   else message(err.message||'저장 실패','error');
  }finally{busy=false;$('save').disabled=false;$('save').textContent='저장 및 이력 추가';}
 });
-$('scope').addEventListener('change',()=>{offset=0;loadPage();});
-for(const id of ['search','quick'])$(id).addEventListener(id==='search'?'input':'change',renderList);
+function searchPage(){clearTimeout(searchTimer);offset=0;loadPage();}
+$('scope').addEventListener('change',searchPage);$('quick').addEventListener('change',searchPage);
+$('search').addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(searchPage,200);});
 $('prev').addEventListener('click',()=>{if(loading)return;offset=Math.max(0,offset-200);loadPage();});
 $('next').addEventListener('click',()=>{if(loading||offset+200>=total)return;offset+=200;loadPage();});
 $('histPrev').addEventListener('click',()=>{historyOffset=Math.max(0,historyOffset-200);loadHistory();});
