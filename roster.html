@@ -795,7 +795,7 @@ function renderRosterHealthControls(){
   $('rosterHealthFilterGroup').hidden=!ready;
   $('sheSmartHealthQuick').hidden=!ready;
   if(!ready)$('filterHealthStatus').value='';
-  if(!allowed||!ready)document.querySelectorAll('.roster-health-badge').forEach(n=>n.remove());
+  if(!allowed||!ready)document.querySelectorAll('.roster-health-badge,[data-roster-health-only]').forEach(n=>n.remove());
   if(rosterState.ready&&rosterState.authorized){
     rosterView.filterEpoch++;filterTable(false);
   }else document.querySelectorAll('#dataTable .roster-health-cell').forEach(n=>{n.hidden=true;n.textContent='';n.dataset.state='';});
@@ -2551,7 +2551,7 @@ window.addEventListener('beforeunload',event => {
 });
 
 </script>
-<script src="./roster-smart-view.js?v=20261126-health1"></script>
+<script src="./roster-smart-view.js?v=20261126-health2"></script>
 <script src="./mobile-back.js?v=20261121" defer></script>
 </body>
 </html>
