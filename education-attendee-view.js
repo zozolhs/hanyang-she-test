@@ -35,7 +35,7 @@ function ensureDialog(){
  summary.setAttribute("role","status");summary.setAttribute("aria-live","polite");
  const wrap=create("div","she-attendee-table-wrap"),table=create("table","she-attendee-table");
  const head=create("thead"),headRow=create("tr");
- ["번호","이름","업체","생년월일","근로자번호","수강 상태"].forEach(label=>headRow.append(create("th","",label)));
+ ["번호","이름","업체","생년월일","근로자번호","수강 상태","실제 시간","사유"].forEach(label=>headRow.append(create("th","",label)));
  head.append(headRow);tableBody=create("tbody");table.append(head,tableBody);wrap.append(table);
  panel.append(top,meta,search,summary,wrap);overlay.append(panel);document.body.append(overlay);
  search.addEventListener("input",render);
@@ -69,7 +69,8 @@ function attendeeRows(event){
  const completed=event.status==="completed";
  const workers=rosterLookup();
  const outcomes=event.attendeeOutcomes || {};
- const statusText={attended:"참석·이수",absent:"미참석",postponed:"연기",cancelled:"취소"};
+ const statusText={attended:"참석·이수",partial:"부분 이수(조퇴)",absent:"미참석",postponed:"연기",cancelled:"취소"};
+ const reasonText={personal:"개인사정",company:"업체 요청",work:"현장 업무 복귀",health:"건강상 사유",no_notice:"사전 연락 없음",other:"기타"};
  const rows=registered.map(key=>{
   const worker=workers.get(key);
   let attendance="등록";
@@ -78,18 +79,22 @@ function attendeeRows(event){
    attendance=statusText[outcome]||((confirmed===null||confirmed.has(key))?"참석·이수":"미참석");
    if(confirmed && !confirmed.has(key) && attendance==="참석·이수")attendance="미참석";
   }
+  const part=completed&&outcomes[key]==="partial"?Number(event.attendeeActualHours?.[key]??event.attendeeDetails?.[key]?.hours)||0:0;
+  const details=event.attendeeDetails?.[key];
+  const counted=completed&&(attendance==="참석·이수"||part>0);
   return {
    name:String(worker?.name||"연명부 확인 불가"),
    company:String(worker?.company||"—"),
    birth:String(worker?.birth||worker?.birthDate||"—"),
    workerNo:String(worker?.workerNo||(/^worker:/.test(key)?key.slice(7):"—")),
    attendance,
-   countedAttended:completed&&attendance==="참석·이수"
+   countedAttended:counted,partial:part>0,hours:completed?(part|| (counted?Number(event.hours)||0:0))+"h":"—",
+   reason:completed&&details?[reasonText[details.reason],details.note].filter(Boolean).join(" · "):"—"
   };
  });
  guests.forEach(name=>rows.push({
   name:String(name),company:"—",birth:"—",workerNo:"—",
-  attendance:"외부 수강자 · 출석 미연계",countedAttended:false
+  attendance:"외부 수강자 · 출석 미연계",countedAttended:false,partial:false,hours:"—",reason:"—"
  }));
  return {rows,registeredCount:registered.length,guestCount:guests.length,completed};
 }
@@ -103,18 +108,19 @@ function render(){
  const filtered=info.rows.filter(row=>!term ||
   [row.name,row.company,row.birth,row.workerNo].some(value=>normalize(value).includes(term)));
  const attended=info.rows.filter(row=>row.countedAttended).length;
+ const partial=info.rows.filter(row=>row.partial).length;
  summary.textContent="등록 "+info.rows.length+"명 (연명부 "+info.registeredCount+"명 · 외부 "+info.guestCount+"명)"
-  +(info.completed?" · 참석 확정 "+attended+"명":"")
+  +(info.completed?" · 실제 참석 "+attended+"명 (부분 "+partial+"명)":"")
   +" · 검색 결과 "+filtered.length+"명";
  const fragment=document.createDocumentFragment();
  filtered.forEach((row,index)=>{
   const tr=create("tr");
-  [index+1,row.name,row.company,row.birth,row.workerNo,row.attendance].forEach(cell=>tr.append(create("td","",cell)));
+  [index+1,row.name,row.company,row.birth,row.workerNo,row.attendance,row.hours,row.reason].forEach(cell=>tr.append(create("td","",cell)));
   fragment.append(tr);
  });
  if(!filtered.length){
   const tr=create("tr"),td=create("td","",info.rows.length?"검색된 수강자가 없습니다.":"등록된 수강자가 없습니다.");
-  td.colSpan=6;tr.append(td);fragment.append(tr);
+  td.colSpan=8;tr.append(td);fragment.append(tr);
  }
  tableBody.replaceChildren(fragment);
 }
