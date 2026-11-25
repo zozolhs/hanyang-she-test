@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>한양이엔지 EHS | 보건</title>
+<script src="./she-v24-index.js?v=20261126-extension2"></script>
+<style>
+:root{color-scheme:light;--navy:#111827;--blue:#1d4ed8;--green:#15803d;--text:#172b4d;--muted:#64748b;--line:#d7e2ee;--bg:#eef3f8}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:var(--bg);font:15px/1.6 'Malgun Gothic',system-ui,sans-serif;color:var(--text)}[hidden]{display:none!important}
+header{background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 22px;flex-wrap:wrap}header strong{font-size:16px}header a{color:#fff;text-decoration:none;border:1px solid #475569;border-radius:7px;padding:7px 12px;font-size:13px}header a:hover{background:#263244}
+main{max-width:1020px;margin:clamp(22px,7vh,76px) auto;padding:0 20px}
+.panel{border:1px solid var(--line);border-radius:16px;background:#fff;box-shadow:0 6px 22px #142b4d08;padding:clamp(20px,4vw,40px)}
+h1{font-size:clamp(22px,3vw,30px);text-align:center;margin:0;color:#172c65;letter-spacing:-.6px}.subtitle{text-align:center;color:var(--muted);margin:5px 0 26px}.cards{border-top:1px solid var(--line);padding-top:24px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.module{appearance:none;font:inherit;display:flex;flex-direction:column;text-align:left;background:#fff;color:var(--text);padding:24px;border:1px solid #d4deea;border-radius:12px;min-height:280px;cursor:pointer;min-width:0;transition:border-color .16s,box-shadow .16s,transform .16s}
+.module:hover:not(:disabled){border-color:var(--accent);box-shadow:0 7px 18px #1c335c12;transform:translateY(-2px)}
+.module:focus-visible,header a:focus-visible,#retry:focus-visible{outline:3px solid #93c5fd;outline-offset:3px}
+.module:disabled{cursor:not-allowed;opacity:.58}.module .symbol{color:var(--accent);width:34px;height:34px;margin-bottom:14px}.module h2{font-size:20px;line-height:1.35;margin:0 0 5px;letter-spacing:-.4px}.module .description{font-size:13px;color:var(--muted);margin:0}.module ul{list-style:none;padding:15px 0 0;margin:17px 0 20px;border-top:1px solid var(--line);width:100%;font-size:14px;line-height:1.9}.module .enter{display:flex;align-items:center;justify-content:space-between;margin-top:auto;width:100%;background:var(--accent);color:#fff;font-weight:700;padding:9px 12px;border-radius:7px;font-size:14px}.module:disabled .enter{background:#64748b}
+#gate{text-align:center;padding:20px 0;color:var(--muted)}#gate h1{margin-bottom:12px}#retry{font:inherit;border:1px solid #b8c8df;border-radius:7px;background:#fff;color:var(--blue);padding:8px 14px;cursor:pointer}#accessNote{margin:20px 0 0;color:var(--muted);font-size:12px;text-align:center}
+@media(max-width:600px){main{padding:0 12px;margin:20px auto}.panel{padding:18px}.cards{grid-template-columns:1fr;gap:12px;padding-top:18px}.module{min-height:0;padding:20px}.module ul{margin:12px 0}.subtitle{font-size:13px;margin-bottom:18px}header{padding:10px 12px}}
+@media(prefers-reduced-motion:reduce){.module{transition:none}.module:hover{transform:none}}
+</style>
+</head>
+<body>
+<header><strong>한양이엔지㈜ EHS &nbsp;|&nbsp; 보건</strong><a href="index.html">🏠 EHS 메인으로</a></header>
+<main><section class="panel" aria-labelledby="menuTitle">
+<div id="gate" role="status" aria-live="polite"><h1>보건 (HEALTH)</h1><p id="gateText">접속 권한 확인 중…</p><button id="retry" type="button" hidden>다시 확인</button></div>
+<div id="menu" hidden>
+<h1 id="menuTitle">보건 (HEALTH)</h1>
+<p class="subtitle">이용하실 업무 기능을 선택해 주세요.</p>
+<div class="cards">
+<button class="module" id="converter" type="button" style="--accent:#1d4ed8" disabled>
+<svg class="symbol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18M9 15h12"/></svg>
+<h2>건강검진 변환기</h2><p class="description">건강검진 결과지 일괄 변환</p>
+<ul><li>건강검진 PDF 자료 변환</li><li>사내 표준 엑셀 양식 자동화</li><li>기존 파일 처리 기능 유지</li></ul>
+<span class="enter"><span>변환기 열기</span><span aria-hidden="true">→</span></span>
+</button>
+<button class="module" id="followup" type="button" style="--accent:#15803d" disabled>
+<svg class="symbol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="18" rx="2"/><path d="M9 4V2h6v2M12 9v6M9 12h6M9 18h6"/></svg>
+<h2>건강검진 사후관리</h2><p class="description">건강상 사유에 따른 입사 지연 관리</p>
+<ul><li>입사 보류자 및 재검진 대상 관리</li><li>재측정·조치 예정일 관리</li><li>개인별 조치 이력 및 종결 관리</li></ul>
+<span class="enter"><span id="followupLabel">사후관리 열기</span><span aria-hidden="true">→</span></span>
+</button>
+</div>
+<p id="accessNote">등록된 보건 권한에 따라 이용 가능한 기능이 표시됩니다.</p>
+</div>
+</section></main>
+<script>
+(()=>{
+"use strict";
+const $=id=>document.getElementById(id);
+let seq=0,pending=null,allowed=false,writable=false;
+function locked(message){
+ allowed=writable=false;
+ $("converter").disabled=$("followup").disabled=true;
+ $("menu").hidden=true;$("gate").hidden=false;$("gateText").textContent=message;$("retry").hidden=false;
+}
+function apply(result){
+ if(!result?.ok){
+  locked(result?.reason==="maintenance"?"현재 서버 점검 중입니다.": "승인된 보건 권한이 필요합니다. EHS 메인에서 로그인 또는 권한을 확인해 주세요.");
+  return false;
+ }
+ allowed=true;writable=window.SHESEC.canWrite(result.profile,"health");
+ $("converter").disabled=false;$("followup").disabled=!writable;
+ $("followupLabel").textContent=writable?"사후관리 열기":"보건 수정 권한 필요";
+ $("accessNote").textContent=writable?"보건 관리 권한으로 두 기능을 이용할 수 있습니다.":"변환기 열람 전용입니다. 사후관리 상세정보는 보건 수정 담당자만 이용할 수 있습니다.";
+ $("gate").hidden=true;$("menu").hidden=false;
+ return true;
+}
+async function verify(){
+ if(pending)return pending;
+ const n=++seq;
+ const task=(async()=>{
+  try{
+   if(!window.SHESEC)throw Error("auth");
+   const r=await window.SHESEC.guard("health",true);
+   return n===seq&&apply(r);
+  }catch(e){if(n===seq)locked("권한 확인에 실패했습니다. 다시 확인해 주세요.");return false;}
+ })();
+ pending=task;
+ try{return await task;}finally{if(pending===task)pending=null;}
+}
+function open(kind){
+ if(!allowed||(kind==="followup"&&!writable))return;
+ const path=kind==="followup"?"health_followup.html":"health_check.html";
+ try{sessionStorage.setItem("she_nav_from_portal",path);}catch(e){}
+ location.href=path;
+}
+$("converter").addEventListener("click",()=>open("converter"));
+$("followup").addEventListener("click",()=>open("followup"));
+$("retry").addEventListener("click",verify);
+document.addEventListener("she:session-reset",()=>{seq++;pending=null;locked("로그인 세션이 변경되었습니다. 다시 로그인해 주세요.");});
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)verify();});
+window.addEventListener("pageshow",e=>{if(e.persisted){locked("접속 권한을 다시 확인합니다.");verify();}});
+setInterval(()=>{if(!document.hidden&&allowed)verify();},45000);
+verify();
+})();
+</script>
+</body></html>
