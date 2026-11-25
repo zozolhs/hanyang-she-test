@@ -9165,7 +9165,7 @@ function openModule(module){
  if(module==='safety'){if(!canSafetyView())return alert('SAFETY 열람 권한이 없습니다.');applyPortalView('search');if(typeof renderAll==='function')renderAll();return;}
  if(module==='admin'){if(!canControlUsers())return alert('최고관리자 전용입니다.');return openSecureAdmin();}
  if(!hasAccess(module))return alert(`🔒 ${module.toUpperCase()} 권한이 없습니다.`);
- const urls={health:'health_check.html',roster:'roster.html',education:'dashboard.html'};
+ const urls={health:'health_menu.html',roster:'roster.html',education:'dashboard.html'};
  if(urls[module]){
   // UI-only marker helps module pages distinguish portal navigation from direct entry.
   try{sessionStorage.setItem('she_nav_from_portal',urls[module]);}catch(_){}
