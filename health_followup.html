@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>한양이엔지 EHS | 건강검진 사후관리</title>
+<script src="./she-v24-index.js?v=20261126-extension1"></script>
+<style>
+:root{color-scheme:light;--navy:#172c65;--blue:#1d6ce0;--line:#d7e2ee;--muted:#64748b;--bg:#f2f6fb}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:#1e293b;font-family:'Malgun Gothic',system-ui,sans-serif;font-size:15px}button,input,select,textarea{font:inherit}button{cursor:pointer}button:disabled{cursor:not-allowed;opacity:.55}[hidden]{display:none!important}
+header{background:var(--navy);color:white;padding:17px max(18px,calc((100vw - 1420px)/2));display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}header h1{font-size:22px;margin:0 0 3px}header small{color:#dbeafe}nav{display:flex;gap:8px;flex-wrap:wrap}nav a{color:white;border:1px solid #91a6d0;border-radius:8px;padding:9px 12px;text-decoration:none;font-size:14px}
+main{max-width:1460px;margin:auto;padding:20px}.notice,.panel,.stats>div{background:white;border:1px solid var(--line);border-radius:12px;padding:16px}.notice{font-size:13px;color:#475569;margin-bottom:16px;line-height:1.6}.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:14px 0}.stats small{color:var(--muted);display:block}.stats strong{display:block;font-size:26px;color:var(--navy);margin-top:4px}
+.workspace{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(310px,1fr);gap:14px;align-items:start}.panel{min-width:0}.heading{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}.heading h2{font-size:18px;margin:0;color:var(--navy)}button{border:1px solid #b9cee4;background:white;color:var(--navy);padding:9px 13px;border-radius:8px;font-weight:700;min-height:40px}.primary{background:var(--blue);color:white;border-color:var(--blue)}.controls{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.controls input{flex:1;min-width:180px}.controls select{min-width:125px}input,select,textarea{border:1px solid #b9c9dc;border-radius:7px;padding:9px;max-width:100%;min-width:0;color:#1e293b;background:#fff}textarea{width:100%;resize:vertical}input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid #93c5fd;outline-offset:1px}.hint{font-size:12px;color:var(--muted);line-height:1.5;margin:6px 0}.msg{padding:11px 14px;border-radius:8px;background:#e9f1fd;color:#173b74;white-space:pre-wrap;overflow-wrap:anywhere;margin-bottom:12px}.msg.error{background:#fef2f2;color:#991b1b}.msg.success{background:#ecfdf5;color:#166534}
+.tablewrap{overflow:auto;max-height:580px;border:1px solid var(--line);border-radius:8px}table{width:100%;border-collapse:collapse;min-width:660px}th,td{padding:10px 8px;border-bottom:1px solid #e2e8f0;text-align:left;font-size:13px;vertical-align:middle}th{background:#eaf0fa;color:var(--navy);position:sticky;top:0;z-index:1}td button{font-size:13px;padding:6px 9px;min-height:36px}tbody tr.selected{background:#eaf3ff}.tag{display:inline-block;padding:4px 7px;border-radius:6px;font-size:12px;font-weight:700;background:#fff1e2;color:#9a3412}.tag.cleared{background:#dbeafe;color:#1d4ed8}.tag.entered,.tag.closed{background:#dcfce7;color:#166534}.overdue{color:#b91c1c;font-weight:700}.pager{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px}.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.field{display:flex;flex-direction:column;gap:5px;min-width:0;font-size:13px}.field label{font-weight:700;color:#334155}.full{grid-column:1/-1}.actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}.summary{padding:12px;background:#f4f7fc;border-radius:8px;margin-bottom:12px;line-height:1.6;overflow-wrap:anywhere}.history{display:grid;gap:8px;margin-top:12px}.history article{padding:12px;border-left:3px solid #9ab4d6;background:#f8fafc;border-radius:5px;white-space:pre-wrap;overflow-wrap:anywhere}.history article p{margin:5px 0 0;font-size:13px}.history article small{color:var(--muted)}.empty{padding:22px;text-align:center;color:var(--muted)}#gate{max-width:650px;margin:60px auto;padding:24px;background:white;border:1px solid var(--line);border-radius:12px;text-align:center}#gate a{color:var(--blue)}
+@media(max-width:900px){.workspace{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}main{padding:12px}header{padding:12px}header h1{font-size:18px}.tablewrap{max-height:480px}}@media(max-width:520px){.fields{grid-template-columns:1fr}.field{grid-column:1/-1}.controls>*{flex:1 1 100%}.stats strong{font-size:22px}input,select,textarea{font-size:16px}.actions button{flex:1}}
+</style></head>
+<body>
+<header><div><h1>한양이엔지 EHS | 건강검진 사후관리</h1><small>입사 보류 · 재검진 · 조치 이력 · 입사 완료</small></div><nav><a href="health_check.html">건강검진 변환기</a><a href="index.html">EHS 메인</a></nav></header>
+<section id="gate" role="status"><h2>보건 권한 확인 중</h2><p id="gateText">승인된 담당자만 접근할 수 있습니다.</p><a href="index.html">EHS 메인으로</a></section>
+<main id="app" hidden>
+ <div class="notice">이 화면은 입사 지연 관련 사후관리 전용입니다. 검진 원본 PDF, 상세 질병명 및 검사 수치를 업로드하지 마십시오. 필수 5종 이수 및 입사일은 연명부에서 조회하며 입사 가능 여부는 의료진 및 정해진 입사 절차를 확인한 후 담당자가 기록합니다.</div>
+ <div id="message" class="msg" role="status" hidden></div>
+ <section class="stats" aria-label="관리 현황">
+  <div><small id="totalLabel">현재 관리 건수</small><strong id="total">—</strong></div>
+  <div><small>현재 페이지 · 7일 내 조치</small><strong id="due">—</strong></div>
+  <div><small>현재 페이지 · 조치일 경과</small><strong id="overdue">—</strong></div>
+  <div><small>현재 페이지 · 14일 이상 지연</small><strong id="longDelay">—</strong></div>
+ </section>
+ <div class="workspace">
+ <section class="panel"><div class="heading"><h2>사후관리 대상자</h2><div><button id="refresh" type="button">새로고침</button> <button id="newCase" type="button" class="primary">+ 대상자 등록</button></div></div>
+ <div class="controls"><select id="scope" aria-label="관리 범위"><option value="active">관리 중</option><option value="all">전체 및 종결</option></select><input id="search" type="search" placeholder="현재 페이지 성명·근로번호·업체 검색" aria-label="현재 페이지 검색"><select id="quick" aria-label="현재 페이지 필터"><option value="">전체 상태</option><option value="due">7일 내 조치</option><option value="overdue">조치일 경과</option><option value="long">14일 이상 지연</option><option value="hold">입사 보류</option><option value="retest">재검진·재측정</option><option value="results">결과 대기</option><option value="cleared">입사 가능 확인</option><option value="entered">입사 완료</option><option value="closed">기타 종결</option></select></div>
+ <p id="listHint" class="hint">서버 목록을 불러오는 중입니다.</p>
+ <div class="tablewrap"><table><thead><tr><th>성명 / 업체</th><th>최초 사유</th><th>입사 지연</th><th>다음 조치</th><th>상태</th><th>이력</th></tr></thead><tbody id="caseRows"></tbody></table></div>
+ <div class="pager"><button type="button" id="prev">← 이전</button><span id="pageInfo" class="hint"></span><button type="button" id="next">다음 →</button></div>
+ </section>
+ <section class="panel" id="detailPanel"><div class="heading"><h2 id="detailTitle">개인별 관리 이력</h2><button id="closeDetail" type="button" hidden>닫기</button></div>
+ <div id="detailEmpty" class="empty">대상자 등록 또는 이력 버튼을 선택하세요.</div>
+ <div id="detailBody" hidden><div id="personSummary" class="summary"></div>
+ <form id="caseForm" hidden><div class="fields">
+ <div class="field full" id="candidateFields"><label for="candidateSearch">연명부 대상자 검색</label><input id="candidateSearch" type="search" placeholder="성명 · 근로번호 · 업체"><label for="worker">필수 5종 완료 / 물산입사일 미입력 재직자</label><select id="worker"></select><small id="candidateHint" class="hint"></small></div>
+ <div class="field" id="plannedField"><label for="planned">물산입사 예정일 *</label><input type="date" id="planned"></div>
+ <div class="field" id="openedField"><label for="opened">최초 발생일 *</label><input type="date" id="opened"></div>
+ <div class="field full" id="reasonField"><label for="reason">최초 보류 사유 *</label><select id="reason"><option value="bp">혈압 측정 입사 보류</option><option value="retest">건강검진 재검진</option><option value="doctor">의사 소견서 제출</option><option value="treatment">치료 및 경과 확인</option><option value="result">검진 결과 확인 대기</option><option value="other">기타</option></select></div>
+ <div class="field"><label for="status">관리 상태 *</label><select id="status"></select></div>
+ <div class="field"><label for="actionDate">다음 조치 예정일 *</label><input id="actionDate" type="date"></div>
+ <div class="field full"><label for="note">조치사항 (기존 이력 덮어쓰기 없음)</label><textarea id="note" maxlength="1000" rows="4" placeholder="업무상 필요한 조치 및 일정만 기록"></textarea></div>
+ </div><div class="actions"><button type="button" id="cancelDetail">취소</button><button type="submit" id="save" class="primary">저장 및 이력 추가</button></div></form>
+ <div id="historySection" hidden><h3>누적 조치 이력</h3><div class="history" id="historyRows"></div><div class="pager"><button type="button" id="histPrev">← 이전</button><span id="histPage" class="hint"></span><button type="button" id="histNext">다음 →</button></div></div>
+ </div></section>
+ </div>
+</main>
+<script>
+(()=>{
+'use strict';
+const $=id=>document.getElementById(id);
+const api=()=>window.SHESEC?.healthFollowup;
+const STATUS={hold:'입사 보류',retest:'재검진·재측정',results:'결과 대기',cleared:'입사 가능 확인',entered:'입사 완료',closed:'기타 종결'};
+const REASON={bp:'혈압 측정 입사 보류',retest:'건강검진 재검진',doctor:'의사 소견서 제출',treatment:'치료 및 경과 확인',result:'검진 결과 대기',other:'기타'};
+const active=c=>!c.closed_on;
+const today=()=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+const diff=(a,b)=>Math.round((Date.parse(a+'T00:00:00Z')-Date.parse(b+'T00:00:00Z'))/86400000);
+const days=c=>Math.max(0,diff(c.closed_on||today(),c.planned_entry)||0);
+const due=c=>active(c)&&c.next_action&&diff(c.next_action,today())>=0&&diff(c.next_action,today())<=7;
+const overdue=c=>active(c)&&c.next_action&&c.next_action<today();
+const long=c=>active(c)&&days(c)>=14;
+const normalize=v=>String(v??'').normalize('NFKC').toLocaleLowerCase('ko').trim();
+function el(tag,text,cls){const n=document.createElement(tag);if(text!==undefined)n.textContent=String(text);if(cls)n.className=cls;return n;}
+let authorized=false,account=null,generation=0,cases=[],workers=new Map(),offset=0,total=0,selected=null,historyOffset=0,historyTotal=0,formMode='',busy=false,dirty=false,loading=false,verifying=false,historySeq=0;
+function message(text,kind=''){const box=$('message');box.textContent=text;box.className='msg '+kind;box.hidden=!text;}
+function closeDetail(force=false){
+ if(!force&&(busy||dirty&&!confirm('작성 중인 내용을 닫으시겠습니까?')))return false;
+ selected=null;formMode='';dirty=false;historySeq++;$('caseForm').reset();$('candidateSearch').value='';$('worker').replaceChildren();
+ $('personSummary').replaceChildren();$('historyRows').replaceChildren();$('detailBody').hidden=true;$('detailEmpty').hidden=false;$('closeDetail').hidden=true;$('detailTitle').textContent='개인별 관리 이력';return true;
+}
+function lock(reason){
+ authorized=false;account=null;generation++;loading=false;dirty=false;cases=[];workers.clear();offset=0;total=0;
+ $('caseRows').replaceChildren();$('worker').replaceChildren();$('search').value='';$('candidateSearch').value='';closeDetail(true);
+ $('app').hidden=true;$('gate').hidden=false;$('gateText').textContent=reason;message('');
+}
+async function verify(){
+ if(verifying)return authorized;
+ verifying=true;
+ try{
+  if(!window.SHESEC||!api())throw Error('보건 연결 모듈을 불러오지 못했습니다.');
+  const r=await window.SHESEC.guard('health',true);
+  if(!r.ok||!window.SHESEC.canWrite(r.profile,'health')){lock('승인된 보건 수정 담당자 또는 최고관리자만 사후관리 상세정보를 볼 수 있습니다.');return false;}
+  if(account&&account!==r.profile.id)lock('계정 변경으로 기존 화면을 정리했습니다.');
+  account=r.profile.id;authorized=true;$('gate').hidden=true;$('app').hidden=false;return true;
+ }catch(e){lock(e.message||'보건 권한 확인 실패');return false;}
+ finally{verifying=false;}
+}
+async function loadPage({candidates=false}={}){
+ if(!authorized||loading)return;
+ const epoch=generation;loading=true;$('refresh').disabled=true;$('prev').disabled=true;$('next').disabled=true;
+ try{
+  const results=await Promise.all([api().list(offset,$('scope').value==='active'),candidates?api().candidates():Promise.resolve(null)]);
+  if(epoch!==generation||!authorized)return;
+  const result=results[0];total=Number(result.total)||0;
+  if(offset>=total&&offset>0){offset=Math.max(0,Math.floor(Math.max(0,total-1)/200)*200);loading=false;return loadPage({candidates});}
+  cases=Array.isArray(result.cases)?result.cases:[];
+  if(results[1])workers=new Map((results[1].workers||[]).map(w=>[w.uid,w]));
+  renderList();
+ }catch(e){if(epoch===generation){if(e.status===401||e.status===403)lock('보건 권한이 만료되거나 변경되었습니다.');else message(e.message||'목록 조회 실패','error');}}
+ finally{if(epoch===generation){loading=false;$('refresh').disabled=false;updatePager();}}
+}
+function updatePager(){$('prev').disabled=loading||offset===0;$('next').disabled=loading||offset+200>=total;$('pageInfo').textContent=total?(offset+1)+'~'+Math.min(total,offset+200)+' / '+total+'건':'0건';}
+function renderList(){
+ const term=normalize($('search').value),quick=$('quick').value;
+ const filtered=cases.filter(c=>(!term||[c.worker_name,c.worker_no,c.company].some(v=>normalize(v).includes(term)))&&(!quick||(quick==='due'?due(c):quick==='overdue'?overdue(c):quick==='long'?long(c):c.status===quick)));
+ filtered.sort((a,b)=>Number(active(b))-Number(active(a))||String(a.next_action||'9999').localeCompare(String(b.next_action||'9999'))||days(b)-days(a));
+ $('totalLabel').textContent=$('scope').value==='active'?'현재 관리 건수':'누적 관리 건수';$('total').textContent=total+'건';
+ $('due').textContent=cases.filter(due).length+'건';$('overdue').textContent=cases.filter(overdue).length+'건';$('longDelay').textContent=cases.filter(long).length+'건';
+ $('listHint').textContent='검색 및 상세 필터는 현재 페이지에 적용됩니다. 목록 '+cases.length+'건 중 '+filtered.length+'건 표시 (전체 '+total+'건)';
+ const frag=document.createDocumentFragment();
+ for(const c of filtered){
+  const tr=el('tr');if(selected?.id===c.id)tr.className='selected';
+  const name=el('td');name.append(el('strong',c.worker_name),el('div',c.company+' · '+(c.worker_no||'근로번호 없음'),'hint'));tr.append(name);
+  tr.append(el('td',REASON[c.reason]||'기타'),el('td',days(c)+'일',long(c)?'overdue':''),el('td',c.next_action||'—',overdue(c)?'overdue':''));
+  const st=el('td');st.append(el('span',STATUS[c.status]||'확인 필요','tag '+c.status));tr.append(st);
+  const cell=el('td'),b=el('button','이력 보기');b.type='button';b.addEventListener('click',()=>openCase(c));cell.append(b);tr.append(cell);frag.append(tr);
+ }
+ if(!filtered.length){const tr=el('tr'),td=el('td','해당 조건의 관리 건이 없습니다.','empty');td.colSpan=6;tr.append(td);frag.append(tr);}
+ $('caseRows').replaceChildren(frag);updatePager();
+}
+function renderCandidates(){
+ const term=normalize($('candidateSearch').value),previous=$('worker').value;
+ const result=[...workers.values()].filter(w=>w.complete&&!w.entered&&!w.resigned&&w.name&&(!term||[w.name,w.no,w.company,w.job].some(v=>normalize(v).includes(term)))).sort((a,b)=>String(a.name).localeCompare(String(b.name),'ko'));
+ const opts=result.map(w=>new Option(w.name+' | '+(w.company||'업체 미입력')+' | '+(w.no||'번호 없음'),w.uid));
+ $('worker').replaceChildren(new Option('근로자 선택',''),...opts);
+ if(result.some(w=>w.uid===previous))$('worker').value=previous;
+ $('candidateHint').textContent='등록 가능 대상 '+result.length+'명. 이미 관리 중인 사람은 서버에서 중복 등록을 차단합니다.';
+}
+function displayForm(mode,c=null){
+ formMode=mode;dirty=false;$('caseForm').reset();$('caseForm').hidden=false;$('save').disabled=false;
+ for(const id of ['candidateFields','plannedField','openedField','reasonField'])$(id).hidden=mode!=='new';
+ $('worker').required=$('planned').required=$('opened').required=mode==='new';
+ const statuses=Object.entries(STATUS).filter(([key])=>mode!=='new'||!['entered','closed'].includes(key));
+ $('status').replaceChildren(...statuses.map(([key,t])=>new Option(t,key)));
+ $('planned').value=today();$('opened').value=today();$('opened').max=today();$('planned').max=today();
+ $('status').value=c?.status||'hold';$('actionDate').min=today();$('actionDate').value=c?.next_action&&c.next_action>=today()?c.next_action:today();
+ $('note').required=mode==='update';
+ updateStatusForm();if(mode==='new')renderCandidates();
+}
+function updateStatusForm(){
+ const final=['entered','closed'].includes($('status').value);
+ $('actionDate').disabled=final;$('actionDate').required=!final;
+}
+function showDetail(title){
+ $('detailEmpty').hidden=true;$('detailBody').hidden=false;$('closeDetail').hidden=false;$('detailTitle').textContent=title;
+}
+function newCase(){
+ if(!authorized||!closeDetail())return;
+ showDetail('신규 사후관리 등록');$('personSummary').textContent='연명부에서 필수 5종 교육 완료 및 물산입사일 미입력 근로자를 선택합니다.';
+ $('historySection').hidden=true;displayForm('new');
+}
+async function openCase(c){
+ if(!authorized||!closeDetail())return;
+ selected=c;historyOffset=0;showDetail(c.worker_name+' · 개인별 이력');
+ const w=workers.get(c.worker_uid);
+ $('personSummary').textContent=c.worker_name+' / '+c.company+' / '+(c.worker_no||'근로번호 없음')+'\n최초 발생 '+c.opened_on+' · 입사 예정 '+c.planned_entry+' · 지연 '+days(c)+'일\n현재 상태: '+(STATUS[c.status]||'확인 필요')+' · 실제 물산입사일: '+(w?.entered||'미입력/연명부 미확인');
+ $('personSummary').style.whiteSpace='pre-wrap';
+ $('caseForm').hidden=!active(c);if(active(c))displayForm('update',c);
+ $('historySection').hidden=false;renderList();await loadHistory();
+}
+async function loadHistory(){
+ if(!authorized||!selected)return;
+ const epoch=generation,seq=++historySeq,id=selected.id;
+ $('historyRows').replaceChildren(el('div','조치 이력을 불러오는 중…','hint'));$('histPrev').disabled=$('histNext').disabled=true;
+ try{
+  const res=await api().history(id,historyOffset);
+  if(epoch!==generation||seq!==historySeq||selected?.id!==id)return;
+  historyTotal=Number(res.total)||0;const frag=document.createDocumentFragment();
+  for(const h of res.actions||[]){
+   const article=el('article');article.append(el('strong',h.action_on+' · '+(STATUS[h.status]||'조치')),el('div','담당: '+h.actor+(h.next_action?' · 다음 조치 '+h.next_action:''),'hint'),el('p',h.note||'—'));frag.append(article);
+  }
+  $('historyRows').replaceChildren(frag);$('histPrev').disabled=historyOffset===0;$('histNext').disabled=historyOffset+200>=historyTotal;
+  $('histPage').textContent=historyTotal?(historyOffset+1)+'~'+Math.min(historyOffset+200,historyTotal)+' / '+historyTotal+'건':'0건';
+ }catch(e){if(epoch===generation&&seq===historySeq){if(e.status===401||e.status===403)lock('보건 권한이 변경되었습니다.');else $('historyRows').replaceChildren(el('div',e.message||'조회 실패','hint'));}}
+}
+$('caseForm').addEventListener('input',()=>{dirty=true;});
+$('status').addEventListener('change',updateStatusForm);
+$('candidateSearch').addEventListener('input',renderCandidates);
+$('caseForm').addEventListener('submit',async e=>{
+ e.preventDefault();if(!authorized||busy)return;
+ const mode=formMode,c=selected;
+ const status=$('status').value,final=['entered','closed'].includes(status);
+ const payload={status,next_action:final?null:$('actionDate').value,note:$('note').value.trim()};
+ if(mode==='new')Object.assign(payload,{worker_uid:$('worker').value,planned_entry:$('planned').value,opened_on:$('opened').value,reason:$('reason').value});
+ else if(mode==='update'&&c)Object.assign(payload,{case_id:c.id,version:Number(c.version)});
+ else return;
+ if(mode==='update'&&!payload.note){message('조치사항을 입력하세요.','error');return;}
+ if(final&&!confirm('이 관리 건을 종결하시겠습니까? 종결된 이력은 보존되며 수정할 수 없습니다.'))return;
+ busy=true;$('save').disabled=true;$('save').textContent='저장 중…';const epoch=generation;
+ try{
+  await api().append(payload);
+  if(epoch!==generation||!authorized)return;
+  dirty=false;closeDetail(true);message('사후관리 이력을 저장했습니다.','success');await loadPage({candidates:true});
+ }catch(err){
+  if(epoch!==generation)return;
+  if(err.status===401||err.status===403)lock('보건 권한이 변경되었습니다.');
+  else message(err.message||'저장 실패','error');
+ }finally{busy=false;$('save').disabled=false;$('save').textContent='저장 및 이력 추가';}
+});
+$('scope').addEventListener('change',()=>{offset=0;loadPage();});
+for(const id of ['search','quick'])$(id).addEventListener(id==='search'?'input':'change',renderList);
+$('prev').addEventListener('click',()=>{if(loading)return;offset=Math.max(0,offset-200);loadPage();});
+$('next').addEventListener('click',()=>{if(loading||offset+200>=total)return;offset+=200;loadPage();});
+$('histPrev').addEventListener('click',()=>{historyOffset=Math.max(0,historyOffset-200);loadHistory();});
+$('histNext').addEventListener('click',()=>{if(historyOffset+200<historyTotal){historyOffset+=200;loadHistory();}});
+$('newCase').addEventListener('click',newCase);$('closeDetail').addEventListener('click',()=>{if(closeDetail())renderList();});$('cancelDetail').addEventListener('click',()=>{if(closeDetail())renderList();});
+$('refresh').addEventListener('click',async()=>{if(!closeDetail())return;if(await verify())await loadPage({candidates:true});});
+document.addEventListener('she:session-reset',()=>lock('로그인 세션이 변경되었습니다.'));
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&authorized)verify();});
+window.addEventListener('pageshow',e=>{if(e.persisted)verify();});
+setInterval(()=>{if(!document.hidden&&authorized)verify();},45000);
+window.addEventListener('beforeunload',e=>{if(dirty||busy){e.preventDefault();e.returnValue='';}});
+document.addEventListener('DOMContentLoaded',async()=>{if(await verify())await loadPage({candidates:true});},{once:true});
+})();
+</script>
+</body></html>
