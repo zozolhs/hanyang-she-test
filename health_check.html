@@ -406,7 +406,7 @@
     </div>
     <div class="hc-header-right">
       <span class="hc-admin-pill" id="hcAdminRoleText">🛡️ 권한 인증됨</span>
-      <button type="button" id="hcFollowupBtn" class="hc-nav-btn" hidden style="display:none" onclick="window.location.href='health_followup.html'">📋 건강검진 사후관리</button>
+      <button type="button" id="hcFollowupBtn" class="hc-nav-btn" hidden style="display:none" onclick="window.location.href='health_menu.html'">← 보건 메뉴</button>
       <button type="button" class="hc-nav-btn" onclick="window.location.href='index.html'">
         🏠 EHS 메인으로
       </button>
@@ -602,7 +602,7 @@
         hcAccess.allowed = true;
         hcAccess.writable = window.SHESEC.canWrite(p,'health');
         hcAccess.super = p.role === 'super_admin';
-        const followup=document.getElementById("hcFollowupBtn");followup.hidden=!hcAccess.writable;followup.style.display=hcAccess.writable?"":"none";
+        const followup=document.getElementById("hcFollowupBtn");followup.hidden=false;followup.style.display="";
         ['hcSelectPdfBtn','hcDownloadExcelBtn','hcResetBtn'].forEach(id=>{
           const element=document.getElementById(id);
           if(element){element.disabled=!hcAccess.writable;element.title=hcAccess.writable?'':'HEALTH 열람 전용: PDF 변환·출력 권한 없음';}
