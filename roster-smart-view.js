@@ -96,7 +96,9 @@ function detail(uid){
   for(const [label,value] of items){
    const dd=node("dd","",label==="교육구분"?undefined:(value||"—"));
    if(label==="교육구분")dd.append(educationTypeLabel(value));
-   list.append(node("dt","",label),dd);
+   const dt=node("dt","",label);
+   if(label==="보건관리 상태"){dt.dataset.rosterHealthOnly="true";dd.dataset.rosterHealthOnly="true";}
+   list.append(dt,dd);
   }
   section.append(list);
   sectionsGrid.append(section);
