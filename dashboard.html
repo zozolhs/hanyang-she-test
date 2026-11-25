@@ -2722,7 +2722,7 @@
       });
       $('newBatchReportBtn').addEventListener('click',()=>openBatch());
       $('closeBatchBtn').addEventListener('click',closeBatch);$('cancelBatchBtn').addEventListener('click',closeBatch);
-      $('batchModal').addEventListener('click',e=>{if(e.target===$('batchModal'))closeBatch();});
+      // Keep the education report draft open on backdrop clicks; close explicitly via the dialog controls.
       $('batchEventOptions').addEventListener('change',e=>{
         if(e.target.type!=='checkbox')return;
         if(e.target.checked)state.reportDraftIds.add(e.target.value);else state.reportDraftIds.delete(e.target.value);
