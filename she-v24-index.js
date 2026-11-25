@@ -169,12 +169,13 @@ async function request(kind,action,data={}){
   // Only timeout idempotent reads. Aborting an import commit could make a
   // successful server transaction look like a failed upload to the operator.
   const readOnly = kind==="auth" && ["me","presence","presence_users"].includes(action) ||
-    kind==="store" && ["store_get","store_get_batch","store_list","store_counts"].includes(action);
+    kind==="store" && ["store_get","store_get_batch","store_list","store_counts"].includes(action) ||
+    kind==="extension" && ["health_candidates","health_list","health_history","health_flags"].includes(action);
   const controller=readOnly ? new AbortController() : null;
   let timeoutId=null;
   if(controller) timeoutId=setTimeout(()=>controller.abort(),30000);
   try{
-    response=await fetch(ENDPOINT+(kind==="auth"?"she-v24-auth":"she-v24-store"),{
+    response=await fetch(ENDPOINT+(kind==="auth"?"she-v24-auth":kind==="extension"?"she-v24-extension":"she-v24-store"),{
       method:"POST",
       headers:{
         "Content-Type":"application/json",
@@ -224,6 +225,7 @@ function reset(){
   pendingRows.clear();pendingBatches.clear();
   educationRosterCache=null;educationRosterPending=null;
   clearLegacy();
+  document.dispatchEvent(new Event("she:session-reset"));
 }
 function permitted(p,mod,write=false){
   if(!p||p.status!=="approved"||(p.maintenance&&p.role!=="super_admin"))
@@ -697,8 +699,31 @@ async function rpc(name,args={}){
       return {data:res,error:null};
     }catch(e){return {data:null,error:e};}
   }
+  if(name==="she_confirm_education_details"){
+    try{
+      const res=await extensionRequest("education_confirm_details",{
+        event_id:args.p_event_id,expected_updated_at:args.p_expected_updated_at,
+        attendance:args.p_attendance,details:args.p_details
+      });
+      educationRosterCache=null;
+      return {data:res,error:null};
+    }catch(e){return {data:null,error:e};}
+  }
   return {data:null,error:failure("허용되지 않은 데이터 함수입니다.",403)};
 }
+async function extensionRequest(action,data={}){
+  const epoch=sessionEpoch,session=token;
+  const result=await request("extension",action,data);
+  if(epoch!==sessionEpoch||session!==token)throw failure("로그인 세션이 변경되었습니다.",401);
+  return result;
+}
+const healthFollowup=Object.freeze({
+  candidates:()=>extensionRequest("health_candidates"),
+  list:(offset=0,active=false)=>extensionRequest("health_list",{offset,active}),
+  history:(case_id,offset=0)=>extensionRequest("health_history",{case_id,offset}),
+  flags:()=>extensionRequest("health_flags"),
+  append:data=>protectWrite(()=>extensionRequest("health_append",data))
+});
 const client=Object.freeze({
   from(table){
     return {
@@ -708,10 +733,10 @@ const client=Object.freeze({
       upsert(data){return new StoreQuery("upsert",table,data).execute();}
     };
   },
-  rpc:(name,args)=>name==="she_confirm_education_v2"?protectWrite(()=>rpc(name,args)):rpc(name,args),channel
+  rpc:(name,args)=>["she_confirm_education_v2","she_confirm_education_details"].includes(name)?protectWrite(()=>rpc(name,args)):rpc(name,args),channel
 });
 window.SHESEC=Object.freeze({
-  client,refresh,guard,login,register,logout,users,connectedUsers,setUser,deleteUser,
+  client,healthFollowup,refresh,guard,login,register,logout,users,connectedUsers,setUser,deleteUser,
   maintenance,registrationStatus,setRegistration,changePassword,
   importSafetyDocument:(...args)=>protectWrite(()=>importSafetyDocument(...args)),
   saveSafetySnapshot:(...args)=>protectWrite(()=>saveSafetySnapshot(...args)),
