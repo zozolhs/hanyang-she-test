@@ -589,7 +589,7 @@
       <div id="batchSummary" class="batch-summary" aria-live="polite"></div>
       <div class="field full"><label for="batchWorkerSearch">수강자 검색</label><input type="search" id="batchWorkerSearch" placeholder="성명 · 업체 · 근로번호 검색"></div>
       <div class="report-scroll" id="batchMatrix" style="margin-top:10px"></div>
-      <div class="modal-actions"><button id="deleteBatchBtn" type="button" class="btn btn-danger" hidden>보고서 삭제</button><button id="exportBatchBtn" type="button" class="btn btn-outline" data-mobile-spreadsheet-export data-mobile-export-key="education_batch_csv">📥 보고서 CSV</button><button id="cancelBatchBtn" type="button" class="btn btn-outline">닫기</button><button id="saveBatchBtn" type="button" class="btn btn-primary">💾 보고서 저장</button></div>
+      <div class="modal-actions"><button id="deleteBatchBtn" type="button" class="btn btn-danger" hidden>보고서 삭제</button><button id="exportBatchBtn" type="button" class="btn btn-outline" data-mobile-spreadsheet-export data-mobile-export-key="education_batch_csv">📥 보고서 PPTX</button><button id="cancelBatchBtn" type="button" class="btn btn-outline">닫기</button><button id="saveBatchBtn" type="button" class="btn btn-primary">💾 보고서 저장</button></div>
     </div>
   </div>
 
@@ -2349,34 +2349,168 @@
       const blob=new Blob(['\uFEFF'+txt],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
       a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),2500);
     }
-    // V18: 5,000명 x 수십 교육 CSV도 선형시간으로 처리합니다.
-    // 화면에서 교육 열을 나눠 보더라도 다운로드에는 선택된 교육 전체가 포함됩니다.
-    async function exportBatch() { if (window.SHEMobileExportGuard?.block("education_batch_csv")) return;
-      if(state.batchExportRunning)return;
-      state.batchExportRunning=true;
-      try {
-        const base=reportMatrixBase(),events=base.items;
-        if(!events.length){notify('다운로드할 완료 교육을 선택하세요.');return;}
-        const fileName=`교육결과_${($('batchTitle').value||'차수').replace(/[\/:*?"<>|]/g,'_')}_${todayString()}.csv`;
-        const columns=['근로번호','성명','업체',...events.flatMap(({e})=>[`${e.title} 이수`,`${e.title} 특이사항`])];
-        const parts=['\uFEFF'+columns.map(csvSafe).join(',')+'\r\n'];
-        // CSV는 한 번에 거대한 2차원 배열을 생성하지 않고 작은 배치로 직렬화합니다.
-        const batch=[];
-        for(let i=0;i<base.people.length;i++){
-          const {key,worker:w}=base.people[i];
-          const row=[w?.workerNo||key,w?.name||'',w?.company||''];
-          for(const {e,attended,registered} of events){
-            const note=state.reportDraftNotes[`${e.id}::${key}`]||{};
-            row.push(attended.has(key)?'이수 완료':registered.has(key)?ATTENDANCE[e.attendeeOutcomes?.[key]]||'미참석':REPORT_NOT_JOINED[note.status]||'미등록',note.memo||'');
-          }
-          batch.push(row.map(csvSafe).join(',')+'\r\n');
-          if(batch.length===100){parts.push(batch.join(''));batch.length=0;await new Promise(resolve=>setTimeout(resolve,0));}
+    // Editable PPTX report; browser-local export; existing mobile key retained.
+    let batchPptxLibrary;
+    function loadBatchPptx(){
+      if(batchPptxLibrary)return batchPptxLibrary;
+      batchPptxLibrary=new Promise((resolve,reject)=>{
+        const script=document.createElement('script');
+        const timeout=setTimeout(fail,20000);
+        function fail(){clearTimeout(timeout);script.remove();reject(Error('PPTX 라이브러리 로딩 실패'));}
+        script.src='https://cdn.jsdelivr.net/npm/pptxgenjs@4.0.0/dist/pptxgen.bundle.js';
+        script.integrity='sha384-aezAi+IwfTi7SxSZMDVM9nsNSAQHpFLeX0S6V7gMkhftjywM1QIGB02mS0zCOaul';
+        script.crossOrigin='anonymous';script.async=true;
+        script.onload=()=>{clearTimeout(timeout);const P=window.PptxGenJS||window.pptxgen;if(typeof P==='function')resolve(P);else fail();};
+        script.onerror=fail;document.head.appendChild(script);
+      }).catch(error=>{batchPptxLibrary=null;throw error;});
+      return batchPptxLibrary;
+    }
+    function batchPptxModel(base,title,memo,notes){
+      const clean=v=>String(v??'').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g,'').trim();
+      const cmp=(a,b)=>a.localeCompare(b,'ko',{numeric:true});
+      const people=new Map(base.people.map(p=>[p.key,p.worker]));
+      const byEvent=new Map(base.items.map(x=>[x.e.id,new Set()]));
+      for(const [id,n] of Object.entries(notes)){
+        const at=id.indexOf('::');if(at<0)continue;
+        const key=id.slice(at+2),set=byEvent.get(id.slice(0,at));
+        if(set&&people.has(key)&&(clean(n?.memo)||(n?.status&&n.status!=='none')))set.add(key);
+      }
+      const targetKeys=new Set(),attendedKeys=new Set();
+      const events=base.items.slice().sort((a,b)=>cmp(clean(a.e.date),clean(b.e.date))||cmp(clean(a.e.title),clean(b.e.title))).map(({e,attended,registered})=>{
+        const targets=new Set([...registered,...attended]),keys=new Set([...targets,...byEvent.get(e.id)]),groups=new Map();
+        for(const key of keys){
+          const w=people.get(key),n=notes[e.id+'::'+key]||{};
+          const company=clean(w?.company)||'업체 미확인',actual=attended.has(key),isTarget=targets.has(key),outcome=e.attendeeOutcomes?.[key];
+          const label=actual?'참석':!isTarget?({postponed:'연기',cancelled:'취소',absent:'미수강'}[n.status]||'미등록'):outcome==='postponed'?'연기':outcome==='cancelled'?'취소':outcome==='attended'?'미확정':'미참석';
+          const row={key,no:clean(w?.workerNo)||clean(key).replace(/^worker:/,'')||'미확인',company,name:clean(w?.name)||'미확인',label,actual,isTarget,memo:clean(n.memo)};
+          if(isTarget)targetKeys.add(key);if(actual)attendedKeys.add(key);
+          if(!groups.has(company))groups.set(company,[]);
+          groups.get(company).push(row);
         }
-        if(batch.length)parts.push(batch.join(''));
-        const blob=new Blob(parts,{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
-        a.href=url;a.download=fileName;a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);
-      }catch(error){console.error('교육 보고서 다운로드 실패:',error);notify('교육 보고서 다운로드 중 오류가 발생했습니다.');}
-      finally{state.batchExportRunning=false;}
+        const companies=[...groups].sort((a,b)=>cmp(a[0],b[0])).map(([company,rows])=>{
+          rows.sort((a,b)=>cmp(a.no,b.no)||cmp(a.name,b.name)||cmp(a.key,b.key));
+          const target=rows.filter(x=>x.isTarget).length,actual=rows.filter(x=>x.actual).length;
+          return {company,rows,target,actual,other:target-actual,unregistered:rows.length-target};
+        });
+        return {title:clean(e.title)||'교육명 미기재',date:clean(e.date),hours:Number(e.hours)||0,target:targets.size,actual:attended.size,other:targets.size-attended.size,companies,legacy:!Array.isArray(e.confirmedKeys)};
+      });
+      return {title:clean(title)||'교육 결과 보고서',memo:clean(memo),events,unique:targetKeys.size,uniqueAttended:attendedKeys.size,allDone:[...targetKeys].filter(key=>base.items.every(x=>x.attended.has(key))).length,attendedCount:events.reduce((n,e)=>n+e.actual,0),legacy:events.some(e=>e.legacy)};
+    }
+    function batchPptxBuild(Pptx,model){
+      const pptx=new Pptx();pptx.layout='LAYOUT_WIDE';pptx.author='HANYANG ENG';pptx.subject='교육 결과 보고서';pptx.title=model.title;
+      const X=.60,TW=12.13,navy='202960',ink='222222',gray='64748B',rule='CAD2E0',red='B42318',font='맑은 고딕';
+      pptx.theme={headFontFace:font,bodyFontFace:font,lang:'ko-KR'};
+      const logo='image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHQAAABAAQMAAADxv8HfAAAABlBMVEX///8gKWBke2stAAABS0lEQVR42q3SMW7bQBCF4Y8jQVIRwC6TSjqCjsCj+CbmUXwUlil9hARIkZLpaIPmpNglRSGpggxAcH8MOfNm9vEv0WROW87MHG/4kJmZ3crHzMwEARNs+APeb6zDuOEew4a/1WfhoX6zbajmd6Vh4kDY98zM+EI4Xcmi6anDecJzDjTZC5fdUvXgIrR6egOfPSJz4Jw9zzkuqzlnX04R7Bj0pbtdZvaOyTlzFntcwRNNkT7azWWpZb4DFBlxQtPhE3Rl/naePW72cS3lVj7VnS68p7HhWA711bDf8i0qd06Vx7t01aOtcv78/943Yv5r/RqzKPdY7TaJOkdpP4q7ex9E9YXqk6i+sfromJnZOxdLhmkrRxQzlngnlsWVdoIXNBO8Evxc8y2xGLnaOsi28o8632vlS+VfBd/W+S/g68rf4a3d3Ff6OPkf8RuEdoZI7S84qgAAAABJRU5ErkJggg==';
+      const txt=(s,t,x,y,w,h,o={})=>s.addText(String(t??''),{x,y,w,h,fontFace:font,fontSize:13,color:ink,margin:0,fit:'shrink',valign:'mid',...o});
+      const line=(s,y)=>s.addShape(pptx.ShapeType.line,{x:X,y,w:TW,h:0,line:{color:navy,width:.65}});
+      const date=d=>String(d||'').replace(/-/g,'.');
+      const dates=model.events.map(e=>e.date).filter(Boolean).sort();
+      const period=dates.length?(date(dates[0])+(dates[0]!==dates[dates.length-1]?' — '+date(dates[dates.length-1]):'')):'일자 미기재';
+      let page=0;
+      function frame(title,when=period,sub=''){
+        const s=pptx.addSlide();s.background={color:'FFFFFF'};page++;
+        txt(s,when,X,.23,TW,.28,{align:'right',fontSize:13,bold:true,color:navy});
+        line(s,.62);txt(s,title,X,.76,TW,.57,{align:'center',fontSize:26,bold:true,color:navy});
+        if(sub)txt(s,sub,X,1.34,TW,.27,{align:'center',fontSize:13,color:gray});
+        line(s,1.70);line(s,6.98);
+        s.addImage({data:logo,x:X,y:7.06,w:.48,h:.265});
+        txt(s,'HANYANG ENG',X+.54,7.06,3,.26,{fontFace:'Arial',fontSize:12,bold:true,color:navy});
+        txt(s,String(page).padStart(2,'0'),12.23,7.06,.5,.25,{fontSize:11,color:gray,align:'right'});
+        return s;
+      }
+      const section=(s,t,y)=>txt(s,t,X,y,TW,.27,{fontSize:15,bold:true,color:navy});
+      const cell=(t,o={})=>({text:String(t??''),options:o});
+      function table(s,heads,rows,y,widths,heights,fs=12){
+        const header=heads.map(t=>cell(t,{fill:{color:'E9EDF5'},color:navy,bold:true,align:'center'}));
+        s.addTable([header,...rows],{x:X,y,w:TW,colW:widths,rowH:[.30,...heights],fontFace:font,fontSize:fs,color:ink,margin:[1,3,1,3],valign:'mid',align:'center',border:{type:'solid',pt:.5,color:rule},fill:{color:'FFFFFF'},autoPage:false});
+      }
+      const number=n=>n.toLocaleString('ko-KR'),rate=(a,t)=>t?((a/t)*100).toFixed(1).replace(/\.0$/,'')+'%':'—';
+      function lines(t,w,fs){
+        const limit=Math.max(1,Math.floor((w*72-12)/fs));let count=0;
+        for(const part of String(t??'').split(/\r?\n/)){
+          let units=0;for(const ch of part)units+=(/[\u0000-\u00FF]/.test(ch)?0.58:1);
+          count+=Math.max(1,Math.ceil(units/limit));
+        }
+        return count;
+      }
+      const hFor=(values,widths,fs=12,min=.245)=>Math.max(min,...values.map((v,i)=>lines(v,widths[i],fs)*(fs/72)*1.32+.07));
+      function take(rows,heights,start,cap,max=20){
+        let end=start,used=0;
+        while(end<rows.length&&end-start<max&&(used+heights[end]<=cap||end===start)){used+=heights[end];end++;}
+        return {end,rows:rows.slice(start,end),heights:heights.slice(start,end),used};
+      }
+      const ew=[4.03,1.65,1,1.25,1.25,1.55,1.40],eh=['교육명','교육일자','시간','대상(명)','참석(명)','미참석 등(명)','참석률'];
+      const evRows=model.events.map(e=>[cell(e.title,{align:'left'}),cell(date(e.date)),cell(e.hours+'h'),cell(number(e.target)),cell(number(e.actual)),cell(number(e.other),{color:e.other?red:ink}),cell(rate(e.actual,e.target))]);
+      const evH=evRows.map(r=>hFor(r.map(c=>c.text),ew,12,.29));
+      const cw=[3.05,4.03,1.15,1.15,1.55,1.20],ch=['업체','교육명','대상(명)','참석(명)','미참석 등(명)','참석률'];
+      const coRows=model.events.flatMap(e=>e.companies.map(g=>[cell(g.company,{align:'left'}),cell(e.title+' / '+date(e.date),{align:'left'}),cell(number(g.target)),cell(number(g.actual)),cell(number(g.other),{color:g.other?red:ink}),cell(rate(g.actual,g.target))]));
+      const coH=coRows.map(r=>hFor(r.map(c=>c.text),cw,11,.27));
+      const first=frame('교육 결과 보고서',period,model.title);
+      txt(first,'중복 제외 대상 '+number(model.unique)+'명  |  참석 실인원 '+number(model.uniqueAttended)+'명  |  전체 교육 이수 '+number(model.allDone)+'명  |  개별 참석 '+number(model.attendedCount)+'건',X,1.83,TW,.31,{fontSize:14,bold:true,color:navy});
+      section(first,'1. 교육별 실시 결과',2.27);
+      let ep=take(evRows,evH,0,1.30,4);
+      if(ep.used>1.30)ep={end:0,rows:[],heights:[],used:0};
+      table(first,eh,ep.rows,2.60,ew,ep.heights);
+      const cy=2.60+.30+ep.used+.16;
+      section(first,'2. 업체별 참석 현황',cy);
+      let cp=take(coRows,coH,0,Math.max(0,5.84-(cy+.33+.30)),4);
+      if(cp.rows.length&&cy+.33+.30+cp.used<=5.90)table(first,ch,cp.rows,cy+.33,cw,cp.heights,11);
+      else{cp={end:0,rows:[],heights:[],used:0};txt(first,coRows.length?'업체별 현황은 다음 페이지에서 계속됩니다.':'등록된 업체 없음',X,cy+.32,TW,.25,{fontSize:11,color:gray});}
+      txt(first,'3. 차수 메모 / 특이사항',X,6.00,TW,.24,{fontSize:13,bold:true,color:navy});
+      const memo=model.memo||'미기재',memoFits=lines(memo,TW,12)<=2;
+      txt(first,memoFits?memo:'차수 메모 전문은 별도 페이지에 표시됩니다.',X,6.28,TW,.37,{fontSize:12});
+      txt(first,'※ 미참석 등: 대상 중 확정 참석 제외. 미등록 주석 대상은 분모 제외.'+(model.legacy?' 일부 기존 완료 기록은 기존 보고서 기준 적용.':''),X,6.72,TW,.18,{fontSize:9,color:gray});
+      for(let p=ep.end;p<evRows.length;){
+        const s=frame('교육별 실시 결과 (계속)',period,model.title),part=take(evRows,evH,p,4.55,20);
+        table(s,eh,part.rows,1.95,ew,part.heights);p=part.end;
+      }
+      for(let p=cp.end;p<coRows.length;){
+        const s=frame('업체별 참석 현황 (계속)',period,model.title),part=take(coRows,coH,p,4.55,20);
+        table(s,ch,part.rows,1.95,cw,part.heights,11);p=part.end;
+      }
+      if(!memoFits){
+        const chars=Array.from(memo);
+        for(let i=0;i<chars.length;i+=450){
+          const s=frame('차수 메모 / 특이사항',period,model.title);
+          txt(s,chars.slice(i,i+450).join(''),X,2.03,TW,4.62,{fontSize:15,valign:'top'});
+        }
+      }
+      const dw=[.60,1.65,2.25,1.65,1.25,4.73],dh=['NO','근로번호','업체','이름','참석 여부','비고'];
+      for(const e of model.events){
+        if(!e.companies.length){const s=frame('교육 참석자 명단',date(e.date)+' / '+e.hours+'h',e.title);txt(s,'등록된 근로자 없음',X,2.03,TW,.55,{color:gray});continue;}
+        for(const g of e.companies){
+          const rows=g.rows.map((r,i)=>[cell(i+1),cell(r.no),cell(r.company,{align:'left'}),cell(r.name),cell(r.label,{color:r.actual?ink:r.isTarget?red:gray,bold:!r.actual&&r.isTarget}),cell(r.memo||'—',{align:'left'})]);
+          const hs=rows.map(r=>hFor(r.map(c=>c.text),dw,12,.245));
+          for(let p=0;p<rows.length;){
+            const part=take(rows,hs,p,4.35,20);
+            const s=frame('교육 참석자 명단',date(e.date)+' / '+e.hours+'h',e.title);
+            txt(s,g.company,X,1.83,6.1,.38,{fontSize:18,bold:true,color:navy});
+            txt(s,'대상 '+number(g.target)+'명 / 참석 '+number(g.actual)+'명 / 미참석 등 '+number(g.other)+'명'+(g.unregistered?' / 미등록 주석 '+number(g.unregistered)+'명':''),X+6.12,1.87,TW-6.12,.29,{fontSize:12,align:'right'});
+            table(s,dh,part.rows,2.25,dw,part.heights);p=part.end;
+          }
+        }
+      }
+      return pptx;
+    }
+    async function exportBatch(){
+      if(window.SHEMobileExportGuard?.block("education_batch_csv")||!requireAccess())return;
+      if(state.batchExportRunning)return;
+      const button=$('exportBatchBtn');state.batchExportRunning=true;
+      button.disabled=true;const before=button.textContent;button.textContent='PPTX 생성 중…';
+      try{
+        const base=reportMatrixBase();
+        if(!base.items.length){notify('다운로드할 완료 교육을 선택하세요.');return;}
+        const model=batchPptxModel(base,$('batchTitle').value,$('batchMemo').value,state.reportDraftNotes);
+        const Pptx=await loadBatchPptx();
+        if(!requireAccess()||window.SHEMobileExportGuard?.block("education_batch_csv"))return;
+        const pptx=batchPptxBuild(Pptx,model);
+        const fileName='교육결과_'+model.title.replace(/[\/:*?"<>|]/g,'_').slice(0,100)+'_'+todayString()+'.pptx';
+        const blob=await pptx.write({outputType:'blob',compression:true});
+        if(!requireAccess()||window.SHEMobileExportGuard?.block("education_batch_csv"))return;
+        const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=fileName;
+        a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);
+      }catch(error){console.error('교육 PPTX 다운로드 실패:',error);notify('PPTX 생성에 실패했습니다. 네트워크 연결을 확인한 뒤 다시 시도하세요.');}
+      finally{state.batchExportRunning=false;button.disabled=false;button.textContent=before;}
     }
     /* V16: 업로드 명단은 브라우저에서만 읽음. 신원 확인 후 선택 키만 반영. */
     function importClean(value) { return String(value??'').normalize('NFKC').replace(/[\s\u200B-\u200D\uFEFF]/g,'').toLowerCase(); }
