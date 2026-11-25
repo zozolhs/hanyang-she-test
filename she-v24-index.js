@@ -719,7 +719,7 @@ async function extensionRequest(action,data={}){
 }
 const healthFollowup=Object.freeze({
   candidates:()=>extensionRequest("health_candidates"),
-  list:(offset=0,active=false)=>extensionRequest("health_list",{offset,active}),
+  list:(offset=0,active=false,search="",filter="")=>extensionRequest("health_list",{offset,active,search,filter}),
   history:(case_id,offset=0)=>extensionRequest("health_history",{case_id,offset}),
   flags:()=>extensionRequest("health_flags"),
   append:data=>protectWrite(()=>extensionRequest("health_append",data))
