@@ -406,6 +406,7 @@
     </div>
     <div class="hc-header-right">
       <span class="hc-admin-pill" id="hcAdminRoleText">🛡️ 권한 인증됨</span>
+      <button type="button" id="hcFollowupBtn" class="hc-nav-btn" hidden style="display:none" onclick="window.location.href='health_followup.html'">📋 건강검진 사후관리</button>
       <button type="button" class="hc-nav-btn" onclick="window.location.href='index.html'">
         🏠 EHS 메인으로
       </button>
@@ -576,6 +577,7 @@
 
     function hcShowBlock(title, message, isMaintenance = false) {
       hcAccess.allowed = false;
+      const followup=document.getElementById("hcFollowupBtn");if(followup){followup.hidden=true;followup.style.display="none";}
       document.documentElement.classList.add("hc-locked");
       const box = document.getElementById("hcAccessOverlay");
       document.getElementById("hcLockTitle").textContent = title;
@@ -600,6 +602,7 @@
         hcAccess.allowed = true;
         hcAccess.writable = window.SHESEC.canWrite(p,'health');
         hcAccess.super = p.role === 'super_admin';
+        const followup=document.getElementById("hcFollowupBtn");followup.hidden=!hcAccess.writable;followup.style.display=hcAccess.writable?"":"none";
         ['hcSelectPdfBtn','hcDownloadExcelBtn','hcResetBtn'].forEach(id=>{
           const element=document.getElementById(id);
           if(element){element.disabled=!hcAccess.writable;element.title=hcAccess.writable?'':'HEALTH 열람 전용: PDF 변환·출력 권한 없음';}
