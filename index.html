@@ -2224,7 +2224,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       }
 
       container.innerHTML = filteredItems.map((item, idx) => `
-        <div onclick="openItemDetailModal('${sheInlineId(item.id)}')" class="bg-white rounded-xl border border-slate-200/90 item-card-accent p-5 sm:p-6 shadow-2xs hover:shadow-md hover:border-blue-300 transition cursor-pointer">
+        <div data-item-id="${sheDisplayText(item.id)}" onclick="openItemDetailModal('${sheInlineId(item.id)}')" class="bg-white rounded-xl border border-slate-200/90 item-card-accent p-5 sm:p-6 shadow-2xs hover:shadow-md hover:border-blue-300 transition cursor-pointer">
           <div class="flex items-start justify-between gap-2 mb-3">
             <h4 class="text-base sm:text-lg font-extrabold text-slate-900">
               ${sheDisplayText(item.taskTitle)}
@@ -2331,6 +2331,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
 
       document.getElementById('metaEvalType').textContent = item.evalType;
       document.getElementById('metaDocName').textContent = item.docName;
+      document.getElementById('itemDetailModal').dataset.sourceSerialVerified = riskHasSourceSerial(item) ? '1' : '0';
       document.getElementById('metaItemNo').textContent = item.itemNo;
       document.getElementById('metaPageNo').textContent = item.pageNo;
       document.getElementById('metaFileName').textContent = item.fileName;
@@ -3461,6 +3462,40 @@ body:not(.she-portal-active) #shePortal{display:none!important}
     // 지정된 가로 열 범위 [startCol, endCol] 안에서 셀 텍스트를 추출 (안전대책의 경우 [사고] 배지와 본문을 자동 결합)
     // Optional Excel-source fields: keep the legacy measureText unchanged for
     // existing duplicate keys, server validation, search and row linking.
+    // Excel identity is a source position, not a repeated mitigation sentence.
+    function riskExcelRowIdentity(item, docOverride) {
+      const doc = String(docOverride ?? item?.docId ?? '').trim();
+      const sheet = String(item?.sheetName ?? '').trim();
+      const row = String(item?.rowNo ?? '').trim();
+      if (!doc || !sheet || !/^[1-9][0-9]*행$/.test(row) ||
+          !/\.(xlsx?|xlsm|csv)$/i.test(String(item?.fileName ?? '').trim())) return null;
+      return JSON.stringify(['source', doc, sheet, row]);
+    }
+    function riskSourceSerialColumn(rows2D, headerRowIdx) {
+      if (headerRowIdx < 0) return -1;
+      const cols = [];
+      (rows2D[headerRowIdx] || []).forEach((v,c)=>{
+        if (['순서','번호','순번','no','일련번호','항목번호'].includes(cleanHeaderToken(v))) cols.push(c);
+      });
+      return cols.length === 1 ? cols[0] : -1;
+    }
+    function riskReadSourceSerial(row, column) {
+      if (column < 0) return null;
+      const v = String(row[column] ?? '').normalize('NFKC').trim();
+      if (!/^[0-9]+$/.test(v)) return null;
+      const n = Number(v);
+      return Number.isSafeInteger(n) && n > 0 ? n : null;
+    }
+    function riskHasSourceSerial(item) {
+      return item != null && Object.prototype.hasOwnProperty.call(item,'sourceSerialNo');
+    }
+    function riskOriginalNumberLabel(item, fallback) {
+      if (riskHasSourceSerial(item)) return Number.isSafeInteger(item.sourceSerialNo) && item.sourceSerialNo > 0
+        ? String(item.sourceSerialNo) + '번' : '번호 미기재';
+      const v = String(fallback ?? item?.itemNo ?? '').trim();
+      return /^\d+$/.test(v) ? v+'번' : v.replace(/\s*항목$/,'') || '번호 미기재';
+    }
+
     function riskSourceParts(item) {
       const parts = item?.excelSourceParts;
       if (!parts || typeof parts.body !== 'string' || !parts.body ||
@@ -3664,6 +3699,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
 
       const spans = computeColumnSpans(rows2D, headerRowIdx, colMap);
       const sourceColumns = riskSourceColumns(rows2D, headerRowIdx, colMap, spans);
+      const serialColumn = riskSourceSerialColumn(rows2D, headerRowIdx);
       const startRow = headerRowIdx >= 0 ? headerRowIdx + 1 : 0;
 
       for (let r = startRow; r < rows2D.length; r++) {
@@ -3704,7 +3740,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
         const excelSourceParts = riskExtractSourceParts(row, sourceColumns, rawMeasure);
 
         // A열(순서 열)에 적힌 원래 항목 번호가 있으면 참고하여 페이지 계산
-        const seqNum = parseInt(String(row[0] || '').trim(), 10);
+        const sourceSerialNo = riskReadSourceSerial(row, serialColumn);
         const approxPage = Math.max(1, Math.ceil((r + 1) / 18));
 
         extracted.push({
@@ -3715,7 +3751,8 @@ body:not(.she-portal-active) #shePortal{display:none!important}
           hazardText: finalHazard,
           measureText: finalMeasure,
           ...(excelSourceParts ? { excelSourceParts } : {}),
-          itemNo: `${!isNaN(seqNum) && seqNum > 0 ? seqNum : (extracted.length + 1)}번 항목`,
+          sourceSerialNo,
+          itemNo: sourceSerialNo === null ? '번호 미기재' : `${sourceSerialNo}번 항목`,
           pageNo: `${approxPage}페이지`,
           duplicateInfo: '',
           fileName: metaInfo.fileName,
@@ -3765,21 +3802,15 @@ body:not(.she-portal-active) #shePortal{display:none!important}
         totalItems = totalItems.concat(sheetItems);
       });
 
-      // Deduplication belongs to the actual task/category, NOT the
-      // mitigation text alone, sheet name or source row number. Keep rows
-      // from different tasks even if the same safety measure is used.
-      const uniqueInTask = new Set();
-      const norm = v => String(v ?? '').normalize('NFKC').replace(/\s+/g,' ').trim().toLocaleLowerCase('ko');
+      // Keep equal content on distinct source rows. Only repeated extraction
+      // of the same source row is redundant; never renumber Excel items.
+      const seenSourceRows = new Set();
       totalItems = totalItems.filter(it => {
-        const key = JSON.stringify([
-          it.evalType, it.taskTitle, it.causeObj, it.hazardText, it.measureText
-        ].map(norm));
-        if (uniqueInTask.has(key)) return false;
-        uniqueInTask.add(key);
+        const key = riskExcelRowIdentity(it, '__IMPORT__');
+        if (!key) return true;
+        if (seenSourceRows.has(key)) return false;
+        seenSourceRows.add(key);
         return true;
-      });
-      totalItems.forEach((it, idx) => {
-        it.itemNo = `${idx + 1}번 항목`;
       });
 
       return totalItems;
@@ -5192,8 +5223,9 @@ body:not(.she-portal-active) #shePortal{display:none!important}
 
   function getSafeDuplicateKey(it) {
     if (!it || typeof it !== "object") return null;
-    // Stable identity is a document + evaluation + actual task + risk context,
-    // never only the mitigation text and never the Excel source row number.
+    const sourceKey = riskExcelRowIdentity(it);
+    if (sourceKey) return sourceKey;
+    // Preserve existing content-based protection for manually entered/non-Excel items.
     const doc = String(it.docId || "").trim();
     const norm = v => String(v ?? "").normalize("NFKC").replace(/\s+/g," ").trim().toLocaleLowerCase("ko");
     const scope = [
@@ -5505,7 +5537,9 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       const docMap = dTitle ? allDocMaps[dTitle] : null;
       const mappedSerial = docMap ? findExactSerialForItemFromMap(it, docMap) : null;
 
-      if (mappedSerial !== null) {
+      if (riskExcelRowIdentity(it)) {
+        // The imported number is authoritative; never renumber stored Excel rows.
+      } else if (mappedSerial !== null) {
         if (applyTrueSerialToItemObject(it, mappedSerial)) {
           serialFixed++;
         }
@@ -5526,7 +5560,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
         const dTitle = getItemDocTitle(it);
         const sNo = (recount.get(dKey) || 0) + 1;
         recount.set(dKey, sNo);
-        if (!allDocMaps[dTitle]) {
+        if (!riskExcelRowIdentity(it) && !allDocMaps[dTitle]) {
           applyTrueSerialToItemObject(it, sNo);
         }
       }
@@ -5690,6 +5724,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
   function enhanceDetailModalWithSerialAndCalibration() {
     const modalRoot=document.getElementById("itemDetailModal");
     if (!modalRoot || modalRoot.classList.contains("hidden")) return;
+    if (modalRoot.dataset.sourceSerialVerified === "1") return;
     // Avoid rescanning the entire page on every DOM observer event.
     const allEls = Array.from(modalRoot.querySelectorAll("div, span, p"));
     const rowLabelEl = allEls.find((el) => {
@@ -5744,6 +5779,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
 
   function getFastCardDupKey(cardEl) {
     if (!cardEl) return null;
+    if (cardEl.dataset?.itemId) return "id:" + cardEl.dataset.itemId;
     if (cardEl._hyDomDupKey !== undefined) return cardEl._hyDomDupKey;
     const text = cardEl.textContent || "";
     const normalized = text
@@ -9144,7 +9180,9 @@ function portalSearch(e){
  if(typeof quickSearch==='function')quickSearch(query);
 }
   function numberFrom(s) {
-    const n = Number(String(s || '').replace(/[^\d.\-]/g, ''));
+    const raw = String(s || '').replace(/[^\d.\-]/g, '');
+    if (!raw) return Number.MAX_SAFE_INTEGER;
+    const n = Number(raw);
     return Number.isFinite(n) ? n : Number.MAX_SAFE_INTEGER;
   }
   function fieldsOf(item) {
@@ -9154,7 +9192,7 @@ function portalSearch(e){
       measure:safeStr(item.measureText || item.measure || item.countermeasure),
       cause:safeStr(item.causeObj || item.cause || ''), doc:safeStr(item.docName || item.documentName || ''),
       eval:safeStr(item.evalType || item.category || ''), row:safeStr(item.rowNo || item.excelRowNum || ''),
-      no:safeStr(item.itemNo || item.serialNo || ''), page:safeStr(item.pageNo || ''),
+      no:safeStr(riskHasSourceSerial(item) ? (item.sourceSerialNo ?? '') : (item.itemNo || item.serialNo || '')), page:safeStr(item.pageNo || ''),
       image:safeStr(item.imageUrl || ''), imageName:safeStr(item.imageFileName || item.fileName || ''),
       rev:safeStr(item.revInfo || ''), approved:safeStr(item.approvalDate || '')
     };
@@ -9163,12 +9201,13 @@ function portalSearch(e){
     const f = fieldsOf(item);
     const sourceParts = riskSourceParts(item);
     let correctNo = f.no;
-    if (window.sheV32?.lookupSerial) {
+    if (!riskHasSourceSerial(item) && window.sheV32?.lookupSerial) {
       try {
         const n = window.sheV32.lookupSerial(f.doc, numberFrom(f.row), f.title, f.measure, f.no);
         if (n !== null && n !== undefined && String(n).trim() !== '') correctNo = String(n);
       } catch (e) {console.warn(e);}
     }
+    const numberLabel = riskOriginalNumberLabel(item, correctNo);
     const card = document.createElement('article');
     card.className = 'she-risk-card bg-white rounded-xl border border-slate-200/90 item-card-accent p-5 sm:p-6 shadow-sm hover:shadow-md hover:border-blue-300 transition cursor-pointer';
     card.tabIndex = 0;
@@ -9176,7 +9215,7 @@ function portalSearch(e){
     card.dataset.itemId = safeStr(f.id);
     card._hyManagedCard = true;
     card.innerHTML = `
-      <div class="she-risk-top"><h4>${esc(f.title || '작업명 미기재')}</h4><span>${idx+1}번째 결과 · 원본 ${esc(correctNo)}번</span></div>
+      <div class="she-risk-top"><h4>${esc(f.title || '작업명 미기재')}</h4><span>${idx+1}번째 결과 · 원본 ${esc(numberLabel)}</span></div>
       <div class="she-risk-badges">
         <span class="she-badge she-badge-blue">${esc(f.eval || '위험성평가')}</span>
         <span class="she-badge she-badge-slate">기인물 · ${esc(f.cause)}</span>
@@ -9187,7 +9226,7 @@ function portalSearch(e){
       <div class="she-measure"><strong>원본 안전대책</strong><p>${esc(riskDisplayedMeasure(item) ?? f.measure)}</p></div>
       ${f.image && /^(data:image\/|https:\/\/)/.test(f.image)
         ? `<div class="she-image-row"><img loading="lazy" src="${esc(f.image)}" alt="첨부 원본 이미지"><span>🖼️ ${esc(f.imageName || '첨부 원본 이미지')} · 상세보기에서 확대 가능</span></div>` : ''}
-      <div class="she-risk-meta"><span>원본 ${esc(f.doc)} · 항목 ${esc(correctNo)}번 · 페이지 ${esc(f.page)} · 원본행 ${esc(f.row)}</span><b>원본 위치 및 상세보기 →</b></div>`;
+      <div class="she-risk-meta"><span>원본 ${esc(f.doc)} · 항목 ${esc(numberLabel)} · 페이지 ${esc(f.page)} · 원본행 ${esc(f.row)}</span><b>원본 위치 및 상세보기 →</b></div>`;
     const open = () => {
       if (!canSafetyView()) return;
       if (typeof openItemDetailModal === 'function') {
@@ -9308,7 +9347,9 @@ function portalSearch(e){
     return panel;
   }
   function riskResultIdentity(item, f) {
-    // This renderer is isolated from the legacy editor closure.
+    const sourceKey = riskExcelRowIdentity(item);
+    if (sourceKey) return sourceKey;
+    // Retain legacy fallback for non-Excel records.
     const doc = String(item?.docId ?? '').trim();
     const norm = v => String(v ?? '').normalize('NFKC').replace(/\s+/g,' ').trim().toLocaleLowerCase('ko');
     const key = [doc,norm(item?.evalType ?? f.eval),norm(f.title),
