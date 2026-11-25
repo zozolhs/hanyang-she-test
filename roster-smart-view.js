@@ -7,6 +7,7 @@ const q=id=>document.getElementById(id);
 const transferKey="she_education_selected_workers_v1";
 const selected=new Set();
 let mode="",quick="active",page=0,openUid=null,pending=false,lastAccount=null;
+let currentResults=[];
 const eduFields=[
  ["eduCommon","공통교육"],["edu13ho","13호(운반)"],["edu38ho","38호(화재)"],
  ["edu4ho","4호(인화)"],["edu35ho","35호(허가)"],["eduClosed","34호(밀폐)"],
@@ -126,6 +127,7 @@ function render(){
  companyInput.value=companies.includes(prev)?prev:"";
  const term=q("sheSmartSearch").value.normalize("NFKC").toLowerCase().trim();
  const result=all.filter(rec=>matches(rec,term,companyInput.value));
+ currentResults=result;
  const counts={active:0,expired:0,soon:0,incomplete:0};
  for(const rec of all){
   const st=recordState(rec);if(st.resigned)continue;
@@ -147,12 +149,14 @@ function render(){
   if(allowedToTransfer()){
    const checkbox=node("input","she-smart-check");
    checkbox.type="checkbox";checkbox.checked=selected.has(rec.uid);
+   checkbox.dataset.uid=rec.uid;
    checkbox.setAttribute("aria-label",(rec.name||"근로자")+" 교육 대상 선택");
    checkbox.addEventListener("change",()=>{
     if(checkbox.checked)selected.add(rec.uid);else selected.delete(rec.uid);
     updateTransfer();
    });
-   item.append(checkbox);
+   const hit=node("label","roster-check-hit");
+   hit.append(checkbox);item.append(hit);
   }
   const main=node("button","she-smart-person-main");
   main.type="button";main.append(
@@ -176,7 +180,58 @@ function render(){
  updateTransfer();
  if(openUid&&rosterView.byId.has(openUid))detail(openUid);
 }
+function toggleSmartResults(selection,records,checked){
+ for(const rec of records){if(checked)selection.add(rec.uid);else selection.delete(rec.uid);}
+}
+function smartSelectionState(selection,records){
+ const total=records.length,count=records.reduce((n,rec)=>n+Number(selection.has(rec.uid)),0);
+ return {total,count,checked:total>0&&count===total,partial:count>0&&count<total};
+}
+function syncSmartChecks(){
+ q("sheSmartList").querySelectorAll(".she-smart-check").forEach(cb=>{cb.checked=selected.has(cb.dataset.uid);});
+}
+function updateSmartSelection(){
+ const master=q("sheSmartSelectAll"),bar=q("sheSmartSelectionBar"),clear=q("sheSmartClearSelection");
+ if(!master||!bar||!clear)return;
+ const allowed=allowedToTransfer();
+ bar.hidden=!allowed;
+ const result=smartSelectionState(selected,currentResults);
+ master.checked=result.checked;master.indeterminate=result.partial;
+ master.disabled=!allowed||result.total===0;
+ const total=[...selected].filter(uid=>rosterView.byId.has(uid)).length;
+ clear.disabled=!allowed||total===0;
+ q("sheSmartSelectedCount").textContent="조회 선택 "+result.count+"명 / 전체 선택 "+total+"명";
+}
+function currentSmartResults(){
+ const term=q("sheSmartSearch").value.normalize("NFKC").toLowerCase().trim();
+ const company=q("sheSmartCompany").value;
+ return (rosterView.records||[]).filter(rec=>matches(rec,term,company));
+}
+function initSmartSelection(){
+ const summary=q("sheSmartSummary");
+ const bar=node("div","roster-smart-selection");bar.id="sheSmartSelectionBar";bar.hidden=true;
+ const label=node("label","roster-smart-select-all");
+ const master=node("input","");master.id="sheSmartSelectAll";master.type="checkbox";
+ master.setAttribute("aria-label","현재 검색 결과 전체 선택 (모든 페이지)");
+ label.append(master,node("span","","조회 결과 전체 선택"));
+ const count=node("span","she-ux-muted");count.id="sheSmartSelectedCount";count.setAttribute("aria-live","polite");
+ const clear=node("button","she-smart-action","선택 해제");clear.type="button";clear.id="sheSmartClearSelection";
+ clear.title="다른 검색 조건과 페이지에서 선택한 인원까지 모두 해제";
+ const hint=node("span","roster-smart-select-hint","모든 페이지 포함 · 교육 전송은 재직자 150명 이하");
+ bar.append(label,count,clear,hint);summary.after(bar);
+ master.addEventListener("change",()=>{
+  if(!allowedToTransfer()){updateSmartSelection();return;}
+  currentResults=currentSmartResults();
+  toggleSmartResults(selected,currentResults,master.checked);
+  syncSmartChecks();updateTransfer();
+ });
+ clear.addEventListener("click",()=>{
+  if(!allowedToTransfer())return;
+  selected.clear();syncSmartChecks();updateTransfer();
+ });
+}
 function updateTransfer(){
+ updateSmartSelection();
  const eligible=[...selected].filter(uid=>rosterView.byId.has(uid));
  q("sheSmartTransfer").textContent="선택 "+eligible.length+"명 교육일정으로 보내기";
  q("sheSmartTransfer").disabled=eligible.length===0||!allowedToTransfer();
@@ -195,6 +250,7 @@ function transfer(){
 }
 function schedule(){if(pending)return;pending=true;requestAnimationFrame(()=>{pending=false;render();});}
 function init(){
+ initSmartSelection();
  q("sheSmartMode").addEventListener("click",()=>setMode("smart"));
  q("sheFullMode").addEventListener("click",()=>setMode("full"));
  q("sheSmartSearch").addEventListener("input",()=>{page=0;schedule();});
