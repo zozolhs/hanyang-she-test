@@ -797,6 +797,19 @@ async function rpc(name,args={}){
       return {data:res,error:null};
     }catch(e){return {data:null,error:e};}
   }
+  if(name==="she_delete_completed_education"){
+    try{
+      const res=await extensionRequest("education_delete_completed",{
+        event_id:args.p_event_id,expected_updated_at:args.p_expected_updated_at,confirm_delete:args.p_confirm_delete
+      });
+      const id="main_v1_edu_schedule",epoch=sessionEpoch,session=token;
+      const pending=pendingRows.get(id);
+      if(pending){try{await pending;}catch{}}
+      if(epoch!==sessionEpoch||session!==token)throw failure("로그인 세션이 변경되었습니다. 삭제 결과를 다시 확인하세요.",401);
+      fullRows.delete(id);versions.delete(id);
+      return {data:res,error:null};
+    }catch(e){return {data:null,error:e};}
+  }
   if(name==="she_confirm_education_details"){
     try{
       const res=await extensionRequest("education_confirm_details",{
@@ -831,7 +844,7 @@ const client=Object.freeze({
       upsert(data){return new StoreQuery("upsert",table,data).execute();}
     };
   },
-  rpc:(name,args)=>["she_confirm_education_v2","she_confirm_education_details"].includes(name)?protectWrite(()=>rpc(name,args)):rpc(name,args),channel
+  rpc:(name,args)=>["she_confirm_education_v2","she_confirm_education_details","she_delete_completed_education"].includes(name)?protectWrite(()=>rpc(name,args)):rpc(name,args),channel
 });
 window.SHESEC=Object.freeze({
   client,healthFollowup,refresh,guard,login,register,logout,users,connectedUsers,securityEvents,setUser,deleteUser,
