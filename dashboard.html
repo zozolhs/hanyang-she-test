@@ -8,13 +8,13 @@
   <script src="./mobile-export-guard.js?v=20261122-1"></script>
   <script src="./ehs-deferred-libs.js?v=20261123-perf1"></script>
   <!-- Browser-side baseline: does not alter login, account approval, or inline app scripts. -->
-  <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'; form-action 'self'; script-src-elem 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net">
   <meta name="referrer" content="no-referrer">
   <meta name="theme-color" content="#16286e">
   <title>한양이엔지 EHS 플랫폼 | EDUCATION 교육관리</title>
   <script>document.documentElement.classList.add("edu-locked");</script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="./she-v24-index.js?v=20261126-extension1"></script>
+  <script src="./she-v24-index.js?v=20261126-balanced2"></script>
   <!-- XLSX loads only when an attendance Excel file is selected. -->
   <style>
     :root {
