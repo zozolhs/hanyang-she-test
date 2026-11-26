@@ -429,10 +429,31 @@ async function findRows(filter,columns,single=false){
         if(!batch){
           const epoch=sessionEpoch,session=token;
           batch=(async()=>{
-            const res=await request("store","store_get_batch",{ids});
+            // Only risk chunks may use the conditional batch protocol. Keep the
+            // same in-memory cache and fresh server permission check on every request.
+            const riskOnly=ids.every(id=>/^main_v10_(meta|chunk_[0-9]+)$/.test(id));
+            const if_versions=riskOnly?Object.fromEntries(ids.flatMap(id=>{
+              const cached=fullRows.get(id);
+              return typeof cached?.updated_at==="string"?[[id,cached.updated_at]]:[];
+            })):{};
+            let res=await request("store","store_get_batch",{ids,...(Object.keys(if_versions).length?{if_versions}:{})});
             if(sessionEpoch!==epoch||token!==session)
               throw failure("로그인 세션이 변경되었습니다.",401);
+            const markers=Array.isArray(res.not_modified)?res.not_modified:[];
+            const reusable=markers.every(marker=>riskOnly&&ids.includes(marker.id)&&
+              typeof marker.updated_at==="string"&&if_versions[marker.id]===marker.updated_at&&
+              fullRows.get(marker.id)?.updated_at===marker.updated_at);
+            if(!reusable){
+              // A concurrent write/reset may have invalidated a cached chunk.
+              // Re-fetch one complete snapshot; never combine a stale/missing row.
+              res=await request("store","store_get_batch",{ids});
+              if(sessionEpoch!==epoch||token!==session)
+                throw failure("로그인 세션이 변경되었습니다.",401);
+              if(Array.isArray(res.not_modified)&&res.not_modified.length)
+                throw failure("서버 일괄 자료를 다시 확인할 수 없습니다.",503);
+            }
             const rows=new Map();
+            if(reusable)for(const marker of markers)rows.set(marker.id,fullRows.get(marker.id));
             for(const row of res.rows||[]){
               if(!ids.includes(row.id))continue;
               rows.set(row.id,rememberRow(row));
