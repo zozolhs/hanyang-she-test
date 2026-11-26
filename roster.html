@@ -687,7 +687,7 @@
         <button type="button" id="excelDownloadButton" class="btn btn-success" onclick="exportRosterExcel()" data-mobile-spreadsheet-export data-mobile-export-key="roster_excel">📥 엑셀 다운로드</button>
     </div>
     <div class="roster-helper">
-        ※ 엑셀 업로드는 열 제목·병합 제목·교육별 DATE를 자동 인식합니다. 동일 인원은 중복 추가하지 않습니다. 기본 보호 모드는 빈칸만 보완하며, 최신 교육 이력 갱신 모드는 더 최신 날짜이고 누적시간이 감소하지 않는 교육값만 교체합니다. 충돌 및 갱신 내역은 보고서에 기록합니다. 교육 0/0h/0.0은 적용하지 않습니다. 날짜를 확인할 수 없는 1~8h 시수는 잘못 저장하지 않고 업로드를 중단합니다. 교육입력 예: <b>2026-11-18 8h</b>. 8h 이상은 이수 완료(초록), 8h 미만이며 교육일 + 2개월 경과 시 만료(빨강)로 표시됩니다.
+        ※ 엑셀 업로드는 열 제목·병합 제목·교육별 DATE를 자동 인식합니다. 동일 인원은 중복 추가하지 않습니다. 기본 보호 모드는 빈칸만 보완하며, 최신 교육 이력 갱신 모드는 더 최신 날짜이고 누적시간이 감소하지 않는 교육값만 교체합니다. 충돌 및 갱신 내역은 보고서에 기록합니다. 교육 0/0h/0.0은 적용하지 않습니다. 날짜를 확인할 수 없는 1~8h 시수는 오류 인원 검토창에서 해당 교육값 제외 또는 인원 전체 제외를 선택합니다. 교육입력 예: <b>2026-11-18 8h</b>. 8h 이상은 이수 완료(초록), 8h 미만이며 교육일 + 2개월 경과 시 만료(빨강)로 표시됩니다.
         직종이 용접공이면 크레인은 해당사항 없음으로 잠기며, 밀폐작업감시자의 34호(밀폐) 교육이 없으면 빨간색 미이수 안내를 표시합니다. 데이터는 변경 후 자동 저장을 시도하며, 서버 저장 상태를 반드시 확인해 주세요. 서버 저장 실패 시 엑셀로 백업하세요.
     </div>
 </div>
@@ -2125,7 +2125,7 @@ function parseExcelWorkbook(book) {
   }
   if(!matches.length) throw new Error('엑셀 제목행에서 성명/근로번호와 다른 필드를 식별하지 못했습니다. 양식에 열 제목이 있는지 확인하세요.');
   // 서로 다른 시트에 근로자 목록이 있으면 모두 읽되 안내에 포함한다.
-  const records=[],issues=[],details=[],zeroStats={ignored:0};
+  const records=[],details=[],zeroStats={ignored:0};
   for(const cfg of matches) {
     const {sheet,matrix,mapping,eduDateCols,sheetName,dataStart}=cfg;
     let sheetCount=0;
@@ -2141,6 +2141,7 @@ function parseExcelWorkbook(book) {
       if(!name && !workerNo) continue;
       if(/^(합계|총계|total|소계)$/i.test(cleanedHeader(name))) continue;
       const obj={uid:makeUid()};
+      const issues=[];
       for(const def of FIELD_DEFS) {
         const c=mapping[def.key];
         if(c===undefined || ROSTER_IMPORT_EDU.includes(def.key)) continue;
@@ -2156,18 +2157,22 @@ function parseExcelWorkbook(book) {
           `${sheetName} ${r+1}행 ${ROSTER_IMPORT_ALIASES[key][0]}`,zeroStats);
       }
       // 교육일자를 문자열 그대로 인식해 신뢰할 수 없는 날짜가 들어가지 않도록 검증한다.
-      for(const key of ['samsungStartDate','resignDate','rehireDate']) {
-        if(obj[key] && !strictDate(obj[key])) issues.push(`${sheetName} ${r+1}행 ${key}: 날짜 형식 확인 필요`);
+      for(const key of ['samsungStartDate','resignDate','rehireDate','eduRegular']) {
+        if(obj[key] && !strictDate(obj[key])) {
+          const label=FIELD_DEFS.find(f=>f.key===key)?.label || key;
+          issues.push(`${sheetName} ${r+1}행 ${label}: 날짜 형식 확인 필요 (${obj[key]})`);
+          obj[key]='';
+        }
       }
       const parsed=normalizeRecord(obj);
       parsed.__sourceLocation=`${sheetName} ${r+1}행`;
+      parsed.__importIssues=issues;
       records.push(parsed);
       sheetCount++;
     }
     details.push(`${sheetName}: ${sheetCount}명 / ${cfg.fieldCount}개 제목 인식`);
   }
   if(!records.length) throw new Error('제목행은 확인했지만 근로자 데이터가 없습니다.');
-  if(issues.length) throw new Error(`교육 날짜·시간 또는 입력 형식이 불명확한 ${issues.length}개 값이 있습니다. 잘못된 데이터 저장을 막기 위해 업로드를 중단했습니다.\n\n${issues.slice(0,8).join('\n')}${issues.length>8?'\n외 '+(issues.length-8)+'건':''}`);
   return {records,details,zeroIgnored:zeroStats.ignored};
 }
 /* 중복 방지: 고유 근로번호 우선, 없으면 성명+생년월일로만 비교.
@@ -2321,7 +2326,7 @@ function mergeRosterImport(currentRecords,uploadedRecords,options={}) {
 }
 function rosterAuditSummary(report,applied) {
   const s=report.stats;
-  return `${applied?'적용':'미적용'} · 인식 ${s.sourceRows}행 · 신규 ${s.added}명 · 기존 일치 ${s.matched}행 · 빈칸 보완 ${s.filledCells}개 · 교육 갱신 ${s.updatedEducation}건 · 파일 내 중복 ${s.inFileDuplicates}행 · 충돌 ${s.conflicts}건 · 확인 필요 ${s.skipped}행 · 교육 0시간 제외 ${s.zeroExcluded}건`;
+  return `${applied?'적용':'미적용'} · 인식 ${s.sourceRows}행 · 신규 ${s.added}명 · 기존 일치 ${s.matched}행 · 빈칸 보완 ${s.filledCells}개 · 교육 갱신 ${s.updatedEducation}건 · 파일 내 중복 ${s.inFileDuplicates}행 · 충돌 ${s.conflicts}건 · 확인 필요 ${s.skipped}행 · 교육 0시간 제외 ${s.zeroExcluded}건${s.reviewRows!==undefined?` · 원본 ${s.originalRows}행 · 오류값 제외 검토 ${s.partialRows}행 · 사용자 제외 ${s.excludedRows}행`:''}`;
 }
 function showRosterImportReport(report,applied) {
   lastRosterImportReport={...report,applied,at:new Date().toISOString()};
@@ -2388,6 +2393,94 @@ async function readRosterWorkbook(buffer) {
     if (url) URL.revokeObjectURL(url);
   }
 }
+
+/* Partial import review: only incoming invalid fields are omitted. Never synthesize dates from stored history. */
+function rosterImportGroupKey(record,index) {
+  const id=rosterIdentity(record);
+  return id.numberKey || id.personKey || ('ROW:'+index);
+}
+function buildRosterImportGroups(records) {
+  const groups=new Map();
+  records.forEach((record,index)=>{
+    const key=rosterImportGroupKey(record,index);
+    if(!groups.has(key)) groups.set(key,{key,record,rows:[],issues:[],choice:'exclude'});
+    const g=groups.get(key);
+    g.rows.push(record);
+    for(const issue of record.__importIssues||[]) g.issues.push(issue);
+  });
+  return [...groups.values()].filter(g=>g.issues.length);
+}
+function rosterImportDialog(title) {
+  const dialog=document.createElement('dialog');
+  dialog.setAttribute('aria-label',title);
+  dialog.style.cssText='width:min(760px,calc(100% - 24px));max-height:85vh;box-sizing:border-box;padding:20px;border:1px solid #cbd5e1;border-radius:14px;background:#fff;color:#17233b;overflow:auto;font:inherit;z-index:10000';
+  const heading=document.createElement('h2'); heading.textContent=title;
+  heading.style.cssText='margin:0 0 12px;font-size:20px';
+  dialog.append(heading);
+  document.body.append(dialog);
+  return dialog;
+}
+function rosterImportText(parent,tag,value,style='') {
+  const el=document.createElement(tag);el.textContent=value;
+  if(style)el.style.cssText=style;
+  parent.append(el);return el;
+}
+function rosterImportButton(parent,label,primary,action) {
+  const btn=document.createElement('button');
+  btn.type='button';btn.className='btn '+(primary?'btn-primary':'btn-outline');
+  btn.textContent=label;btn.addEventListener('click',action);parent.append(btn);return btn;
+}
+function rosterImportReview(records,groups) {
+  return new Promise((resolve,reject)=>{
+    const dialog=rosterImportDialog('엑셀 업로드 오류 검토');
+    const normal=records.length-groups.reduce((n,g)=>n+g.rows.length,0);
+    rosterImportText(dialog,'p','오류 인원 '+groups.length+'명 · 정상 대상 '+normal+'행. 날짜를 확인할 수 없는 교육값은 제외되며 기존 이력은 유지됩니다. 인원 전체 제외를 선택하면 해당 식별번호의 모든 업로드 행을 제외합니다.');
+    const controls=document.createElement('div');controls.style.cssText='display:flex;flex-wrap:wrap;gap:8px;margin:12px 0';dialog.append(controls);
+    const summary=rosterImportText(dialog,'p','','font-weight:700;position:sticky;top:0;background:#fff;padding:8px 0;z-index:1');
+    const fields=[];
+    const refresh=()=>{
+      const excluded=groups.filter(g=>g.choice==='exclude').reduce((n,g)=>n+g.rows.length,0);
+      summary.textContent='전체 '+records.length+'행 · 반영 검토 대상 '+(records.length-excluded)+'행 · 제외 '+excluded+'행';
+    };
+    const chooseAll=choice=>{groups.forEach((g,i)=>{g.choice=choice;fields[i].value=choice});refresh();};
+    rosterImportButton(controls,'전체 오류값 제외 후 반영',false,()=>chooseAll('apply'));
+    rosterImportButton(controls,'오류 인원 전체 제외',false,()=>chooseAll('exclude'));
+    for(const g of groups) {
+      const box=document.createElement('section');box.style.cssText='border:1px solid #d6dce7;border-radius:9px;padding:12px;margin:8px 0';dialog.append(box);
+      rosterImportText(box,'strong',rosterLabel(g.record)+' / '+(g.record.company||'업체 미기재'));
+      rosterImportText(box,'p',g.issues.join('\n'),'white-space:pre-wrap;overflow-wrap:anywhere;color:#9a3412;font-size:14px;margin:8px 0');
+      if(g.rows.length>1)rosterImportText(box,'p','동일 식별정보 '+g.rows.length+'행');
+      const select=document.createElement('select');select.setAttribute('aria-label',rosterLabel(g.record)+' 처리 방법');
+      select.style.cssText='max-width:100%;padding:8px';
+      for(const [value,label] of [['exclude','인원 전체 제외'],['apply','오류값 무시하고 정상정보 반영']]){
+        const option=document.createElement('option');option.value=value;option.textContent=label;select.append(option);
+      }
+      select.value=g.choice;select.addEventListener('change',()=>{g.choice=select.value;refresh()});box.append(select);fields.push(select);
+    }
+    const actions=document.createElement('div');actions.style.cssText='display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;margin-top:16px';dialog.append(actions);
+    let result=false;
+    rosterImportButton(actions,'전체 업로드 취소',false,()=>dialog.close());
+    rosterImportButton(actions,'선택 확정',true,()=>{result=true;dialog.close()});
+    dialog.addEventListener('close',()=>{dialog.remove();resolve(result)},{once:true});
+    refresh();
+    try{dialog.showModal()}catch(e){dialog.remove();reject(e)}
+  });
+}
+function rosterImportResultDialog(report,headline) {
+  const dialog=rosterImportDialog('근로자연명부 업로드 반영 결과');
+  const stats=report.stats;
+  rosterImportText(dialog,'strong',headline,'display:block;font-size:17px;margin-bottom:10px');
+  rosterImportText(dialog,'p',rosterAuditSummary(report,report.applied));
+  if(stats.reviewRows!==undefined)rosterImportText(dialog,'p','원본 '+stats.originalRows+'행 · 정상 대상 '+(stats.originalRows-stats.reviewRows)+'행 · 오류값 제외 후 검토 '+stats.partialRows+'행 · 사용자 제외 '+stats.excludedRows+'행. 실제 신규·갱신·충돌은 위 결과 기준입니다.');
+  const details=document.createElement('pre');
+  details.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;max-height:42vh;overflow:auto;background:#f1f5f9;padding:12px;border-radius:8px;font:inherit;font-size:13px';
+  details.textContent=report.entries.length?report.entries.map(e=>'['+e.kind+'] '+e.where+' / '+e.worker+' — '+e.note).join('\n'):'별도 검토 사항 없음';
+  dialog.append(details);
+  rosterImportButton(dialog,'닫기',true,()=>dialog.close());
+  dialog.addEventListener('close',()=>dialog.remove(),{once:true});
+  try{dialog.showModal()}catch(e){dialog.remove();alert(headline+'\n'+rosterAuditSummary(report,report.applied))}
+}
+
 async function importRosterExcel(file) {
   if(!file||!requireRosterEdit()) return;
   if(rosterState.importing) return alert('이미 다른 엑셀 파일을 분석 중입니다.');
@@ -2401,25 +2494,49 @@ async function importRosterExcel(file) {
     const buffer=await file.arrayBuffer();
     const book=await readRosterWorkbook(buffer);
     const result=parseExcelWorkbook(book);
-    const current=collectRows();
+    const groups=buildRosterImportGroups(result.records);
+    if(groups.length && !(await rosterImportReview(result.records,groups))){
+      status.textContent='↩ 오류 검토 취소 · 기존 명부 유지';return;
+    }
     if(!requireRosterEdit())return;
-    const merged=mergeRosterImport(current,result.records,{zeroIgnored:result.zeroIgnored,mode});
+    if(rosterState.saving || rosterState.autosavePaused){
+      status.textContent='⚠ 기존 저장 처리 또는 충돌 해결 후 다시 업로드해 주세요.';
+      alert(status.textContent);return;
+    }
+    const excluded=new Set(groups.filter(g=>g.choice==='exclude').map(g=>g.key));
+    const selected=result.records.filter((record,index)=>!excluded.has(rosterImportGroupKey(record,index)));
+    const current=collectRows();
+    const merged=mergeRosterImport(current,selected,{zeroIgnored:result.zeroIgnored,mode});
+    Object.assign(merged.stats,{originalRows:result.records.length,
+      reviewRows:groups.reduce((n,g)=>n+g.rows.length,0),
+      partialRows:groups.filter(g=>g.choice==='apply').reduce((n,g)=>n+g.rows.length,0),
+      excludedRows:result.records.length-selected.length});
+    merged.entries.unshift(...groups.map(g=>({kind:g.choice==='apply'?'오류값 제외':'인원 제외',
+      where:g.rows.map(r=>r.__sourceLocation).join(', '),worker:rosterLabel(g.record),
+      note:g.issues.join(' / ')+' · '+(g.choice==='apply'?'오류값 미반영, 기존 병합 보호 규칙 적용':'해당 인원 업로드 제외')})));
     const s=merged.stats;
     const needsReview=s.conflicts+s.ambiguous+s.skipped+s.existingDuplicates>0;
     let applied=true;
     if((needsReview || mode==='latest') && merged.changed) {
       applied=confirm(`${rosterAuditSummary(merged,true)}\n\n${mode==='latest'?'최신 교육일자이며 누적시간이 감소하지 않는 교육값만 교체합니다. 시간은 합산하지 않습니다. 기본정보 충돌 및 동일일·과거·시간감소 기록은 보류합니다.':'기존 값이 다른 항목은 덮어쓰지 않고 보고서에 남깁니다.'}\n신규 인원·빈칸 보완 및 허용된 교육 갱신을 적용할까요?\n\n[취소] 원본 명부 변경 없이 보고서만 표시`);
     }
+    let headline='업로드 반영 취소 · 기존 명부 유지';
+    let saved=false;
     if(applied && merged.changed) {
+      validateRecordsForSave(merged.records);
       renderRows(merged.records);
       markDirty();
-      status.textContent=`✓ ${s.added}명 추가 · ${s.filledCells}개 빈칸 보완 · 교육 ${s.updatedEducation}건 갱신 · 교육 0시간 ${s.zeroExcluded}건 제외 · 서버 저장 대기`;
+      status.textContent='↻ 업로드 데이터 서버 저장 중…';
+      saved=await saveRoster(false);
+      headline=saved?'서버 저장 완료':'서버 저장 미확인 · 화면 변경사항은 남아 있습니다. 저장 상태를 확인하세요.';
+      status.textContent=saved?`✓ ${s.added}명 추가 · 교육 ${s.updatedEducation}건 갱신 · 서버 저장 완료`:'⚠ 업로드 변경사항 서버 저장 미확인';
     } else if(applied) {
-      status.textContent=`✓ 변경할 데이터 없음 · 중복 ${s.inFileDuplicates}행 · 0시간 ${s.zeroExcluded}건 제외`;
-    } else status.textContent='↩ 업로드 반영 취소 · 기존 명부 유지 · 검토 보고서 생성';
-    showRosterImportReport(merged,applied);
-    alert((applied?'엑셀 분석 완료':'엑셀 적용 취소')+'\n'+rosterAuditSummary(merged,applied)+
-      '\n\n[엑셀 업로드 결과]에서 중복·충돌 세부 보고서를 확인할 수 있습니다.');
+      headline='변경할 데이터 없음 · 기존 명부 유지';
+      status.textContent='✓ '+headline;
+      saved=true;
+    } else status.textContent='↩ '+headline;
+    showRosterImportReport(merged,applied&&saved);
+    rosterImportResultDialog({...merged,applied:applied&&saved},headline);
   } catch(error) {
     console.error('ROSTER 엑셀 분석 오류:',error);
     status.textContent='⚠ 엑셀 업로드 오류 · 기존 명부 유지';
