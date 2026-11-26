@@ -7,7 +7,7 @@
   <script src="./mobile-export-guard.js?v=20261122-1"></script>
   <script src="./ehs-deferred-libs.js?v=20261123-perf2"></script>
   <!-- Browser-side baseline: does not alter login, account approval, or inline app scripts. -->
-  <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'; form-action 'self'; script-src-elem 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net">
   <meta name="referrer" content="no-referrer">
   <title>한양이엔지 EHS 플랫폼 | 근로자 건강검진 자동화</title>
 
@@ -16,7 +16,7 @@
 
   <!-- PDF.js · ExcelJS · Supabase (브라우저 공개키 사용) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="./she-v24-index.js?v=20261124-session-presence-final1"></script>
+  <script src="./she-v24-index.js?v=20261126-balanced2"></script>
   <!-- ExcelJS loads only when a completed health-check workbook is exported. -->
 
   <style>
