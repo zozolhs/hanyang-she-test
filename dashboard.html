@@ -430,19 +430,7 @@
           </div>
           <div class="field-hint">기존 등록 인원은 전체 명단에서 조회하며, 아래 수강자 등록은 추가·변경하는 기능입니다.</div>
         </section>
-        <div class="she-edu-preset">
-          <label for="sheEduPresetSelect"><strong>⚡ 교육 간편 등록 양식</strong></label>
-          <select id="sheEduPresetSelect" aria-label="교육 간편 등록 양식">
-            <option value="">직접 입력 · 기존 방식</option>
-            <option value="eduCommon">공통교육</option><option value="edu13ho">13호(운반)</option>
-            <option value="edu38ho">38호(화재)</option><option value="edu4ho">4호(인화)</option>
-            <option value="edu35ho">35호(허가)</option><option value="eduClosed">34호(밀폐)</option>
-            <option value="eduMsds">MSDS</option><option value="edu2ho">2호(용접)</option>
-            <option value="eduCrane">크레인</option>
-          </select>
-          <small id="sheEduPresetInfo">교육시간은 참고용 기본값입니다. 실제 교육 내용과 시간을 최종 확인해 주세요.</small>
-          <div id="sheRosterHandoffHint" hidden aria-live="polite"></div>
-        </div>
+        <div id="sheRosterHandoffHint" class="field-hint" hidden aria-live="polite"></div>
         <div class="form-grid">
           <div class="field full">
             <label for="eventTitle">교육명 *</label>
@@ -523,6 +511,7 @@
             </div>
             <div class="participant-tools">
               <button id="sheEduAutoSelect" class="btn btn-outline btn-sm" type="button">⚡ 해당 교육 미이수·만료자 자동 선택</button>
+              <small id="sheEduPresetInfo" class="field-hint" aria-live="polite"></small>
             </div>
             <div class="participant-tools"><button id="selectAllAttendeesBtn" class="btn btn-outline btn-sm" type="button">검색 결과 전체 선택</button><button id="clearAttendeesBtn" class="btn btn-outline btn-sm" type="button">선택 해제</button></div>
             <span class="field-hint" id="attendeeHint">퇴사자는 수강자 선택 목록에서 제외됩니다. 처음 80명만 표시되며 검색하면 다른 인원을 찾을 수 있습니다.</span>
@@ -1066,8 +1055,8 @@
       state.draftAttendees = new Set(original?.attendeeKeys || []);
       const data = original || normalizeEvent({ date:initialDate, title:'', hours:4, category:'regular' });
       $('eventModalTitle').textContent = original ? '교육 일정 및 수강자 수정' : '교육 일정 등록';
-      const preset = document.getElementById("sheEduPresetSelect");
-      if(preset){preset.value="";preset.disabled=Boolean(original);}
+      const autoSelectHint=document.getElementById("sheEduPresetInfo");
+      if(autoSelectHint)autoSelectHint.textContent="";
       const handoffHint=document.getElementById("sheRosterHandoffHint");
       if(handoffHint)handoffHint.hidden=true;
       $('eventTitle').value = data.title;
@@ -2853,7 +2842,7 @@
     }
 
   </script>
-<script src="./education-workflow.js?v=20261122-ux1"></script>
+<script src="./education-workflow.js?v=20261127-no-preset1"></script>
 <script src="./education-attendee-view.js?v=20261126-partial1"></script>
 <script src="./education-monthly-quickview.js?v=20261123-pendingfirst1"></script>
 <script src="./education-dashboard-lookup.js?v=20261123-no-regular1"></script>
