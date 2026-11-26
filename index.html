@@ -4942,7 +4942,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="./she-v24-index.js?v=20261124-session-presence-final1"></script>
+<script src="./she-v24-index.js?v=20261126-security1"></script>
 <script>
 (function() {
   const SUPABASE_URL = "https://ahmqthuympannqsrszvv.supabase.co";
@@ -9132,8 +9132,10 @@ function openPasswordChange(){
   ctrl.minLength=6;ctrl.maxLength=128;ctrl.autocomplete=auto;wrap.append(ctrl);form.append(wrap);return ctrl;
  };
  const old=input('현재 비밀번호','current-password');
- const pwd=input('새 비밀번호 (최소 6자리)','new-password');
+ const minPassword=isSuper()?15:6;
+ const pwd=input('새 비밀번호 (최소 '+minPassword+'자리)','new-password');
  const same=input('새 비밀번호 확인','new-password');
+ pwd.minLength=same.minLength=minPassword;
  const buttons=document.createElement('div');
  buttons.style.cssText='display:flex;gap:8px;margin-top:12px';
  const save=document.createElement('button');save.type='submit';save.textContent='비밀번호 변경';
@@ -9145,7 +9147,7 @@ function openPasswordChange(){
   event.preventDefault();save.disabled=true;
   try{
    if(pwd.value!==same.value)throw Error('새 비밀번호가 서로 다릅니다.');
-   if([...pwd.value].length<6)throw Error('새 비밀번호는 최소 6자리여야 합니다.');
+   if([...pwd.value].length<minPassword)throw Error('새 비밀번호는 최소 '+minPassword+'자리여야 합니다.');
    await window.SHESEC.changePassword(old.value,pwd.value);
    backdrop.remove();stopUserTimer();state.authorized=false;state.current=null;
    showGate('비밀번호가 변경되었습니다. 새 비밀번호로 다시 로그인해 주세요.');
@@ -9459,13 +9461,17 @@ function setupSecureAdmin(){
  refreshMembers.type='button';refreshMembers.textContent='↻ 회원 목록 새로고침';
  refreshMembers.id='sheSecureRefreshMembers';
  refreshMembers.style.cssText='padding:8px 12px;border:1px solid #cbd5e1;border-radius:9px;background:white;color:#334155;font-weight:800';
- signupBar.append(signupStatus,refreshMembers,signupToggle);
+ const securityButton=document.createElement('button');
+ securityButton.type='button';securityButton.textContent='🛡 보안 이력';
+ securityButton.style.cssText=refreshMembers.style.cssText;
+ signupBar.append(signupStatus,refreshMembers,signupToggle,securityButton);
  div.querySelector('table').parentElement.before(signupBar);
  const maintenanceBox=document.createElement('section');
  maintenanceBox.id='sheAdminMaintenancePanel';
  maintenanceBox.style.cssText='border:1px solid #fbbf24;background:#fffbeb;border-radius:12px;padding:14px;margin:12px 0 16px';
  maintenanceBox.innerHTML='<div style="display:flex;gap:12px;justify-content:space-between;align-items:center;flex-wrap:wrap"><div><strong style="font-size:14px;color:#92400e">🔧 서버 점검 관리 · 최고관리자 전용</strong><p style="font-size:12px;color:#92400e;margin-top:6px">점검을 켜면 최고관리자를 제외한 사용자의 데이터 접근이 차단됩니다. 실수 방지를 위해 확인 문구를 입력해야 합니다.</p><span id="sheAdminMaintenanceStatus" role="status" style="font-size:12px;font-weight:800;color:#475569">현재 상태 확인 중</span></div><button id="sheAdminMaintenanceButton" type="button" style="padding:10px 14px;background:#fff;border:1px solid #d97706;border-radius:9px;color:#92400e;font-size:13px;font-weight:800">상태 변경</button></div>';
  signupBar.insertAdjacentElement('afterend',maintenanceBox);
+ setupSecurityMonitor(div,maintenanceBox,securityButton);
  $('sheAdminMaintenanceButton').addEventListener('click',toggleMaintenance);
  updateAdminMaintenanceUI();
  signupToggle.addEventListener('click',async()=>{
@@ -9488,7 +9494,7 @@ function setupSecureAdmin(){
  div.addEventListener('click',e=>{if(e.target===div)closeSecureAdmin();});
 }
 function stopUserTimer(){if(state.tabTimer){clearInterval(state.tabTimer);state.tabTimer=null;}}
-function closeSecureAdmin(){$('sheSecureAdmin').hidden=true;stopUserTimer();}
+function closeSecureAdmin(){$('sheSecureAdmin')?.dispatchEvent(new Event('she:admin-close'));$('sheSecureAdmin').hidden=true;stopUserTimer();}
 async function refreshSignupStatus(){
  if(!canControlUsers())return;
  const status=$('sheV24SignupStatus'),toggle=$('sheV24SignupToggle');
@@ -9499,6 +9505,65 @@ async function refreshSignupStatus(){
  toggle.textContent=enabled?'신규 가입 접수 닫기':'신규 가입 접수 2시간 열기';
  const ending=enabled&&value.expires_at?new Date(value.expires_at).toLocaleString('ko-KR'):'';
  status.textContent=enabled?'✅ 신규 가입 접수 중 (자동 종료: '+ending+')':'🔒 현재 신규 회원가입 접수 중지';
+}
+// On-demand security audit: independent of the permission editor, no automatic polling.
+let securityActorNames=new Map();
+function setupSecurityMonitor(admin,anchor,trigger){
+ const panel=document.createElement('section');panel.id='sheSecurityMonitor';panel.hidden=true;
+ panel.style.cssText='border:1px solid #bfdbfe;border-radius:12px;background:#f8fafc;padding:14px;margin:12px 0';
+ const make=(tag,text)=>{const el=document.createElement(tag);if(text!==undefined)el.textContent=String(text);return el;};
+ const heading=make('div');heading.style.cssText='display:flex;align-items:center;gap:8px;flex-wrap:wrap';
+ const title=make('strong','보안 감시 및 권한 변경 이력');title.style.flex='1';
+ const filter=make('select');for(const [key,label] of [['all','전체'],['warning','주의 감지'],['permission_change','권한 변경']])filter.add(new Option(label,key));
+ const reload=make('button','새로고침'),close=make('button','닫기');
+ for(const btn of [reload,close]){btn.type='button';btn.style.cssText='padding:7px 12px;border:1px solid #cbd5e1;border-radius:7px;background:white;font-weight:700';}
+ heading.append(title,filter,reload,close);
+ const notice=make('p','최근 200건의 보안 이벤트 · 반복 조회 경고는 관찰된 요청 패턴이며 실제 유출을 뜻하지 않습니다.');
+ notice.style.cssText='font-size:12px;color:#475569;margin:8px 0';
+ const status=make('p','');status.setAttribute('role','status');status.style.cssText='font-size:12px;color:#334155';
+ const wrap=make('div');wrap.style.cssText='overflow:auto;max-height:420px';
+ const table=make('table');table.style.cssText='width:100%;min-width:680px;border-collapse:collapse;font-size:12px';
+ const head=table.createTHead().insertRow();
+ for(const label of ['발생시각','계정','대상','이벤트','상세']){const th=make('th',label);th.style.cssText='text-align:left;padding:8px;background:#eaf0fa;position:sticky;top:0';head.append(th);}
+ const body=table.createTBody();wrap.append(table);panel.append(heading,notice,status,wrap);anchor.after(panel);
+ let rows=[],serial=0;
+ const labels={permission_change:'권한 변경',permission_change_burst:'권한 변경 집중',sensitive_read_burst:'민감정보 반복 조회',permission_denied_burst:'권한 없는 반복 접근'};
+ const role={worker:'일반',viewer_admin:'조회관리자',admin:'관리자',super_admin:'최고관리자'};
+ const stateLabel={pending:'승인대기',approved:'승인완료',blocked:'차단',rejected:'거절'};
+ const scopes={roster:'연명부',health:'보건',education_roster:'교육 연명부',health_candidates:'보건 대상자',health_list:'보건 목록',health_history:'보건 이력',health_flags:'보건 상태'};
+ const modules={safety:'위험성평가',health:'보건',roster:'연명부',education:'교육'};
+ const identity=id=>id?(securityActorNames.get(id)||'계정 '+String(id).slice(0,8)):'—';
+ const permissionText=p=>Object.entries(modules).map(([key,label])=>label+':'+(p?.[key]===true?(p?.[key+'_write']===true?'수정':'열람'):'없음')).join(' / ');
+ const side=x=>[role[x?.role]||x?.role||'—',stateLabel[x?.status]||x?.status||'—',permissionText(x?.permissions)].join(' · ');
+ function detail(e){
+  const d=e.details||{};
+  if(e.event_type==='permission_change')return '변경 전: '+side(d.before)+'\n변경 후: '+side(d.after);
+  if(e.event_type==='permission_change_burst')return '5분 내 '+String(d.changes_at_least||0)+'건 이상 변경';
+  if(e.event_type==='sensitive_read_burst')return (scopes[d.scope]||String(d.scope||''))+' · '+String(d.requests||0)+'회 / '+String(d.rows||0)+'건';
+  return '추가 확인 필요';
+ }
+ function render(){
+  body.replaceChildren();const list=rows.filter(e=>filter.value==='all'||(filter.value==='warning'?e.severity==='warning':e.event_type===filter.value));
+  status.textContent=list.length+'건 표시';
+  for(const e of list){
+   const tr=body.insertRow();const date=new Date(e.created_at);const values=[Number.isNaN(date.getTime())?'—':date.toLocaleString('ko-KR',{timeZone:'Asia/Seoul'}),identity(e.actor_id),identity(e.target_id),labels[e.event_type]||'보안 이벤트',detail(e)];
+   for(let i=0;i<values.length;i++){const td=tr.insertCell();td.textContent=values[i];td.style.cssText='padding:9px 8px;border-bottom:1px solid #e2e8f0;white-space:pre-wrap;overflow-wrap:anywhere';if(i===3&&e.severity==='warning')td.style.color='#b45309';}
+  }
+ }
+ function clear(){serial++;rows=[];body.replaceChildren();status.textContent='';panel.hidden=true;reload.disabled=false;}
+ async function load(){
+  if(!canControlUsers()||admin.hidden||panel.hidden)return clear();
+  const n=++serial;reload.disabled=true;status.textContent='조회 중…';
+  try{const events=await window.SHESEC.securityEvents();
+   if(n!==serial||!canControlUsers()||admin.hidden||panel.hidden)return;
+   rows=events;render();
+  }catch(e){if(n===serial){rows=[];body.replaceChildren();status.textContent='조회 실패: '+(e.message||'다시 시도하세요.');}}
+  finally{if(n===serial)reload.disabled=false;}
+ }
+ trigger.addEventListener('click',()=>{if(!canControlUsers())return;if(!panel.hidden){clear();return;}panel.hidden=false;void load();});
+ reload.addEventListener('click',load);close.addEventListener('click',clear);filter.addEventListener('change',render);
+ document.addEventListener('she:session-reset',()=>{securityActorNames.clear();clear();});
+ admin.addEventListener('she:admin-close',clear);
 }
 async function openSecureAdmin(){
  if(!canControlUsers())return;
@@ -9538,7 +9603,7 @@ async function refreshUsers(){
  if(!canControlUsers())return;
  const body=$('sheSecureUsers');if(!body)return;
  try{
-  const users=await window.SHESEC.users();body.replaceChildren();
+  const users=await window.SHESEC.users();if(!canControlUsers())return;securityActorNames=new Map(users.map(u=>[u.id,u.name]));body.replaceChildren();
   for(const u of users){
    const row=document.createElement('tr');row.style.borderBottom='1px solid #e2e8f0';
    row.dataset.sheDirty='0';
