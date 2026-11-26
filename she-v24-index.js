@@ -220,7 +220,7 @@ function normalize(a){
 }
 function reset(){
   stopPresence();
-  sessionEpoch++;
+  sessionEpoch++;ongoing=null;
   setToken(null);profile=null;verifiedAt=0;notifiedToken=null;versions.clear();fullRows.clear();
   pendingRows.clear();pendingBatches.clear();
   educationRosterCache=null;educationRosterPending=null;
@@ -277,7 +277,8 @@ async function refresh(force=false){
       throw e;
     }
   })();
-  try{return await ongoing;}finally{ongoing=null;}
+  const task=ongoing;
+  try{return await task;}finally{if(ongoing===task)ongoing=null;}
 }
 async function guard(mod="safety_view",force=true){
   try{
@@ -695,6 +696,7 @@ function channel(){
 }
 async function rpc(name,args={}){
   if(name==="she_education_roster_v2"){
+    let task=null;
     try{
       if(!educationRosterPending){
         const epoch=sessionEpoch,session=token,cached=educationRosterCache;
@@ -703,7 +705,7 @@ async function rpc(name,args={}){
             cached?{if_updated_at:cached.updated_at}:{});
           if(epoch!==sessionEpoch||session!==token)
             throw failure("로그인 세션이 변경되었습니다.",401);
-          if(res.not_modified && cached && cached.updated_at===res.updated_at)
+          if(res.not_modified && cached && educationRosterCache===cached && cached.updated_at===res.updated_at)
             return {data:cached.workers,not_modified:true,error:null};
           if(res.not_modified){
             const full=await request("store","store_education_roster");
@@ -714,9 +716,10 @@ async function rpc(name,args={}){
           return {data:educationRosterCache.workers,not_modified:false,error:null};
         })();
       }
-      return await educationRosterPending;
+      task=educationRosterPending;
+      return await task;
     }catch(e){return {data:null,error:e};}
-    finally{educationRosterPending=null;}
+    finally{if(educationRosterPending===task)educationRosterPending=null;}
   }
   if(name==="she_confirm_education_v2"){
     try{
