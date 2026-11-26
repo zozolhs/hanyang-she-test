@@ -721,15 +721,23 @@ class StoreQuery {
         return {data:null,error:failure("기존 자료 행이 없는 신규 생성은 아직 지원하지 않습니다.",403)};
       if(this.mode==="update"){
         if(typeof this.conditions.id!=="string")throw failure("수정할 행 식별자가 필요합니다.",400);
-        const base=await fetchRow(this.conditions.id);
+        const id=this.conditions.id,expected=this.conditions.expected;
+        if(!expected)throw failure("업데이트 버전 정보가 누락되어 저장을 차단했습니다.",409);
+        const cached=fullRows.get(id);
+        // For the two versioned modules the server write itself checks live
+        // permissions and the exact expected revision atomically. Do not
+        // duplicate that check with a separate read of the same snapshot.
+        const useCached=!!deltaKey(id)&&cached?.updated_at===expected&&cached.redacted_for_education!==true;
+        const base=useCached?cached:await fetchRow(id);
         if(!base)throw failure("수정할 데이터가 없습니다.",404);
-        if(!this.conditions.expected){
-          throw failure("업데이트 버전 정보가 누락되어 저장을 차단했습니다.",409);
+        if(base.updated_at!==expected)return {data:[],error:null};
+        let updated;
+        try{updated=await writeOne({...this.payload,id:base.id},expected);}
+        catch(e){
+          // Keep the existing UI's conflict/auto-save pause behavior.
+          if(useCached&&e.status===409)return {data:[],error:null};
+          throw e;
         }
-        if(base.updated_at!==this.conditions.expected)
-          return {data:[],error:null};
-        const updated=await writeOne({...this.payload,id:base.id},
-          this.conditions.expected);
         return {data:[selectColumns(updated,this.columns)],error:null};
       }
       if(this.mode==="upsert"){
