@@ -168,7 +168,7 @@ async function request(kind,action,data={}){
   let response;
   // Only timeout idempotent reads. Aborting an import commit could make a
   // successful server transaction look like a failed upload to the operator.
-  const readOnly = kind==="auth" && ["me","presence","presence_users"].includes(action) ||
+  const readOnly = kind==="auth" && ["me","presence","presence_users","security_events"].includes(action) ||
     kind==="store" && ["store_get","store_get_batch","store_list","store_counts"].includes(action) ||
     kind==="extension" && ["health_candidates","health_list","health_history","health_flags"].includes(action);
   const controller=readOnly ? new AbortController() : null;
@@ -309,6 +309,14 @@ async function logout(){
   const key=activityKey();
   try{if(token)await request("auth","logout");}
   finally{if(key)writeLocal(key,0);reset();}
+}
+async function securityEvents(){
+  if(profile?.role!=="super_admin"||!token)throw failure("최고관리자 권한이 필요합니다.",403);
+  const epoch=sessionEpoch,session=token;
+  const result=await request("auth","security_events");
+  if(epoch!==sessionEpoch||session!==token||profile?.role!=="super_admin")
+    throw failure("로그인 세션이 변경되었습니다.",401);
+  return Array.isArray(result.events)?result.events:[];
 }
 async function connectedUsers(){
   if(profile?.role!=="super_admin"||!token)throw failure("최고관리자 권한이 필요합니다.",403);
@@ -736,7 +744,7 @@ const client=Object.freeze({
   rpc:(name,args)=>["she_confirm_education_v2","she_confirm_education_details"].includes(name)?protectWrite(()=>rpc(name,args)):rpc(name,args),channel
 });
 window.SHESEC=Object.freeze({
-  client,healthFollowup,refresh,guard,login,register,logout,users,connectedUsers,setUser,deleteUser,
+  client,healthFollowup,refresh,guard,login,register,logout,users,connectedUsers,securityEvents,setUser,deleteUser,
   maintenance,registrationStatus,setRegistration,changePassword,
   importSafetyDocument:(...args)=>protectWrite(()=>importSafetyDocument(...args)),
   saveSafetySnapshot:(...args)=>protectWrite(()=>saveSafetySnapshot(...args)),
