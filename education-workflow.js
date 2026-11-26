@@ -1,4 +1,4 @@
-/* SHE TEST 2026-11: education queue, enrollment handoff, templates, conflicts.
+/* SHE TEST 2026-11: education queue, enrollment handoff, conflicts.
  * Uses existing application identity/authorization, records and save logic.
  * No new DB tables, no changes to attendance confirmation or automatic sync.
  */
@@ -6,19 +6,8 @@
 "use strict";
 const $id=id=>document.getElementById(id);
 const handoffKey="she_education_selected_workers_v1";
-const courses={
- eduCommon:["정기안전교육 - 공통", "regular",4],
- edu13ho:["특별안전교육 - 13호 운반","special",2],
- edu38ho:["특별안전교육 - 38호 화재","special",2],
- edu4ho:["특별안전교육 - 4호 인화","special",2],
- edu35ho:["특별안전교육 - 35호 허가","special",2],
- eduClosed:["밀폐공간 관련 안전교육","special",2],
- eduMsds:["MSDS 안전교육","special",2],
- edu2ho:["용접작업 안전교육","special",2],
- eduCrane:["크레인 작업 안전교육","special",2]
-};
 const required=["eduCommon","edu13ho","edu38ho","edu4ho","edu35ho"];
-let pending=false,templateInitiated=false,handoffDone=false;
+let pending=false,handoffDone=false;
 const node=(tag,cls,text)=>{
  const n=document.createElement(tag);if(cls)n.className=cls;
  if(text!==undefined)n.textContent=String(text);return n;
@@ -66,22 +55,6 @@ function render(){
 function schedule(){
  if(pending)return;pending=true;
  requestAnimationFrame(()=>{pending=false;render();});
-}
-function applyPreset(key){
- if(!canEdit()||!key||!courses[key])return;
- if(state.editingId)return; // editing an existing event must remain unchanged
- const [title,category,hours]=courses[key];
- $id("eventTitle").value=title;
- $id("eventCategory").value=category;
- $id("eventCourse").value=key;
- $id("eventHours").value=String(hours);
- $id("eventStart").value="09:00";
- const endHour=9+hours;
- $id("eventEnd").value=String(Math.floor(endHour)).padStart(2,"0")+":"+
-   String(Math.round((endHour%1)*60)).padStart(2,"0");
- $id("eventCourse").dispatchEvent(new Event("change",{bubbles:true}));
- const tip=$id("sheEduPresetInfo");
- tip.textContent="예시 기본값입니다. 교육시간·법정 기준·강사·장소를 실제 일정에 맞게 확인 후 저장하세요.";
 }
 function suggestCourseAttendees(){
  if(!canEdit()||!state.rosterReady)return;
@@ -156,8 +129,6 @@ function applyHandoff(){
  if(matched.length!==payload.keys.length)notify("일부 인원은 퇴사 또는 연명부 변경으로 제외되었습니다.");
 }
 function init(){
- const select=$id("sheEduPresetSelect");
- select.addEventListener("change",()=>applyPreset(select.value));
  $id("sheEduAutoSelect").addEventListener("click",suggestCourseAttendees);
  $id("eventForm").addEventListener("submit",preventConflicts,true);
  $id("sheEduPendingJump").addEventListener("click",()=>{
