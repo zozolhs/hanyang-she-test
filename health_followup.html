@@ -26,14 +26,14 @@ main{max-width:1460px;margin:auto;padding:20px}.notice,.panel,.stats>div{backgro
  <section class="panel"><div class="heading"><h2>사후관리 대상자</h2><div><button id="refresh" type="button">새로고침</button> <button id="newCase" type="button" class="primary">+ 대상자 등록</button></div></div>
  <div class="controls"><select id="scope" aria-label="관리 범위"><option value="active">관리 중</option><option value="all">전체 및 종결</option></select><input id="search" type="search" placeholder="성명·근로번호·업체 검색" aria-label="전체 관리대상 검색"><select id="quick" aria-label="전체 관리대상 필터"><option value="">전체 상태</option><option value="due">7일 내 조치</option><option value="overdue">조치일 경과</option><option value="long">14일 이상 지연</option><option value="hold">입사 보류</option><option value="retest">재검진·재측정</option><option value="results">결과 대기</option><option value="cleared">입사 가능 확인</option><option value="entered">입사 완료</option><option value="closed">기타 종결</option></select></div>
  <p id="listHint" class="hint">서버 목록을 불러오는 중입니다.</p>
- <div class="tablewrap"><table><thead><tr><th>성명 / 업체</th><th>최초 사유</th><th>입사 지연</th><th>다음 조치</th><th>상태</th><th>이력</th></tr></thead><tbody id="caseRows"></tbody></table></div>
+ <div class="tablewrap"><table><thead><tr><th>성명 / 생년월일 / 업체</th><th>최초 사유</th><th>입사 지연</th><th>다음 조치</th><th>상태</th><th>이력</th></tr></thead><tbody id="caseRows"></tbody></table></div>
  <div class="pager"><button type="button" id="prev">← 이전</button><span id="pageInfo" class="hint"></span><button type="button" id="next">다음 →</button></div>
  </section>
  <section class="panel" id="detailPanel"><div class="heading"><h2 id="detailTitle">개인별 관리 이력</h2><button id="closeDetail" type="button" hidden>닫기</button></div>
  <div id="detailEmpty" class="empty">대상자 등록 또는 이력 버튼을 선택하세요.</div>
  <div id="detailBody" hidden><div id="personSummary" class="summary"></div>
  <form id="caseForm" hidden><div class="fields">
- <div class="field full" id="candidateFields"><label for="candidateSearch">연명부 대상자 검색</label><input id="candidateSearch" type="search" placeholder="성명 · 근로번호 · 업체"><label for="worker">필수 5종 완료 / 물산입사일 미입력 재직자</label><select id="worker"></select><small id="candidateHint" class="hint"></small></div>
+ <div class="field full" id="candidateFields"><label for="candidateSearch">연명부 대상자 검색</label><input id="candidateSearch" type="search" placeholder="성명 · 생년월일 · 근로번호 · 업체"><label for="worker">필수 5종 완료 / 물산입사일 미입력 재직자</label><select id="worker"></select><small id="candidateHint" class="hint"></small></div>
  <div class="field" id="plannedField"><label for="planned">물산입사 예정일 *</label><input type="date" id="planned"></div>
  <div class="field" id="openedField"><label for="opened">최초 발생일 *</label><input type="date" id="opened"></div>
  <div class="field full" id="reasonField"><label for="reason">최초 보류 사유 *</label><select id="reason"><option value="bp">혈압 측정 입사 보류</option><option value="retest">건강검진 재검진</option><option value="doctor">의사 소견서 제출</option><option value="treatment">치료 및 경과 확인</option><option value="result">검진 결과 확인 대기</option><option value="other">기타</option></select></div>
@@ -60,6 +60,9 @@ const due=c=>active(c)&&c.next_action&&diff(c.next_action,today())>=0&&diff(c.ne
 const overdue=c=>active(c)&&c.next_action&&c.next_action<today();
 const long=c=>active(c)&&days(c)>=14;
 const normalize=v=>String(v??'').normalize('NFKC').toLocaleLowerCase('ko').trim();
+const birthText=w=>{const v=String(w?.birth??'').trim();return /^[0-9. /-]{6,12}$/.test(v)?v:'생년월일 미확인';};
+const matchesCandidate=(w,term)=>!term||[w.name,w.no,w.company,w.job,w.birth].some(v=>normalize(v).includes(term))||(/^[0-9. /-]+$/.test(term)&&term.replace(/[^0-9]/g,'').length>0&&String(w.birth||'').replace(/[^0-9]/g,'').includes(term.replace(/[^0-9]/g,'')));
+
 function el(tag,text,cls){const n=document.createElement(tag);if(text!==undefined)n.textContent=String(text);if(cls)n.className=cls;return n;}
 let authorized=false,account=null,generation=0,cases=[],workers=new Map(),offset=0,total=0,selected=null,historyOffset=0,historyTotal=0,formMode='',busy=false,dirty=false,loading=false,verifying=false,historySeq=0,listSeq=0,searchTimer=null,workersReady=false,scopeStats={scopeTotal:0,due:0,overdue:0,longDelay:0};
 function message(text,kind=''){const box=$('message');box.textContent=text;box.className='msg '+kind;box.hidden=!text;}
@@ -111,7 +114,7 @@ function renderList(){
  const frag=document.createDocumentFragment();
  for(const c of filtered){
   const tr=el('tr');if(selected?.id===c.id)tr.className='selected';
-  const name=el('td');name.append(el('strong',c.worker_name),el('div',c.company+' · '+(c.worker_no||'근로번호 없음'),'hint'));tr.append(name);
+  const name=el('td');name.append(el('strong',c.worker_name+' · '+birthText(workers.get(c.worker_uid))),el('div',c.company+' · '+(c.worker_no||'근로번호 없음'),'hint'));tr.append(name);
   tr.append(el('td',REASON[c.reason]||'기타'),el('td',days(c)+'일',long(c)?'overdue':''),el('td',c.next_action||'—',overdue(c)?'overdue':''));
   const st=el('td');st.append(el('span',STATUS[c.status]||'확인 필요','tag '+c.status));tr.append(st);
   const cell=el('td'),b=el('button','이력 보기');b.type='button';b.addEventListener('click',()=>openCase(c));cell.append(b);tr.append(cell);frag.append(tr);
@@ -121,8 +124,8 @@ function renderList(){
 }
 function renderCandidates(){
  const term=normalize($('candidateSearch').value),previous=$('worker').value;
- const result=[...workers.values()].filter(w=>w.complete&&!w.entered&&!w.resigned&&w.name&&(!term||[w.name,w.no,w.company,w.job].some(v=>normalize(v).includes(term)))).sort((a,b)=>String(a.name).localeCompare(String(b.name),'ko'));
- const opts=result.map(w=>new Option(w.name+' | '+(w.company||'업체 미입력')+' | '+(w.no||'번호 없음'),w.uid));
+ const result=[...workers.values()].filter(w=>w.complete&&!w.entered&&!w.resigned&&w.name&&matchesCandidate(w,term)).sort((a,b)=>String(a.name).localeCompare(String(b.name),'ko'));
+ const opts=result.map(w=>new Option(w.name+' | '+birthText(w)+' | '+(w.company||'업체 미입력')+' | '+(w.no||'번호 없음'),w.uid));
  $('worker').replaceChildren(new Option('근로자 선택',''),...opts);
  if(result.some(w=>w.uid===previous))$('worker').value=previous;
  $('candidateHint').textContent='등록 가능 대상 '+result.length+'명. 이미 관리 중인 사람은 서버에서 중복 등록을 차단합니다.';
@@ -154,7 +157,7 @@ async function openCase(c){
  if(!authorized||!closeDetail())return;
  selected=c;historyOffset=0;showDetail(c.worker_name+' · 개인별 이력');
  const w=workers.get(c.worker_uid);
- $('personSummary').textContent=c.worker_name+' / '+c.company+' / '+(c.worker_no||'근로번호 없음')+'\n최초 발생 '+c.opened_on+' · 입사 예정 '+c.planned_entry+' · 지연 '+days(c)+'일\n현재 상태: '+(STATUS[c.status]||'확인 필요')+' · 실제 물산입사일: '+(w?.entered||'미입력/연명부 미확인');
+ $('personSummary').textContent=c.worker_name+' / '+birthText(w)+' / '+c.company+' / '+(c.worker_no||'근로번호 없음')+'\n최초 발생 '+c.opened_on+' · 입사 예정 '+c.planned_entry+' · 지연 '+days(c)+'일\n현재 상태: '+(STATUS[c.status]||'확인 필요')+' · 실제 물산입사일: '+(w?.entered||'미입력/연명부 미확인');
  $('personSummary').style.whiteSpace='pre-wrap';
  $('caseForm').hidden=!active(c);if(active(c))displayForm('update',c);
  $('historySection').hidden=false;renderList();await loadHistory();
