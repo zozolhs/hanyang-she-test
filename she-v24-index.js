@@ -367,11 +367,62 @@ async function setRegistration(enabled){
   if(profile?.role!=="super_admin")throw failure("최고관리자 권한이 필요합니다.",403);
   return request("auth","set_registration",{enabled:!!enabled});
 }
+// Keep an independent server snapshot for the two delta-enabled modules.
+function deltaKey(id){
+  return id==="main_v1_roster_master"?"uid":id==="main_v1_edu_schedule"?"id":null;
+}
+function jsonCopy(value){return JSON.parse(JSON.stringify(value));}
+function equalJson(a,b){
+  if(a===b)return true;
+  if(a===null||b===null||typeof a!=="object"||typeof b!=="object")return false;
+  if(Array.isArray(a)!==Array.isArray(b))return false;
+  if(Array.isArray(a))return a.length===b.length&&a.every((v,i)=>equalJson(v,b[i]));
+  const keys=Object.keys(a);
+  return keys.length===Object.keys(b).length&&keys.every(k=>Object.hasOwn(b,k)&&equalJson(a[k],b[k]));
+}
+function buildStorePatch(old,next){
+  const key=deltaKey(next.id);
+  if(!key||!old||old.redacted_for_education===true||old.updated_at!==next.expected_updated_at||
+     !Array.isArray(old.items)||!Array.isArray(next.items)||old.items.length!==next.items.length||
+     old.items.length>10000||!Array.isArray(next.documents)||!Array.isArray(next.users))return null;
+  const changes=[],seen=new Set();
+  for(let i=0;i<next.items.length;i++){
+    const before=old.items[i],after=next.items[i],id=before?.[key];
+    if(typeof id!=="string"||!id||after?.[key]!==id||seen.has(id)||
+       !before||!after||Array.isArray(before)||Array.isArray(after)||
+       typeof before!=="object"||typeof after!=="object")return null;
+    seen.add(id);
+    if(!equalJson(before,after)){
+      if(key==="id"&&before.status==="completed"&&before.attendeeDetails&&
+         Object.keys(before.attendeeDetails).length)return null;
+      changes.push({index:i,key:id,item:after});
+      if(changes.length>100)return null;
+    }
+  }
+  let documents=next.documents;
+  // The screen regenerates these two audit metadata values on every save.
+  // If all actual data and all other document fields are equal, retain the
+  // previous audit metadata so the existing atomic CAS can skip a no-op.
+  if(!changes.length&&equalJson(old.users,next.users)&&Array.isArray(old.documents)&&
+     old.documents.length&&documents.length&&
+     ["hanyang_roster_v1","hanyang_edu_schedule_v2"].includes(old.documents[0]?.__schema)&&
+     old.documents[0].__schema===documents[0]?.__schema){
+    const withoutVolatile=docs=>docs.map((d,i)=>{
+      if(i!==0)return d;const copy={...d};delete copy.updatedAt;delete copy.updatedBy;return copy;
+    });
+    if(equalJson(withoutVolatile(old.documents),withoutVolatile(documents)))documents=old.documents;
+  }
+  const patch={id:next.id,expected_updated_at:next.expected_updated_at,documents,users:next.users,
+    item_count:next.items.length,changes};
+  // Structural edits and large changes retain the established full-save path.
+  if(changes.length&&JSON.stringify(patch).length>=JSON.stringify(next).length*0.7)return null;
+  return patch;
+}
 function selectColumns(row,cols){
   if(!row)return row;
-  if(cols==="*"||!cols)return row;
-  return Object.fromEntries(cols.split(",").map(s=>s.trim()).filter(Boolean)
+  const result=cols==="*"||!cols?row:Object.fromEntries(cols.split(",").map(s=>s.trim()).filter(Boolean)
     .filter(s=>Object.hasOwn(row,s)).map(s=>[s,row[s]]));
+  return deltaKey(row.id)?jsonCopy(result):result;
 }
 function rememberRow(row){
   const existing=fullRows.get(row.id);
@@ -622,14 +673,21 @@ async function writeOne(raw,expectedFromQuery){
   const expected=expectedFromQuery||versions.get(id);
   if(!expected)throw failure("최초 데이터 버전 정보가 없어 저장을 차단했습니다.",409);
   if(!old)throw failure("저장 데이터가 없어 신규 행은 생성할 수 없습니다.",404);
-  const next={
+  const epoch=sessionEpoch,session=token;
+  let next={
     id,expected_updated_at:expected,
     documents:raw.documents??old.documents,
     items:raw.items??old.items,
     users:raw.users??old.users
   };
-  const res=await request("store","store_put",next);
-  const updated={...old,documents:next.documents,items:next.items,
+  if(deltaKey(id))next=jsonCopy(next);
+  const patch=buildStorePatch(old,next);
+  // Never retry a failed/ambiguous write through another path.
+  const res=patch?await request("store","store_patch",patch):await request("store","store_put",next);
+  if(epoch!==sessionEpoch||session!==token)
+    throw failure("로그인 세션이 변경되었습니다. 저장 결과를 다시 확인하세요.",401);
+  if(!res||typeof res.updated_at!=="string")throw failure("저장 결과를 확인할 수 없습니다.",503);
+  const updated={...old,documents:patch?patch.documents:next.documents,items:next.items,
     users:next.users,updated_at:res.updated_at};
   fullRows.set(id,updated);versions.set(id,res.updated_at);
   if(id==="main_v1_roster_master")educationRosterCache=null;
