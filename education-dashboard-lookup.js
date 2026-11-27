@@ -208,7 +208,7 @@ function renderHistory(){
 }
 // Read-only iris candidates: active, all five required courses complete, no site entry date.
 function isIrisCandidate(w,today){
- return !textVal(w.resignDate)&&!textVal(w.samsungStartDate)&&
+ return w.irisEligible===true&&!textVal(w.resignDate)&&!textVal(w.samsungStartDate)&&
   REQUIRED.every(key=>educationState(w[key],today).completed);
 }
 function renderIrisCandidates(){
@@ -221,7 +221,7 @@ function renderIrisCandidates(){
  title.textContent="홍채등록 대상자 바로 확인";
  description.textContent="필수 5종 교육을 모두 이수하고 물산입사일이 입력되지 않은 재직 근로자입니다.";
  filters.replaceChildren();
- const guide=e("span","she-lookup-note","필수 5종 8h 이수 · 물산입사일 미입력 · 재직자");
+ const guide=e("span","she-lookup-note","필수 5종 8h 이수 · 물산입사일 미입력 · 재직자 · 홍채등록 가능");
  filters.append(guide);
  setColumns(["근로자번호","이름","업체","생년월일",...COURSE_FIELDS.filter(([key])=>REQUIRED.includes(key)).map(([,label])=>label),"물산입사일","상태"]);
  const visible=pageRows(rows),frag=document.createDocumentFragment();
@@ -239,7 +239,7 @@ function renderIrisCandidates(){
  else tableBody.replaceChildren(frag);
  summary.textContent="전체 홍채등록 대상 "+candidates.length.toLocaleString("ko-KR")+"명 · 검색 "+rows.length.toLocaleString("ko-KR")+"명";
  document.getElementById("sheLookupFootnote").textContent=
-  "연명부상 필수 5종 8h 이수 및 물산입사일 미입력인 재직자만 표시합니다. 실제 홍채등록 완료 여부를 별도로 판정하지 않으며, 물산입사일이 입력되면 목록에서 제외됩니다.";
+  "필수 5종 이수 및 물산입사일 미입력인 재직자 중 홍채등록 가능 인원만 표시합니다. 완료 확정 후 물산입사일이 입력되면 제외됩니다. 입사 가능 확인이 필요한 인원은 확인 후 다시 표시됩니다.";
 }
 function render(){
  if(!overlay||overlay.hidden)return;
