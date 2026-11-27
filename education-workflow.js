@@ -6,6 +6,7 @@
 "use strict";
 const $id=id=>document.getElementById(id);
 const handoffKey="she_education_selected_workers_v1";
+const irisHandoffKey="she_iris_selected_workers_v1";
 const required=["eduCommon","edu13ho","edu38ho","edu4ho","edu35ho"];
 let pending=false,handoffDone=false;
 const node=(tag,cls,text)=>{
@@ -110,15 +111,25 @@ function preventConflicts(event){
 function applyHandoff(){
  if(handoffDone||!state.authorized||!state.ready||!state.rosterReady)return;
  handoffDone=true;
- const raw=sessionStorage.getItem(handoffKey);
- if(!raw)return;
- // Consume once, even when expired / wrong account / wrong permissions.
+ const params=new URLSearchParams(location.search);
+ const route=params.get("register");
+ const irisRaw=sessionStorage.getItem(irisHandoffKey);
+ const educationRaw=sessionStorage.getItem(handoffKey);
+ // Separate storage keys prevent an old education-only script consuming an iris handoff.
+ const raw=route==="iris"?irisRaw:route==="education"?educationRaw:irisRaw||educationRaw;
+ const source=route==="iris"||(!route&&irisRaw)?"iris":"education";
+ sessionStorage.removeItem(irisHandoffKey);
  sessionStorage.removeItem(handoffKey);
+ if(!raw){
+  if(params.get("from")==="roster"&&route==="iris")notify("홍채등록 전달 정보가 없습니다. 연명부에서 다시 선택해 주세요.");
+  return;
+ }
  let payload;try{payload=JSON.parse(raw);}catch{return;}
  if(!canEdit()||payload.owner!==state.user?.id ||
   !Number.isFinite(payload.issued_at)||Date.now()-payload.issued_at>5*60*1000 ||
   !Array.isArray(payload.keys)||payload.keys.length>150)return;
  const kind=payload.kind==="iris"?"iris":"education";
+ if((route&&route!==kind)||(source==="iris"&&kind!=="iris"))return notify("일정 등록 구분이 일치하지 않습니다. 연명부에서 다시 선택해 주세요.");
  const matched=[...new Set(payload.keys)].filter(key=>typeof key==="string"&&
   state.workerIndex?.has(key)&&workerEligible(state.workerIndex.get(key),"",kind));
  if(!matched.length)return notify(kind==="iris"?"홍채등록 가능 인원이 없습니다. 필수 5종 이수, 물산입사일 및 등록 가능 상태를 확인하세요.":"전달받은 인원이 현재 연명부와 일치하지 않습니다.");
