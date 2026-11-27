@@ -787,6 +787,15 @@ async function rpc(name,args={}){
     }catch(e){return {data:null,error:e};}
     finally{if(educationRosterPending===task)educationRosterPending=null;}
   }
+  if(name==="she_confirm_iris"){
+    try{
+      const res=await extensionRequest("iris_confirm",{
+        event_id:args.p_event_id,expected_updated_at:args.p_expected_updated_at,outcomes:args.p_outcomes});
+      educationRosterCache=null;
+      fullRows.delete("main_v1_edu_schedule");fullRows.delete("main_v1_roster_master");
+      return {data:res,error:null};
+    }catch(e){return {data:null,error:e};}
+  }
   if(name==="she_confirm_education_v2"){
     try{
       const res=await request("store","store_confirm_education",{
@@ -844,7 +853,7 @@ const client=Object.freeze({
       upsert(data){return new StoreQuery("upsert",table,data).execute();}
     };
   },
-  rpc:(name,args)=>["she_confirm_education_v2","she_confirm_education_details","she_delete_completed_education"].includes(name)?protectWrite(()=>rpc(name,args)):rpc(name,args),channel
+  rpc:(name,args)=>["she_confirm_iris","she_confirm_education_v2","she_confirm_education_details","she_delete_completed_education"].includes(name)?protectWrite(()=>rpc(name,args)):rpc(name,args),channel
 });
 window.SHESEC=Object.freeze({
   client,healthFollowup,refresh,guard,login,register,logout,users,connectedUsers,securityEvents,setUser,deleteUser,
