@@ -479,7 +479,7 @@
             <input id="eventInstructor" type="text" maxlength="100" placeholder="교육 강사명">
           </div>
           <div class="field full">
-            <label for="eventCourse">연명부 교육 항목 구분</label>
+            <label for="eventCourse">교육 항목 구분</label>
             <select id="eventCourse">
               <option value="">연명부 연계 항목 없음</option>
               <option value="eduCommon">공통교육</option>
@@ -488,11 +488,11 @@
               <option value="edu4ho">4호(인화)</option>
               <option value="edu35ho">35호(허가)</option>
               <option value="eduClosed">34호(밀폐)</option>
-              <option value="eduMsds">MSDS</option>
+              <option value="eduMsds">MSDS (연명부 미연동)</option>
               <option value="eduCrane">크레인</option>
               <option value="edu2ho">2호(용접)</option>
             </select>
-            <span class="field-hint">교육 종료 후 [교육완료 확정] 시 해당 수강자 교육시간을 합산하여 연명부에 반영합니다. 8h 초과 시 경고합니다.</span>
+            <span class="field-hint">교육 종료 후 [교육완료 확정] 시 연계 교육시간을 연명부에 반영합니다. MSDS는 일정·수강 기록만 보관하며 연명부에 반영하지 않습니다. 연계 교육은 8h 초과 시 경고합니다.</span>
           </div>
           <div class="field full" id="sheAttendeeEditor">
             <label for="attendeeSearch">수강자 추가·변경 (연명부 조회)</label>
@@ -625,12 +625,12 @@
     });
     const EDU_FIELDS = Object.freeze([
       'eduCommon','edu13ho','edu38ho','edu4ho','edu35ho',
-      'eduClosed','eduMsds','edu2ho','eduCrane'
+      'eduClosed','edu2ho','eduCrane'
     ]);
     const REQUIRED_FIVE = Object.freeze(['eduCommon','edu13ho','edu38ho','edu4ho','edu35ho']);
     const COURSE_LABELS = Object.freeze({
       eduCommon:'공통교육',edu13ho:'13호(운반)',edu38ho:'38호(화재)',
-      edu4ho:'4호(인화)',edu35ho:'35호(허가)',eduClosed:'34호(밀폐)',eduMsds:'MSDS',
+      edu4ho:'4호(인화)',edu35ho:'35호(허가)',eduClosed:'34호(밀폐)',eduMsds:'MSDS (연명부 미연동)',
       eduCrane:'크레인',edu2ho:'2호(용접)'
     });
     const CATEGORIES = Object.freeze({
@@ -1974,7 +1974,7 @@
       [...$('eventForm').querySelectorAll('input,select,textarea')].forEach(field=>field.disabled=false);
     }
     function newTrainingWarnings(item) {
-      if(!item.courseKey)return [];
+      if(!EDU_FIELDS.includes(item.courseKey))return [];
       const problems=[];
       for(const key of item.attendeeKeys) {
         if(item.attendeeOutcomes?.[key]&&!['attended','partial'].includes(item.attendeeOutcomes[key]))continue;
@@ -2080,6 +2080,7 @@
       if(state.dirty||state.savePaused)return alert('미저장 일정이 있습니다. 서버 저장 상태를 확인한 후 확정하세요.');
       if(!state.rosterReady)return alert('연명부 조회에 실패했습니다. 연명부를 새로고침하세요.');
       if(!e.courseKey && !confirm('연명부 연계 항목이 없습니다. 완료 확정해도 연명부 교육시간은 반영되지 않습니다. 계속하시겠습니까?'))return;
+      $('commitConfirmBtn').textContent=e.courseKey==='eduMsds'?'✓ 교육완료 확정 (연명부 미연동)':'✓ 교육완료 확정 및 연명부 반영';
       state.confirmId=id;state.confirmDraft=new Map();state.confirmDetails=new Map();state.confirmPage=0;
       $('confirmTitle').textContent=`교육완료 확정 · ${e.title}`;
       $('confirmSummary').textContent=`${e.date} · ${e.hours}h · ${COURSE_LABELS[e.courseKey]||'연명부 연계 없음'}`;
@@ -2105,7 +2106,7 @@
       for(const key of keys.slice(start,start+perPage)) {
         const w=state.workerIndex.get(key),r=el('tr');
         r.append(el('td','',w?`${w.name} (${w.workerNo||key})`:key));
-        r.append(el('td','',w?(w[e.courseKey]||'미이수'):'연명부 일치 없음'));
+        r.append(el('td','',w?(e.courseKey==='eduMsds'?'연명부 미연동':(w[e.courseKey]||'미이수')):'연명부 일치 없음'));
         const td=el('td'),select=el('select');select.dataset.key=key;select.dataset.confirmField='status';
         for(const [v,label] of Object.entries(ATTENDANCE)){const opt=new Option(label,v);if(v==='partial'&&e.hours<=.5)opt.disabled=true;select.add(opt);}
         select.value=state.confirmDraft.get(key)||'absent';
@@ -2170,7 +2171,7 @@
       }
       if(validation.length)return alert(`교육완료 확정 불가 (${validation.length}명)\n${validation.slice(0,12).join('\n')}\n근로번호/대상자 구분을 확인하세요.`);
       if(!showHourWarnings({...e,attendeeOutcomes:outcomes,attendeeActualHours:actualHours},true))return;
-      if(!confirm(`${e.title}\n정상 참석 ${Object.values(outcomes).filter(v=>v==='attended').length}명 / 부분 이수 ${Object.values(outcomes).filter(v=>v==='partial').length}명\n개인별 실제 교육시간을 누적하겠습니까?\n확정 후에는 직접 수정·삭제할 수 없습니다.`))return;
+      if(!confirm(`${e.title}\n정상 참석 ${Object.values(outcomes).filter(v=>v==='attended').length}명 / 부분 이수 ${Object.values(outcomes).filter(v=>v==='partial').length}명\n${e.courseKey==='eduMsds'?'연명부 반영 없이 교육완료를 확정하겠습니까?':'개인별 실제 교육시간을 누적하겠습니까?'}\n확정 후에는 직접 수정·삭제할 수 없습니다.`))return;
       state.pendingConfirm=true;$('commitConfirmBtn').disabled=true;
       try{
         if(!(await verifyAccess(true)))throw Error('권한 확인 실패');
@@ -2183,7 +2184,7 @@
         state.pendingConfirm=false;$('commitConfirmBtn').disabled=false;closeConfirm();
         state.lastScheduleFetch=0;state.lastRosterFetch=0;
         await Promise.all([fetchSchedule(true),fetchRoster(true)]);
-        notify('✓ 교육완료 확정 및 연명부 누적 반영 완료');
+        notify(e.courseKey==='eduMsds'?'✓ MSDS 교육완료 확정 · 연명부 미연동':'✓ 교육완료 확정 및 연명부 누적 반영 완료');
       }catch(error){
         console.error('교육완료 확정 실패',error);
         alert(`교육완료 확정 실패: ${error.message||String(error)}\n서버의 SQL 기능 및 저장 권한을 확인하세요. 서버 반영 여부를 새로고침하여 확인해 주세요.`);
@@ -2842,10 +2843,10 @@
     }
 
   </script>
-<script src="./education-workflow.js?v=20261127-no-preset1"></script>
+<script src="./education-workflow.js?v=20261127-no-msds1"></script>
 <script src="./education-attendee-view.js?v=20261126-partial1"></script>
 <script src="./education-monthly-quickview.js?v=20261123-pendingfirst1"></script>
-<script src="./education-dashboard-lookup.js?v=20261123-no-regular1"></script>
+<script src="./education-dashboard-lookup.js?v=20261127-no-msds1"></script>
 <script src="./mobile-back.js?v=20261121" defer></script>
 </body>
 </html>
