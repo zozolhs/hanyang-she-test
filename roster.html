@@ -466,7 +466,10 @@
         <div><div class="she-ux-title">👥 근로자 스마트 연명부</div>
           <div id="sheSmartCounters" class="she-ux-muted">재직 및 교육 현황을 불러오는 중…</div>
         </div>
-        <button type="button" id="sheSmartTransfer" class="she-smart-action primary" hidden disabled>선택 0명 교육일정으로 보내기</button>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          <button type="button" id="sheSmartTransfer" class="she-smart-action primary" hidden disabled>교육일정 등록 (0명)</button>
+          <button type="button" id="sheSmartIrisTransfer" class="she-smart-action" hidden disabled>홍채일정 등록 (0명)</button>
+        </div>
       </div>
       <div class="she-smart-controls">
         <input id="sheSmartSearch" type="search" autocomplete="off" placeholder="성명 · 근로번호 · 업체 · 직종 · 기종 검색" aria-label="근로자 검색">
@@ -2668,7 +2671,7 @@ window.addEventListener('beforeunload',event => {
 });
 
 </script>
-<script src="./roster-smart-view.js?v=20261127-active-select1"></script>
+<script src="./roster-smart-view.js?v=20261127-dualhandoff1"></script>
 <script src="./mobile-back.js?v=20261121" defer></script>
 </body>
 </html>
