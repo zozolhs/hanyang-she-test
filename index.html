@@ -6986,6 +6986,8 @@ body:not(.she-portal-active) #shePortal{display:none!important}
     document.addEventListener("click", async (e) => {
       const target = e.target.closest("button, a, div, span");
       if (!target) return;
+      // The modern account UI must never be handled by retired authentication code.
+      if (target.closest("#sheAuthOverlay, #sheSecureAdmin")) return;
       const text = (target.textContent || "").replace(/\s+/g, " ").trim();
 
       if (text.includes("즉시 전환") || text.includes("전환 테스트") || text.includes("서버관리자(김안전)")) {
@@ -7067,47 +7069,7 @@ body:not(.she-portal-active) #shePortal{display:none!important}
         }
       }
 
-      if (
-        text.includes("인증 및 관리자 열기") ||
-        text.includes("관리자 열기") ||
-        text.includes("관리자 인증") ||
-        text.includes("비밀번호 확인") ||
-        text === "인증하기"
-      ) {
-        const modal = target.closest("div.fixed, div.inset-0, div.bg-white, form") || document;
-        const pwInput = modal.querySelector("input[type='password']:not(#hyUserPinInput), input[placeholder*='비밀번호']:not(#hyUserPinInput)");
-        if (pwInput) {
-          const typed = pwInput.value.trim();
-          const actualPw = getAdminPassword();
-          if (typed !== actualPw) {
-            e.stopImmediatePropagation();
-            e.preventDefault();
-            alert("❌ 서버관리자 마스터 비밀번호가 일치하지 않습니다.");
-            pwInput.value = "";
-            pwInput.focus();
-            return;
-          } else {
-            const currentNormal = getLoggedInNormalUser();
-            const users = getPrimaryArray("users");
-            const matchedSubAdmin = currentNormal && users.find(
-              (u) => u && u.name === currentNormal.name && u.role === "admin" && u.status === "approved"
-            );
-
-            pwInput.value = "admin1234";
-            setTimeout(() => {
-              pwInput.value = "";
-              if (matchedSubAdmin) {
-                loginAsDesignatedSubAdmin(matchedSubAdmin);
-              } else {
-                loginAsSuperAdminUser(false);
-              }
-              closeModalByHeadingText("서버관리자 전용 인증");
-              dismissBlockedModalForValidUsers();
-              refreshUsersFromServerNow(false);
-            }, 40);
-          }
-        }
-      }
+      // Deprecated master-password interception removed; V24 authenticates on the server.
 
       if (
         text.includes("간편 로그인") ||
@@ -7371,39 +7333,8 @@ body:not(.she-portal-active) #shePortal{display:none!important}
       }
     }, true);
 
-    document.addEventListener("keydown", (e) => {
-      if (e.key !== "Enter") return;
-      const active = document.activeElement;
-      if (active && active.tagName === "INPUT" && active.id !== "hyUserPinInput" && active.id !== "hyDocLocalSearchInput" && (active.type === "password" || /비밀번호/.test(active.placeholder || ""))) {
-        const typed = active.value.trim();
-        const actualPw = getAdminPassword();
-        if (typed !== actualPw) {
-          e.stopImmediatePropagation();
-          e.preventDefault();
-          alert("❌ 서버관리자 마스터 비밀번호가 일치하지 않습니다.");
-          active.value = "";
-        } else {
-          const currentNormal = getLoggedInNormalUser();
-          const users = getPrimaryArray("users");
-          const matchedSubAdmin = currentNormal && users.find(
-            (u) => u && u.name === currentNormal.name && u.role === "admin" && u.status === "approved"
-          );
+    // No global password key interception: login/register use the V24 form submit.
 
-          active.value = "admin1234";
-          setTimeout(() => {
-            active.value = "";
-            if (matchedSubAdmin) {
-              loginAsDesignatedSubAdmin(matchedSubAdmin);
-            } else {
-              loginAsSuperAdminUser(false);
-            }
-            closeModalByHeadingText("서버관리자 전용 인증");
-            dismissBlockedModalForValidUsers();
-            refreshUsersFromServerNow(false);
-          }, 40);
-        }
-      }
-    }, true);
   }
 
   function openChangePasswordPrompt() {
