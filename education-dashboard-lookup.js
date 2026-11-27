@@ -7,7 +7,7 @@
 const COURSE_FIELDS=[
  ["eduCommon","공통교육"],["edu13ho","13호(운반)"],["edu38ho","38호(화재)"],
  ["edu4ho","4호(인화)"],["edu35ho","35호(허가)"],["eduClosed","34호(밀폐)"],
- ["eduMsds","MSDS"],["edu2ho","2호(용접)"],["eduCrane","크레인"]
+ ["edu2ho","2호(용접)"],["eduCrane","크레인"]
 ];
 const REQUIRED=["eduCommon","edu13ho","edu38ho","edu4ho","edu35ho"];
 const MAX_ROWS=35;
