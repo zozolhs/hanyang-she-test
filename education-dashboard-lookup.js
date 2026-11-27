@@ -1,4 +1,4 @@
-/* SHE EDUCATION TEST: read-only history and upcoming expiry lookup.
+/* SHE EDUCATION TEST: read-only history, expiry filters and iris candidate lookup.
  * Reuses authenticated education roster already fetched by dashboard.
  * Does not issue new API calls, mutate saved data, or change ROSTER permissions.
  */
@@ -11,7 +11,7 @@ const COURSE_FIELDS=[
 ];
 const REQUIRED=["eduCommon","edu13ho","edu38ho","edu4ho","edu35ho"];
 const MAX_ROWS=35;
-let overlay=null,mode=null,range="nearest",status="all",historyDue="all",page=0,returnFocus=null;
+let overlay=null,mode=null,status="all",historyDue="all",page=0,returnFocus=null;
 let title,description,filters,search,summary,tableHead,tableBody,pagerInfo,prev,next;
 const e=(tag,cls,value)=>{
  const element=document.createElement(tag);
@@ -29,14 +29,11 @@ function workers(){
 function nextDate(value){
  return value instanceof Date&&!Number.isNaN(value.getTime())?formatDate(value):"—";
 }
-function setRange(value){
- range=value;page=0;render();
-}
 function setStatus(value){
  status=value;page=0;render();
 }
 function setHistoryDue(value){
- historyDue=value;page=0;render();
+ historyDue=historyDue===value?"all":value;page=0;render();
 }
 // Reuse the dashboard's existing educationState and calendar-month rule.
 function historyDueEntry(worker,today,filter){
@@ -146,20 +143,11 @@ function buildHistoryFilters(){
  });
  const divider=e("span","she-lookup-note","│ 도래일(만료):");
  divider.style.alignSelf="center";filters.append(divider);
- const dates=[["all","전체 기간"],["nearest","만료 임박순"],["week","7일 이내"],["month1","1개월 이내"],["month2","2개월 이내"],["expired","만료자"]];
+ const dates=[["nearest","만료 임박순"],["week","7일 이내"],["month1","1개월 이내"],["month2","2개월 이내"],["expired","만료자"]];
  dates.forEach(([key,label])=>{
   const b=e("button","she-lookup-filter",label);b.type="button";
   b.setAttribute("aria-pressed",String(historyDue===key));
   b.addEventListener("click",()=>setHistoryDue(key));filters.append(b);
- });
-}
-function buildExpiryFilters(){
- filters.replaceChildren();
- const choices=[["nearest","가장 빠른 만료순"],["week","7일 이내"],["month1","1개월 이내"],["month2","2개월 이내"]];
- choices.forEach(([key,label])=>{
-  const b=e("button","she-lookup-filter",label);b.type="button";
-  b.setAttribute("aria-pressed",String(range===key));
-  b.addEventListener("click",()=>setRange(key));filters.append(b);
  });
 }
 function renderHistory(){
@@ -218,74 +206,55 @@ function renderHistory(){
  document.getElementById("sheLookupFootnote").textContent=
   "교육별 8h 이수 기준이며, 만료는 기존 연명부 규칙(교육일 + 2개월, 8h 미만)을 따릅니다. 정기교육 월별 이수 현황은 상단의 정기안전교육 완료 현황 ‘간편 보기’에서 확인할 수 있습니다. 퇴사일 입력자는 회색 표시합니다."+(dueFilter?" 도래일 필터는 재직자 중 날짜가 있는 8h 미만 교육만 대상으로 하며, 용접공 크레인은 제외합니다. 만료 임박은 남은 기간 오름차순, 만료자는 오래된 만료일부터 표시합니다.":"");
 }
-function expiryEntries(today){
- const items=[];
- for(const w of workers()){
-  if(textVal(w.resignDate))continue; // upcoming education concerns active workers only
-  for(const [key,label] of COURSE_FIELDS){
-   // Match the existing education module's occupation exclusion rule.
-   if(key==="eduCrane"&&typeof isWelder==="function"&&isWelder(w))continue;
-   const raw=textVal(w[key]),info=educationState(raw,today);
-   if(info.completed||!(info.dueDate instanceof Date)||info.dueDate<=today)continue;
-   const dueMs=info.dueDate.getTime();
-   const days=Math.round((dueMs-today.getTime())/86400000);
-   items.push({worker:w,label,key,raw,info,days,dueMs,due:nextDate(info.dueDate)});
-  }
- }
- items.sort((a,b)=>a.dueMs-b.dueMs||
-  textVal(a.worker.company).localeCompare(textVal(b.worker.company),"ko")||
-  textVal(a.worker.workerNo).localeCompare(textVal(b.worker.workerNo),"ko",{numeric:true})||
-  a.label.localeCompare(b.label,"ko"));
- return items;
+// Read-only iris candidates: active, all five required courses complete, no site entry date.
+function isIrisCandidate(w,today){
+ return !textVal(w.resignDate)&&!textVal(w.samsungStartDate)&&
+  REQUIRED.every(key=>educationState(w[key],today).completed);
 }
-function renderExpiry(){
- const today=strictDate(todayString());
- if(!today){renderEmpty("현재 날짜를 확인할 수 없습니다.",9);return;}
- const all=expiryEntries(today);
- const end7=today.getTime()+7*86400000;
- const end1=addCalendarMonths(today,1).getTime();
- const end2=addCalendarMonths(today,2).getTime();
- const upper=range==="week"?end7:range==="month1"?end1:range==="month2"?end2:Infinity;
- const q=normalize(search.value);
- const rows=all.filter(item=>item.dueMs<=upper&&(!q||
-  [item.worker.workerNo,item.worker.name,item.worker.company,item.worker.birth,item.label].some(v=>normalize(v).includes(q))));
- title.textContent="만료일자 바로 확인";
- description.textContent="현재 기준 아직 만료되지 않은 8h 미만 교육을, 가장 빨리 도래하는 만료일자부터 보여줍니다.";
- buildExpiryFilters();
- setColumns(["근로자번호","이름","업체","생년월일","교육 항목","교육일","이수시간","만료 예정일","남은 일수"]);
+function renderIrisCandidates(){
+ const today=strictDate(todayString()),q=normalize(search.value);
+ const candidates=workers().filter(w=>isIrisCandidate(w,today));
+ const rows=candidates.filter(w=>!q||[w.workerNo,w.name,w.company,w.birth].some(v=>normalize(v).includes(q)));
+ rows.sort((a,b)=>textVal(a.company).localeCompare(textVal(b.company),"ko")||
+  textVal(a.workerNo).localeCompare(textVal(b.workerNo),"ko",{numeric:true})||
+  textVal(a.name).localeCompare(textVal(b.name),"ko"));
+ title.textContent="홍채등록 대상자 바로 확인";
+ description.textContent="필수 5종 교육을 모두 이수하고 물산입사일이 입력되지 않은 재직 근로자입니다.";
+ filters.replaceChildren();
+ const guide=e("span","she-lookup-note","필수 5종 8h 이수 · 물산입사일 미입력 · 재직자");
+ filters.append(guide);
+ setColumns(["근로자번호","이름","업체","생년월일",...COURSE_FIELDS.filter(([key])=>REQUIRED.includes(key)).map(([,label])=>label),"물산입사일","상태"]);
  const visible=pageRows(rows),frag=document.createDocumentFragment();
- for(const item of visible){
+ for(const w of visible){
   const tr=e("tr");
-  const dateMatch=item.raw.match(/\b\d{4}-\d{2}-\d{2}\b/);
-  addTextCells(tr,[textVal(item.worker.workerNo)||"—",textVal(item.worker.name)||"—",
-   textVal(item.worker.company)||"—",textVal(item.worker.birth)||"—",item.label,
-   dateMatch?dateMatch[0]:"—",item.info.hours+"h",item.due]);
-  const td=e("td");
-  td.append(badge({kind:item.days<=7?"urgent":"partial",label:"D-"+item.days}));
-  tr.append(td);frag.append(tr);
+  addTextCells(tr,[textVal(w.workerNo)||"—",textVal(w.name)||"—",textVal(w.company)||"—",textVal(w.birth)||"—"]);
+  for(const key of REQUIRED){
+   const td=e("td");td.append(badge(statusOf(w,key,today)));tr.append(td);
+  }
+  addTextCells(tr,["미입력"]);
+  const td=e("td");td.append(badge({kind:"partial",label:"홍채 대상"}));tr.append(td);
+  frag.append(tr);
  }
- if(!rows.length)renderEmpty("해당 기간에 만료 예정인 교육이 없습니다.",9);
+ if(!rows.length)renderEmpty("조건에 맞는 홍채등록 대상자가 없습니다.",4+REQUIRED.length+2);
  else tableBody.replaceChildren(frag);
- const distinct=new Set(rows.map(x=>textVal(x.worker.workerNo)||[x.worker.name,x.worker.birth,x.worker.company].join("|")));
- summary.textContent="조회 "+distinct.size.toLocaleString("ko-KR")+"명 · 만료 예정 교육 "+rows.length.toLocaleString("ko-KR")+"건"+
-  (rows.length?" · 가장 빠른 만료일 "+rows[0].due:"");
+ summary.textContent="전체 홍채등록 대상 "+candidates.length.toLocaleString("ko-KR")+"명 · 검색 "+rows.length.toLocaleString("ko-KR")+"명";
  document.getElementById("sheLookupFootnote").textContent=
-  "재직 근로자 중 교육일이 입력되어 있고 8h 미만인 교육만 대상으로 합니다. 날짜 미입력 교육, 이미 만료된 교육, 이수 완료 교육, 용접공의 크레인 교육은 제외됩니다. 한 근로자에게 여러 교육이 예정되어 있으면 교육별로 표시합니다.";
+  "연명부상 필수 5종 8h 이수 및 물산입사일 미입력인 재직자만 표시합니다. 실제 홍채등록 완료 여부를 별도로 판정하지 않으며, 물산입사일이 입력되면 목록에서 제외됩니다.";
 }
 function render(){
  if(!overlay||overlay.hidden)return;
  if(!canRead()){close();return;}
  if(mode==="history")renderHistory();
- else if(mode==="expiry")renderExpiry();
+ else if(mode==="iris"||mode==="expiry")renderIrisCandidates();
 }
 function open(which){
- if(!["history","expiry"].includes(which))return;
+ if(!["history","iris","expiry"].includes(which))return;
  if(!canRead()){
   if(typeof notify==="function")notify("근로자 교육 상세 조회 권한이 없거나 연명부를 불러오는 중입니다.");
   return;
  }
  ensure();
- mode=which;range="nearest";status="all";historyDue="all";page=0;
+ mode=which;status="all";historyDue="all";page=0;
  search.value="";
  returnFocus=document.activeElement;
  overlay.hidden=false;overlay.style.display="flex";
