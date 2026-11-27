@@ -1913,6 +1913,13 @@
       clearTimeout(state.participantTimer);
       state.participantTimer=setTimeout(()=>kind==='iris'?renderIrisAttendees():renderAttendeeOptions(),140);
     }
+    // Keep existing search order; otherwise show every selected participant before other candidates.
+    function selectedFirstParticipants(results,draft,search,limit=55){
+      if(search)return results.slice(0,limit);
+      const selected=[],others=[];
+      for(const entry of results)(draft.has(entry.worker.__key)?selected:others).push(entry);
+      return selected.concat(others.slice(0,Math.max(0,limit-selected.length)));
+    }
     function eligibleWorkers(kind='education',course='') {
       return state.workerSearch.filter(x=>workerEligible(x.worker,course,kind));
     }
@@ -1923,8 +1930,9 @@
     function renderAttendeeOptions() {
       const root=$('attendeeList'),search=$('attendeeSearch').value.trim().toLocaleLowerCase('ko'),course=$('eventCourse').value;
       const results=state.workerSearch.filter(x=>!search || x.search.includes(search));
+      const visible=selectedFirstParticipants(results,state.draftAttendees,search);
       root.replaceChildren();const frag=document.createDocumentFragment();
-      for(const {worker:w} of results.slice(0,55)) {
+      for(const {worker:w} of visible) {
         const blocked=!workerEligible(w,course),label=el('div',`participant-row${blocked?' blocked':''}`);
         const box=document.createElement('input');box.type='checkbox';box.disabled=blocked||!canEditEducation();box.dataset.key=w.__key;
         box.checked=state.draftAttendees.has(w.__key);
@@ -1935,7 +1943,7 @@
       if(!results.length)frag.appendChild(el('div','participant-list-hint',state.rosterReady?'조회 결과가 없습니다.':'연명부를 불러오지 못했습니다.'));
       root.appendChild(frag);
       $('attendeeCount').textContent=`선택 ${state.draftAttendees.size}명`;
-      $('attendeeHint').textContent=`검색 결과 ${results.length}명 (화면 최대 55명). 검색·페이지와 관계없이 기존 선택을 보존합니다. 크레인 교육의 용접공은 제외됩니다.`;
+      $('attendeeHint').textContent=`검색 결과 ${results.length}명 · ${visible.length}명 표시. 검색어가 없으면 선택 인원을 최상단에 표시합니다. 크레인 교육의 용접공은 제외됩니다.`;
     }
     function openEventModal(id=null,initialDate=todayString()) {
       if(!requireAccess())return;
@@ -2308,8 +2316,9 @@
     function renderIrisAttendees() {
       const root=$('irisAttendees'),search=$('irisSearch').value.trim().toLocaleLowerCase('ko');
       const matches=eligibleWorkers('iris').filter(x=>!search||x.search.includes(search));
+      const visible=selectedFirstParticipants(matches,state.irisDraft,search);
       const frag=document.createDocumentFragment();
-      for(const {worker:w} of matches.slice(0,55)) {
+      for(const {worker:w} of visible) {
         const label=el('label','participant-row'),cb=document.createElement('input');
         cb.type='checkbox';cb.disabled=!canEditEducation();cb.dataset.key=w.__key;cb.checked=state.irisDraft.has(w.__key);
         label.append(cb,el('span','meta',`${w.name} | ${w.company||'업체 미입력'} | ${w.workerNo||'번호 없음'} | 필수 5종 ${rosterComplete(w)?'완료':'미완료'}`));
@@ -2318,7 +2327,7 @@
       if(!matches.length)frag.append(el('div','participant-list-hint','홍채등록 가능 대상자가 없습니다.'));
       root.replaceChildren(frag);
       updateIrisSelectionSummary();
-      $('irisHint').textContent=`홍채등록 가능 ${matches.length}명 검색됨 · 화면 최대 55명 · 선택은 검색과 관계없이 유지됩니다.`;
+      $('irisHint').textContent=`홍채등록 가능 ${matches.length}명 · ${visible.length}명 표시 · 검색어가 없으면 선택 인원 최상단 표시`;
     }
     function updateIrisSelectionSummary() {
       let valid=0,completed=0;
@@ -2878,7 +2887,8 @@
       $('irisAttendees').addEventListener('change',e=>{
         if(e.target.type!=='checkbox')return;
         const key=e.target.dataset.key,w=state.workerIndex.get(key);if(!workerEligible(w,'','iris'))return;
-        if(e.target.checked)state.irisDraft.add(key);else state.irisDraft.delete(key);updateIrisSelectionSummary();
+        if(e.target.checked)state.irisDraft.add(key);else state.irisDraft.delete(key);
+        if(!$('irisSearch').value.trim())renderIrisAttendees();else updateIrisSelectionSummary();
       });
       $('irisForm').addEventListener('submit',submitIris);$('deleteIrisBtn').addEventListener('click',deleteIris);
       $('attendeeList').addEventListener('change',e=>{
@@ -2888,7 +2898,7 @@
           e.target.checked=false;alert('교육대상자가 아닙니다.');return;
         }
         if(e.target.checked)state.draftAttendees.add(key);else state.draftAttendees.delete(key);
-        $('attendeeCount').textContent=`선택 ${state.draftAttendees.size}명`;
+        if(!$('attendeeSearch').value.trim())renderAttendeeOptions();else $('attendeeCount').textContent=`선택 ${state.draftAttendees.size}명`;
       });
       $('selectAllAttendeesBtn').addEventListener('click',()=>{
         const search=$('attendeeSearch').value.trim().toLocaleLowerCase('ko');
@@ -2933,7 +2943,7 @@
     }
 
   </script>
-<script src="./education-workflow.js?v=20261127-no-msds1"></script>
+<script src="./education-workflow.js?v=20261127-dualhandoff1"></script>
 <script src="./education-attendee-view.js?v=20261126-partial1"></script>
 <script src="./education-monthly-quickview.js?v=20261123-pendingfirst1"></script>
 <script src="./education-dashboard-lookup.js?v=20261127-irisconfirm1"></script>
