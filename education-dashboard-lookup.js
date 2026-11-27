@@ -11,7 +11,7 @@ const COURSE_FIELDS=[
 ];
 const REQUIRED=["eduCommon","edu13ho","edu38ho","edu4ho","edu35ho"];
 const MAX_ROWS=35;
-let overlay=null,mode=null,range="nearest",status="all",page=0,returnFocus=null;
+let overlay=null,mode=null,range="nearest",status="all",historyDue="all",page=0,returnFocus=null;
 let title,description,filters,search,summary,tableHead,tableBody,pagerInfo,prev,next;
 const e=(tag,cls,value)=>{
  const element=document.createElement(tag);
@@ -34,6 +34,29 @@ function setRange(value){
 }
 function setStatus(value){
  status=value;page=0;render();
+}
+function setHistoryDue(value){
+ historyDue=value;page=0;render();
+}
+// Reuse the dashboard's existing educationState and calendar-month rule.
+function historyDueEntry(worker,today,filter){
+ if(filter==="all"||!today||textVal(worker.resignDate))return null;
+ const cutoff=filter==="week"?today.getTime()+7*86400000:
+  filter==="month1"?addCalendarMonths(today,1).getTime():
+  filter==="month2"?addCalendarMonths(today,2).getTime():Infinity;
+ let nearest=null;
+ for(const [key,label] of COURSE_FIELDS){
+  if(key==="eduCrane"&&typeof isWelder==="function"&&isWelder(worker))continue;
+  const info=educationState(worker[key],today);
+  if(info.completed||!(info.dueDate instanceof Date))continue;
+  const dueMs=info.dueDate.getTime();
+  if(!Number.isFinite(dueMs))continue;
+  if(filter==="expired"? !info.expired : (info.expired||dueMs>cutoff))continue;
+  const days=Math.round((dueMs-today.getTime())/86400000);
+  if(!nearest||dueMs<nearest.dueMs)nearest={dueMs,days,due:nextDate(info.dueDate),labels:[label]};
+  else if(dueMs===nearest.dueMs)nearest.labels.push(label);
+ }
+ return nearest;
 }
 function close(){
  if(!overlay)return;
@@ -121,6 +144,14 @@ function buildHistoryFilters(){
   b.setAttribute("aria-pressed",String(status===key));
   b.addEventListener("click",()=>setStatus(key));filters.append(b);
  });
+ const divider=e("span","she-lookup-note","│ 도래일(만료):");
+ divider.style.alignSelf="center";filters.append(divider);
+ const dates=[["all","전체 기간"],["nearest","만료 임박순"],["week","7일 이내"],["month1","1개월 이내"],["month2","2개월 이내"],["expired","만료자"]];
+ dates.forEach(([key,label])=>{
+  const b=e("button","she-lookup-filter",label);b.type="button";
+  b.setAttribute("aria-pressed",String(historyDue===key));
+  b.addEventListener("click",()=>setHistoryDue(key));filters.append(b);
+ });
 }
 function buildExpiryFilters(){
  filters.replaceChildren();
@@ -135,6 +166,7 @@ function renderHistory(){
  const today=strictDate(todayString());
  const all=workers();
  const q=normalize(search.value);
+ const dueFilter=historyDue!=="all",dueByWorker=new Map();
  const people=all.filter(w=>{
   const resigned=Boolean(textVal(w.resignDate));
   if(status==="active"&&resigned)return false;
@@ -144,31 +176,47 @@ function renderHistory(){
    if(status==="complete"&&!complete)return false;
    if(status==="incomplete"&&complete)return false;
   }
-  return !q||[w.workerNo,w.name,w.company,w.birth].some(v=>normalize(v).includes(q));
+  if(q&&![w.workerNo,w.name,w.company,w.birth].some(v=>normalize(v).includes(q)))return false;
+  if(dueFilter){
+   const due=historyDueEntry(w,today,historyDue);
+   if(!due)return false;
+   dueByWorker.set(w,due);
+  }
+  return true;
  });
- people.sort((a,b)=>Number(Boolean(textVal(a.resignDate)))-Number(Boolean(textVal(b.resignDate)))||
+ people.sort((a,b)=>(dueFilter?dueByWorker.get(a).dueMs-dueByWorker.get(b).dueMs:0)||
+  Number(Boolean(textVal(a.resignDate)))-Number(Boolean(textVal(b.resignDate)))||
   textVal(a.company).localeCompare(textVal(b.company),"ko")||
   textVal(a.workerNo).localeCompare(textVal(b.workerNo),"ko",{numeric:true}));
  title.textContent="교육이력관리 상세보기";
  description.textContent="근로자별 교육 항목의 8h 이수·진행·만료·미이수 상태를 한눈에 확인합니다.";
  buildHistoryFilters();
- setColumns(["근로자번호","이름","업체","생년월일",...COURSE_FIELDS.map(([,label])=>label)]);
+ setColumns(["근로자번호","이름","업체","생년월일",...(dueFilter?["가장 빠른 만료일 / 남은 기간"]:[]),...COURSE_FIELDS.map(([,label])=>label)]);
  const visible=pageRows(people),frag=document.createDocumentFragment();
  for(const w of visible){
   const tr=e("tr",textVal(w.resignDate)?"she-lookup-retired":"");
   addTextCells(tr,[textVal(w.workerNo)||"—",textVal(w.name)||"—",textVal(w.company)||"—",textVal(w.birth)||"—"]);
+  if(dueFilter){
+   const due=dueByWorker.get(w),td=e("td");
+   td.append(e("div","",due.due));
+   td.append(badge({kind:due.days<=0?"expired":due.days<=7?"urgent":"partial",
+     label:due.days<0?"만료 "+Math.abs(due.days)+"일":due.days===0?"오늘 만료":"D-"+due.days,
+     tooltip:due.labels.join(", ")}));
+   td.append(e("div","she-lookup-note",due.labels.join(", ")));
+   tr.append(td);
+  }
   for(const [key] of COURSE_FIELDS){
    const td=e("td");td.append(badge(statusOf(w,key,today)));tr.append(td);
   }
   frag.append(tr);
  }
- if(!people.length)renderEmpty("해당 조건에 맞는 근로자가 없습니다.",4+COURSE_FIELDS.length);
+ if(!people.length)renderEmpty(dueFilter?"해당 기간에 만료 대상인 재직 근로자가 없습니다.":"해당 조건에 맞는 근로자가 없습니다.",4+COURSE_FIELDS.length+(dueFilter?1:0));
  else tableBody.replaceChildren(frag);
  const retired=all.filter(w=>Boolean(textVal(w.resignDate))).length;
  summary.textContent="전체 "+all.length.toLocaleString("ko-KR")+"명 · 재직 "+(all.length-retired).toLocaleString("ko-KR")+
- "명 · 퇴사 "+retired.toLocaleString("ko-KR")+"명 · 검색 "+people.length.toLocaleString("ko-KR")+"명";
+ "명 · 퇴사 "+retired.toLocaleString("ko-KR")+"명 · 검색 "+people.length.toLocaleString("ko-KR")+"명"+(dueFilter&&people.length?" · 가장 빠른 만료일 "+dueByWorker.get(people[0]).due:"");
  document.getElementById("sheLookupFootnote").textContent=
-  "교육별 8h 이수 기준이며, 만료는 기존 연명부 규칙(교육일 + 2개월, 8h 미만)을 따릅니다. 정기교육 월별 이수 현황은 상단의 정기안전교육 완료 현황 ‘간편 보기’에서 확인할 수 있습니다. 퇴사일 입력자는 회색 표시합니다.";
+  "교육별 8h 이수 기준이며, 만료는 기존 연명부 규칙(교육일 + 2개월, 8h 미만)을 따릅니다. 정기교육 월별 이수 현황은 상단의 정기안전교육 완료 현황 ‘간편 보기’에서 확인할 수 있습니다. 퇴사일 입력자는 회색 표시합니다."+(dueFilter?" 도래일 필터는 재직자 중 날짜가 있는 8h 미만 교육만 대상으로 하며, 용접공 크레인은 제외합니다. 만료 임박은 남은 기간 오름차순, 만료자는 오래된 만료일부터 표시합니다.":"");
 }
 function expiryEntries(today){
  const items=[];
@@ -237,7 +285,7 @@ function open(which){
   return;
  }
  ensure();
- mode=which;range="nearest";status="all";page=0;
+ mode=which;range="nearest";status="all";historyDue="all";page=0;
  search.value="";
  returnFocus=document.activeElement;
  overlay.hidden=false;overlay.style.display="flex";
