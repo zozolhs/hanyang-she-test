@@ -842,7 +842,8 @@ const healthFollowup=Object.freeze({
   list:(offset=0,active=false,search="",filter="")=>extensionRequest("health_list",{offset,active,search,filter}),
   history:(case_id,offset=0)=>extensionRequest("health_history",{case_id,offset}),
   flags:()=>extensionRequest("health_flags"),
-  append:data=>protectWrite(()=>extensionRequest("health_append",data))
+  append:data=>protectWrite(()=>extensionRequest("health_append",data)),
+  remove:data=>protectWrite(()=>extensionRequest("health_delete",data))
 });
 const client=Object.freeze({
   from(table){
