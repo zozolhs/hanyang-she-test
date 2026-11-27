@@ -768,17 +768,17 @@ async function rpc(name,args={}){
         const epoch=sessionEpoch,session=token,cached=educationRosterCache;
         educationRosterPending=(async()=>{
           const res=await request("store","store_education_roster",
-            cached?{if_updated_at:cached.updated_at}:{});
+            cached?.view?{if_updated_at:cached.updated_at,if_view:cached.view}:{});
           if(epoch!==sessionEpoch||session!==token)
             throw failure("로그인 세션이 변경되었습니다.",401);
-          if(res.not_modified && cached && educationRosterCache===cached && cached.updated_at===res.updated_at)
+          if(res.not_modified && cached && educationRosterCache===cached && cached.updated_at===res.updated_at && cached.view && cached.view===res.view)
             return {data:cached.workers,not_modified:true,error:null};
           if(res.not_modified){
             const full=await request("store","store_education_roster");
             if(epoch!==sessionEpoch||session!==token)
               throw failure("로그인 세션이 변경되었습니다.",401);
-            educationRosterCache={workers:full.workers||[],updated_at:full.updated_at};
-          }else educationRosterCache={workers:res.workers||[],updated_at:res.updated_at};
+            educationRosterCache={workers:full.workers||[],updated_at:full.updated_at,view:full.view};
+          }else educationRosterCache={workers:res.workers||[],updated_at:res.updated_at,view:res.view};
           return {data:educationRosterCache.workers,not_modified:false,error:null};
         })();
       }
