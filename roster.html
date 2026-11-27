@@ -576,7 +576,6 @@
         <button class="btn btn-action-blue" onclick="applyDateToSelected('col-4ho')">⚡ 4호(인화)</button>
         <button class="btn btn-action-blue" onclick="applyDateToSelected('col-35ho')">⚡ 35호(허가)</button>
         <button class="btn btn-action-blue" onclick="applyDateToSelected('col-closed')">⚡ 34호(밀폐)</button>
-        <button class="btn btn-action-blue" onclick="applyDateToSelected('col-msds')">⚡ MSDS</button>
         <button class="btn btn-action-blue" onclick="applyDateToSelected('col-crane')">⚡ 크레인</button>
         <button class="btn btn-action-blue" onclick="applyDateToSelected('col-2ho')">⚡ 2호(용접)</button>
         <span style="font-size: 11px; color: #004080; margin-left: auto;">* 체크된 인원에게 선택 시간으로 날짜가 일괄 적용됩니다.</span>
@@ -591,7 +590,6 @@
         <label class="checkbox-label"><input type="checkbox" class="edu-filter" value="col-4ho" onchange="filterTable()"> 4호(인화)</label>
         <label class="checkbox-label"><input type="checkbox" class="edu-filter" value="col-35ho" onchange="filterTable()"> 35호(허가)</label>
         <label class="checkbox-label"><input type="checkbox" class="edu-filter" value="col-closed" onchange="filterTable()"> 34호(밀폐)</label>
-        <label class="checkbox-label"><input type="checkbox" class="edu-filter" value="col-msds" onchange="filterTable()"> MSDS</label>
         <label class="checkbox-label"><input type="checkbox" class="edu-filter" value="col-crane" onchange="filterTable()"> 크레인</label>
         <label class="checkbox-label"><input type="checkbox" class="edu-filter" value="col-2ho" onchange="filterTable()"> 2호(용접)</label>
         <div class="roster-filter-hours" role="radiogroup" aria-labelledby="rosterFilterHoursLabel" title="교육 미선택 시 해당 시간의 교육이 하나라도 있는 인원, 교육 선택 시 선택한 모든 교육의 시간이 일치하는 인원을 조회합니다."
@@ -669,7 +667,6 @@
                     <th class="highlight-col" width="150">4호(인화)</th>
                     <th class="highlight-col" width="150">35호(허가)</th>
                     <th class="highlight-col" width="150">34호(밀폐)</th>
-                    <th class="highlight-col" width="150">MSDS</th>
                     <th class="highlight-col" width="150">2호(용접)</th>
                     <th class="highlight-col" width="140">크레인</th>
                     <th width="140">정기교육</th>
@@ -734,7 +731,6 @@ const FIELD_DEFS = [
   { key:'edu4ho', label:'4호(인화)', placeholder:'YYYY-MM-DD 8h', css:'col-4ho edu-input' },
   { key:'edu35ho', label:'35호(허가)', placeholder:'YYYY-MM-DD 8h', css:'col-35ho edu-input' },
   { key:'eduClosed', label:'34호(밀폐)', placeholder:'YYYY-MM-DD 8h', css:'col-closed edu-input' },
-  { key:'eduMsds', label:'MSDS', placeholder:'YYYY-MM-DD 8h', css:'col-msds edu-input' },
   { key:'edu2ho', label:'2호(용접)', placeholder:'YYYY-MM-DD 8h', css:'col-2ho edu-input' },
   { key:'eduCrane', label:'크레인', placeholder:'YYYY-MM-DD 8h', css:'col-crane edu-input' },
   { key:'eduRegular', label:'정기교육', placeholder:'YYYY-MM-DD', css:'col-regular' },
@@ -742,10 +738,10 @@ const FIELD_DEFS = [
   { key:'employeeId', label:'직변', placeholder:'직변' },
   { key:'notes', label:'비고', placeholder:'비고' }
 ];
-const EDU_KEYS = [ 'eduCommon', 'edu13ho', 'edu38ho', 'edu4ho', 'edu35ho', 'eduClosed', 'eduMsds', 'edu2ho', 'eduCrane' ];
+const EDU_KEYS = [ 'eduCommon', 'edu13ho', 'edu38ho', 'edu4ho', 'edu35ho', 'eduClosed', 'edu2ho', 'eduCrane' ];
 const CLASS_TO_EDU = Object.freeze({
   'col-common':'eduCommon', 'col-13ho':'edu13ho', 'col-38ho':'edu38ho',
-  'col-4ho':'edu4ho', 'col-35ho':'edu35ho', 'col-closed':'eduClosed', 'col-msds':'eduMsds',
+  'col-4ho':'edu4ho', 'col-35ho':'edu35ho', 'col-closed':'eduClosed',
   'col-crane':'eduCrane', 'col-2ho':'edu2ho'
 });
 
@@ -1116,6 +1112,8 @@ function normalizeRecord(record) {
     const val = source[field.key];
     output[field.key] = typeof val === 'string' ? val : (val == null ? '' : String(val));
   }
+  // Keep already stored historical MSDS values inert for recovery; never import or edit them.
+  if(Object.hasOwn(source,'eduMsds')) output.eduMsds=source.eduMsds;
   const id = source.uid || source._uid || source.id;
   output.uid = typeof id === 'string' && id.length < 100 ? id : makeUid();
   return output;
@@ -1750,12 +1748,12 @@ const ROSTER_TEMPLATE_BASE64 = 'UEsDBBQAAAAIAES3cl2S6c2mtwAAABgBAAAPAAAAeGwvd29y
 const ROSTER_EXPORT_HEADERS = Object.freeze([
   'NO','근로번호','물산입사일','성명','성별','생년월일','혈액형','직종','공종',
   '업체','핸드폰 기종','연락처','교육구분','퇴사일자','재입사','직변','비고','공통','운반','화재',
-  '인화성','허가','밀폐','MSDS','용접','크레인'
+  '인화성','허가','밀폐','용접','크레인'
 ]);
 const ROSTER_EXPORT_KEYS = Object.freeze([
   '__no','workerNo','samsungStartDate','name','gender','birth','blood','job','process',
   'company','phoneModel','phone','educationType','resignDate','rehireDate','employeeId','notes',
-  'eduCommon','edu13ho','edu38ho','edu4ho','edu35ho','eduClosed','eduMsds','edu2ho','eduCrane'
+  'eduCommon','edu13ho','edu38ho','edu4ho','edu35ho','eduClosed','edu2ho','eduCrane'
 ]);
 function makeRosterExportMatrix(records) {
   const result=[ROSTER_EXPORT_HEADERS.slice()];
@@ -1773,10 +1771,10 @@ function decodeTemplateBase64(base64) {
 // Excel conditional formats remain active after editing a downloaded workbook.
 const ROSTER_EXCEL_WIDTHS = Object.freeze([
   6, 15, 15, 16, 8, 12, 11, 19, 17, 21, 22, 18, 12, 15, 15, 13, 24,
-  20, 20, 20, 20, 20, 20, 20, 20, 20
+  20, 20, 20, 20, 20, 20, 20, 20
 ]);
 function rosterExcelConditionalRules(){
-  const cell='R2'; // Excel expands this relative reference across R2:Z(lastRow).
+  const cell='R2'; // Excel expands this relative reference across R2:Y(lastRow).
   const date=`DATE(VALUE(LEFT(${cell},4)),VALUE(MID(${cell},6,2)),VALUE(MID(${cell},9,2)))`;
   const hours=`IFERROR(VALUE(TRIM(SUBSTITUTE(MID(${cell},12,30),"h",""))),0)`;
   const valid=`AND(${cell}<>"",LEN(${cell})>=13,IFERROR(ISNUMBER(SEARCH("h",${cell})),FALSE),IFERROR(LEFT(${cell},10)=TEXT(${date},"yyyy-mm-dd"),FALSE))`;
@@ -1809,8 +1807,8 @@ function formatRosterDownloadSheet(sheet,numberOfWorkers){
   sheet.getRow(1).height=Math.max(sheet.getRow(1).height||0,26);
   sheet.views=[{state:'frozen',ySplit:1,activeCell:'D2',showGridLines:true}];
   sheet.autoFilter={from:{row:1,column:1},to:{row:Math.max(2,numberOfWorkers+1),column:ROSTER_EXPORT_KEYS.length}};
-  // One range / three rules, not a per-cell 5,000 x 9 styling loop.
-  sheet.addConditionalFormatting({ref:`R2:Z${Math.max(numberOfWorkers+1,2)}`,rules:rosterExcelConditionalRules()});
+  // One range / three rules, not a per-cell 5,000 x 8 styling loop.
+  sheet.addConditionalFormatting({ref:`R2:Y${Math.max(numberOfWorkers+1,2)}`,rules:rosterExcelConditionalRules()});
 }
 async function exportRosterExcel() { if (window.SHEMobileExportGuard?.block("roster_excel")) return;
   if(!requireAccess()) return;
@@ -1828,6 +1826,8 @@ async function exportRosterExcel() { if (window.SHEMobileExportGuard?.block("ros
     const sheet=workbook.getWorksheet('Sheet1')||workbook.worksheets[0];
     if(!sheet) throw new Error('원본 양식 Sheet1을 읽을 수 없습니다.');
     const originalHeaders=ROSTER_EXPORT_HEADERS.filter((_,i)=>ROSTER_EXPORT_KEYS[i]!=='phoneModel');
+    // Legacy embedded template includes MSDS. Validate its header but omit it from the exported matrix.
+    originalHeaders.splice(originalHeaders.indexOf('용접'),0,'MSDS');
     for(let c=1;c<=originalHeaders.length;c++) {
       const actual=String(sheet.getCell(1,c).value??'').trim();
       if(actual!==originalHeaders[c-1]) throw new Error(`원본 양식 ${excelColLabel(c-1)}1 열 제목이 일치하지 않습니다.`);
@@ -1835,8 +1835,7 @@ async function exportRosterExcel() { if (window.SHEMobileExportGuard?.block("ros
     const styleRow=sheet.getRow(2);
     const headerStyles=originalHeaders.map((_,i)=>({...sheet.getCell(1,i+1).style}));
     const originalStyles=originalHeaders.map((_,i)=>({...styleRow.getCell(i+1).style}));
-    const modelIndex=ROSTER_EXPORT_KEYS.indexOf('phoneModel');
-    const oldIndex=i=>i<=modelIndex?i:i-1;
+    const oldIndex=i=>originalHeaders.indexOf(ROSTER_EXPORT_KEYS[i]==='phoneModel'?'연락처':ROSTER_EXPORT_HEADERS[i]);
     const baseStyles=ROSTER_EXPORT_KEYS.map((_,i)=>originalStyles[oldIndex(i)]);
     const educationTypeIndex=ROSTER_EXPORT_KEYS.indexOf('educationType');
     const baseHeight=styleRow.height||20;
@@ -1913,7 +1912,7 @@ const ROSTER_IMPORT_ALIASES = Object.freeze({
   newcomerEduDate:['신규자교육일자한양교육일자','신규자교육일자','한양교육일자','신규교육일자','신규자교육일','신규채용자교육일자']
 });
 const ROSTER_IMPORT_EDU = Object.freeze([
-  'eduCommon','edu13ho','edu38ho','edu4ho','edu35ho','eduClosed','eduMsds','edu2ho','eduCrane'
+  'eduCommon','edu13ho','edu38ho','edu4ho','edu35ho','eduClosed','edu2ho','eduCrane'
 ]);
 const ROSTER_IMPORT_DATE_KEYS = Object.freeze([
   'resignDate','rehireDate','samsungStartDate','newcomerEduDate','eduRegular'
@@ -2029,6 +2028,7 @@ function candidateHeaderMap(matrix,sheet,start) {
     }
     if(!main) continue;
     const key=main.key;
+    if(key==='eduMsds') continue; // recognize legacy column as a DATE boundary, never import it
     identified.add(key);
     const sub=parts.some((v,i)=>i>0 && isDateSubheading(v)) ||
       (subRows===0 && /(?:date|일자|날짜)$/.test(cleanedHeader(parts[0])) && ROSTER_IMPORT_EDU.includes(key))
@@ -2668,7 +2668,7 @@ window.addEventListener('beforeunload',event => {
 });
 
 </script>
-<script src="./roster-smart-view.js?v=20261126-health2"></script>
+<script src="./roster-smart-view.js?v=20261127-no-msds1"></script>
 <script src="./mobile-back.js?v=20261121" defer></script>
 </body>
 </html>
