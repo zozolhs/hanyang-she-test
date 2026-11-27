@@ -14,7 +14,7 @@
   <title>한양이엔지 EHS 플랫폼 | EDUCATION 교육관리</title>
   <script>document.documentElement.classList.add("edu-locked");</script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="./she-v24-index.js?v=20261127-birthscope1"></script>
+  <script src="./she-v24-index.js?v=20261127-irisconfirm1"></script>
   <!-- XLSX loads only when an attendance Excel file is selected. -->
   <style>
     :root {
@@ -542,15 +542,15 @@
           <div class="field"><label for="irisDate">홍채등록 날짜 *</label><input id="irisDate" type="date" required></div>
           <div class="field"><label for="irisWeekday">요일 (자동)</label><input id="irisWeekday" readonly></div>
           <div class="field"><label for="irisLocation">장소 *</label><input id="irisLocation" maxlength="120" required></div>
-          <div class="field"><label for="irisProgress">진행상태</label><select id="irisProgress"><option value="scheduled">예정</option><option value="ongoing">진행 중</option><option value="completed">완료</option><option value="postponed">연기</option><option value="cancelled">취소</option></select></div>
+          <div class="field"><label for="irisProgress">진행상태</label><select id="irisProgress"><option value="scheduled">예정</option><option value="ongoing">진행 중</option><option value="cancelled">취소</option></select></div>
           <div class="field"><label for="irisGuide">인솔자</label><input id="irisGuide" maxlength="100" placeholder="인솔 담당자"></div>
-          <div class="field full"><label for="irisSearch">홍채 대상자 (물산입사일 미입력자)</label><div class="participant-tools"><input id="irisSearch" type="search" placeholder="성명 · 근로번호 · 업체명"><span class="auth-badge" id="irisSelectedCount">선택 0명</span></div><div class="participant-list" id="irisAttendees"></div>
+          <div class="field full"><label for="irisSearch">홍채 대상자 (필수 5종 이수 · 물산입사일 미입력)</label><div class="participant-tools"><input id="irisSearch" type="search" placeholder="성명 · 근로번호 · 업체명"><span class="auth-badge" id="irisSelectedCount">선택 0명</span></div><div class="participant-list" id="irisAttendees"></div>
             <div class="import-panel"><div class="participant-tools">
               <button type="button" class="btn btn-outline btn-sm" id="irisExcelImportBtn">📤 엑셀 명단 자동선택</button>
               <input type="file" id="irisExcelImportFile" accept=".xlsx,.xls,.csv" hidden>
               <button type="button" class="btn btn-outline btn-sm" id="irisExcelErrorBtn" hidden data-mobile-spreadsheet-export data-mobile-export-key="iris_match_csv">불일치 내역 CSV</button>
-            </div><div id="irisExcelImportResult" class="import-result" role="status" aria-live="polite">물산입사일 미입력 근로자만 자동선택합니다.</div></div>
-            <div class="field-hint" id="irisHint">연명부 물산입사일 미입력자만 조회하며, 필수교육 5종 완료 여부를 함께 표시합니다.</div></div>
+            </div><div id="irisExcelImportResult" class="import-result" role="status" aria-live="polite">홍채등록 가능 근로자만 자동선택합니다.</div></div>
+            <div class="field-hint" id="irisHint">필수 5종 이수 및 물산입사일 미입력인 재직자 중 홍채등록 가능 인원만 표시합니다.</div></div>
           <div class="field full"><label for="irisNotes">메모 / 특이사항</label><textarea id="irisNotes" maxlength="2500" rows="3"></textarea></div>
         </div>
         <div class="modal-actions"><button id="deleteIrisBtn" class="btn btn-danger" type="button" hidden>일정 삭제</button><button id="cancelIrisBtn" class="btn btn-outline" type="button">취소</button><button class="btn btn-primary" type="submit">💾 홍채 일정 저장</button></div>
@@ -1591,7 +1591,7 @@
     function isWelder(worker) { return cleanJob(worker?.job) === '용접공'; }
     function workerEligible(worker,courseKey,kind='education') {
       if (!worker || String(worker.resignDate || '').trim()) return false;
-      if (kind==='iris') return !String(worker.samsungStartDate || '').trim();
+      if (kind==='iris') return worker.irisEligible===true && !String(worker.samsungStartDate || '').trim() && rosterComplete(worker);
       return !(courseKey==='eduCrane' && isWelder(worker));
     }
     function calculateStats(workers) {
@@ -1756,7 +1756,7 @@
       const root = $('scheduleList');
       const sorted = [...state.events].sort((a,b)=>-compareEvents(a,b));
       const now=kstClock();
-      const all = state.showAllEvents ? sorted : sorted.filter(e=>e.status==='completed' || (e.date>=now.date&&e.status!=='cancelled') || (e.kind==='education'&&pastEducationEnd(e,now)));
+      const all = state.showAllEvents ? sorted : sorted.filter(e=>e.status==='completed' || (e.date>=now.date&&e.status!=='cancelled') || (e.kind==='education'&&pastEducationEnd(e,now)) || irisCanConfirm(e,now.date));
       $('toggleAllEventsBtn').textContent = state.showAllEvents?'다가오는 일정':'전체 일정';
       const pageSize=25, maxPage=Math.max(0,Math.ceil(all.length/pageSize)-1);
       state.schedPage=Math.min(maxPage,Math.max(0,state.schedPage));
@@ -1776,7 +1776,8 @@
           : `수강자 ${count}명${e.courseKey?' | '+COURSE_LABELS[e.courseKey]:''}${e.confirmedAt?' | 확정: '+e.confirmedAt.slice(0,10):''}`));
         actions.appendChild(el('span',`cal-badge ${eventBadge(e)}`,statusAtTime(e,now)));
         const button=(label,action,cls='btn btn-outline btn-sm')=>{const b=el('button',cls,label);b.type='button';b.addEventListener('click',action);actions.appendChild(b);};
-        button(!canEditEducation()||(e.status==='completed'&&e.kind==='education')?'조회':'수정',()=>e.kind==='iris'?openIris(e.id):openEventModal(e.id));
+        button(!canEditEducation()||e.status==='completed'?'조회':'수정',()=>e.kind==='iris'?openIris(e.id):openEventModal(e.id));
+        if(canEditEducation()&&irisCanConfirm(e,now.date)) button('홍채등록 완료 확정',()=>openIrisConfirm(e.id),'btn btn-green btn-sm');
         if(e.kind==='education') button('수강자 전체 보기',()=>window.SHEEducationAttendees?.open(e.id));
         if(canEditEducation()&&pastEducationEnd(e,now)) button('교육완료 확정',()=>openConfirm(e.id),'btn btn-green btn-sm');
         if(canEditEducation()&&e.kind==='education'&&e.status==='completed') button('복제',()=>cloneEvent(e.id));
@@ -1848,6 +1849,10 @@
           else openEventModal(e.id);
         });
         card.appendChild(edit);
+        if(canEditEducation()&&irisCanConfirm(e,todayString())){
+          const complete=el('button','btn btn-green btn-sm','홍채등록 완료 확정');complete.type='button';
+          complete.addEventListener('click',()=>{closeDayAgenda();openIrisConfirm(e.id);});card.appendChild(complete);
+        }
         if(e.kind==='education'){
           const view=el('button','btn btn-outline btn-sm','수강자 전체 보기');
           view.type='button';view.addEventListener('click',()=>{
@@ -2192,18 +2197,104 @@
         await fetchSchedule(true); // 서버가 실제 완료됐는지 최종 확인
       }
     }
+    function irisCanConfirm(e,day=todayString()) {
+      return Boolean(e&&e.kind==='iris'&&e.status==='scheduled'&&['scheduled','ongoing'].includes(e.irisProgress)&&!e.confirmedAt&&strictDate(e.date)&&e.date<=day);
+    }
+    let irisConfirmDialog=null;
+    function openIrisConfirm(id,readonly=false){
+      if(!requireAccess())return;
+      const event=state.events.find(e=>e.id===id&&e.kind==='iris');
+      if(!event)return alert('홍채등록 일정이 없습니다.');
+      const viewOnly=readonly||event.status==='completed';
+      if(!viewOnly&&(!requireEditEducation()||!irisCanConfirm(event)))return;
+      if(!viewOnly&&(state.dirty||state.saving||state.savePaused||state.pendingConfirm))return alert('일정 저장 상태를 확인한 후 완료 확정하세요.');
+      if(!state.rosterReady)return alert('연명부를 먼저 불러와 주세요.');
+      if(irisConfirmDialog?.open)return;
+      const dialog=document.createElement('dialog');
+      dialog.style.cssText='width:min(860px,calc(100% - 24px));max-height:85vh;box-sizing:border-box;overflow:auto;border:1px solid #cbd5e1;border-radius:14px;background:#fff;color:#17233b;padding:20px;font:inherit;z-index:10000';
+      dialog.setAttribute('aria-label',viewOnly?'홍채등록 완료 이력':'홍채등록 완료 확정');
+      irisConfirmDialog=dialog;
+      const add=(parent,tag,text,cls='')=>{const n=el(tag,cls,text);parent.append(n);return n;};
+      const btn=(parent,text,action,cls='btn btn-outline btn-sm')=>{const b=add(parent,'button',text,cls);b.type='button';b.addEventListener('click',action);return b;};
+      add(dialog,'h2',viewOnly?'홍채등록 완료 이력':'홍채등록 완료 확정');
+      add(dialog,'p',event.date+' · 대상 '+event.attendeeKeys.length+'명');
+      if(viewOnly&&!event.confirmedAt)add(dialog,'p','이전 방식으로 완료 처리된 일정입니다. 연명부 자동 반영 이력은 없습니다.');
+      if(!viewOnly)add(dialog,'p','등록 완료는 일정 날짜를 물산입사일에 입력합니다. 취소를 선택하면 미참석 또는 혈압취소를 선택해야 합니다. 기존 입사일은 덮어쓰지 않습니다.');
+      const values=new Map(),controls=new Map();
+      const summary=add(dialog,'p','','field-hint');
+      const toolbar=add(dialog,'div','');
+      toolbar.style.cssText='display:flex;gap:8px;flex-wrap:wrap;margin:8px 0';
+      const list=add(dialog,'div','');
+      list.style.cssText='max-height:52vh;overflow:auto';
+      let busy=false;
+      const refresh=()=>{
+        const counts={done:0,absent:0,bp:0,unset:0};
+        for(const v of values.values())counts[v]===undefined?counts.unset++:counts[v]++;
+        summary.textContent='등록 완료 '+counts.done+'명 · 미참석 '+counts.absent+'명 · 혈압취소 '+counts.bp+'명 · 미선택 '+counts.unset+'명';
+        if(commit)commit.disabled=busy||counts.unset>0||!values.size;
+      };
+      let commit=null;
+      if(!viewOnly)btn(toolbar,'전체 등록 완료로 선택',()=>{
+        for(const [key,c] of controls){if(c.doneAllowed){c.status.value='done';c.reason.value='';c.reason.hidden=true;values.set(key,'done');}}
+        refresh();
+      });
+      for(const key of event.attendeeKeys){
+        const worker=state.workerIndex.get(key);
+        const row=add(list,'div','');row.style.cssText='display:flex;flex-wrap:wrap;align-items:center;gap:8px;border-bottom:1px solid #dbe3ee;padding:10px 0';
+        const name=add(row,'strong',worker?worker.name+' / '+(worker.workerNo||'번호 없음')+' / '+(worker.company||''):'연명부 미일치 대상');
+        name.style.flex='1 1 200px';
+        if(viewOnly){
+          const value=event.attendeeOutcomes?.[key];
+          add(row,'span',value==='attended'?'등록 완료':value==='absent'?'미참석':value==='cancelled'?'취소':'확정 이력 없음');continue;
+        }
+        const doneAllowed=Boolean(worker&&(worker.irisEligible===true||String(worker.samsungStartDate||'').trim())&&!String(worker.resignDate||'').trim()&&rosterComplete(worker));
+        const bpAllowed=Boolean(worker&&!String(worker.resignDate||'').trim()&&!String(worker.samsungStartDate||'').trim()&&rosterComplete(worker));
+        const status=add(row,'select','');status.setAttribute('aria-label','등록 결과');
+        status.add(new Option('결과 선택',''));status.add(new Option('등록 완료','done'));status.add(new Option('취소','cancel'));status.options[1].disabled=!doneAllowed;
+        const reason=add(row,'select','');reason.setAttribute('aria-label','취소 사유');reason.add(new Option('취소 사유 선택',''));reason.add(new Option('미참석','absent'));reason.add(new Option('혈압취소','bp'));reason.options[2].disabled=!bpAllowed;reason.hidden=true;
+        values.set(key,'');controls.set(key,{status,reason,doneAllowed});
+        status.addEventListener('change',()=>{reason.value='';reason.hidden=status.value!=='cancel';values.set(key,status.value==='done'?'done':'');refresh();});
+        reason.addEventListener('change',()=>{values.set(key,status.value==='cancel'?reason.value:'');refresh();});
+      }
+      const actions=add(dialog,'div','');actions.style.cssText='display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:16px';
+      btn(actions,'닫기',()=>{if(!busy)dialog.close();});
+      if(!viewOnly){
+        commit=btn(actions,'홍채등록 완료 확정',async()=>{
+          if(busy||!requireEditEducation()||state.dirty||state.saving||state.savePaused||state.pendingConfirm)return;
+          const outcomes=Object.fromEntries(values);
+          if(!values.size||[...values.values()].some(v=>!['done','absent','bp'].includes(v)))return alert('모든 인원의 결과와 취소 사유를 선택하세요.');
+          if(!confirm('홍채등록 결과를 확정하고 연명부 및 보건관리 대상에 반영하시겠습니까?'))return;
+          busy=true;state.pendingConfirm=true;refresh();
+          try{
+            if(!(await verifyAccess(true)))throw Error('권한 확인 실패');
+            const result=await state.client.rpc('she_confirm_iris',{p_event_id:event.id,p_expected_updated_at:state.scheduleTimestamp,p_outcomes:outcomes});
+            if(result.error||result.data?.status!=='completed')throw result.error||Error('확정 결과 미확인');
+            const d=result.data;
+            busy=false;state.pendingConfirm=false;dialog.close();
+            state.lastScheduleFetch=0;state.lastRosterFetch=0;
+            await Promise.all([fetchSchedule(true),fetchRoster(true)]);
+            alert('홍채등록 완료 확정\\n물산입사일 입력 '+d.added+'명 · 기존 입사일 유지 '+d.preserved+'명\\n미참석 '+d.absent+'명 · 보건관리 반영 '+d.bp+'명');
+          }catch(error){alert('홍채등록 확정 실패: '+(error.message||String(error)));busy=false;state.pendingConfirm=false;refresh();await fetchSchedule(true);}
+        },'btn btn-green');
+        refresh();
+      }
+      dialog.addEventListener('cancel',ev=>{if(busy)ev.preventDefault();});
+      dialog.addEventListener('close',()=>{dialog.remove();irisConfirmDialog=null;},{once:true});
+      document.body.append(dialog);dialog.showModal();
+    }
     function irisWeekdayUpdate() { const date=strictDate($('irisDate').value);$('irisWeekday').value=date?['일요일','월요일','화요일','수요일','목요일','금요일','토요일'][date.getDay()]:''; }
     function openIris(id=null,initialDate=todayString()) {
       if(!requireAccess())return;
       const original=id?state.events.find(e=>e.id===id&&e.kind==='iris'):null;
       if(!canEditEducation()&&!original)return notify('홍채 일정 등록은 수정 권한이 필요합니다.');
       if(id&&!original)return notify('홍채등록 일정을 찾을 수 없습니다.');
+      if(original?.status==='completed'){openIrisConfirm(original.id,true);return;}
       state.irisId=original?.id||null;
       state.irisDraft=new Set(original?.attendeeKeys||[]);
       $('irisModalTitle').textContent=original?'홍채등록 일정 수정':'홍채등록 일정 등록';
       $('irisDate').value=original?.date||initialDate;
       $('irisLocation').value=original?.location||'';
-      $('irisProgress').value=original?.irisProgress||'scheduled';
+      $('irisProgress').value=['scheduled','ongoing','cancelled'].includes(original?.irisProgress)?original.irisProgress:'scheduled';
       $('irisGuide').value=original?.irisGuide||'';
       $('irisNotes').value=original?.notes||'';
       $('irisSearch').value='';$('deleteIrisBtn').hidden=!original||!canEditEducation();
@@ -2226,10 +2317,10 @@
         label.append(cb,el('span','meta',`${w.name} | ${w.company||'업체 미입력'} | ${w.workerNo||'번호 없음'} | 필수 5종 ${rosterComplete(w)?'완료':'미완료'}`));
         frag.append(label);
       }
-      if(!matches.length)frag.append(el('div','participant-list-hint','물산입사일 미입력 대상자가 없습니다.'));
+      if(!matches.length)frag.append(el('div','participant-list-hint','홍채등록 가능 대상자가 없습니다.'));
       root.replaceChildren(frag);
       updateIrisSelectionSummary();
-      $('irisHint').textContent=`물산입사일 미입력 ${matches.length}명 검색됨 · 화면 최대 55명 · 선택은 검색과 관계없이 유지됩니다.`;
+      $('irisHint').textContent=`홍채등록 가능 ${matches.length}명 검색됨 · 화면 최대 55명 · 선택은 검색과 관계없이 유지됩니다.`;
     }
     function updateIrisSelectionSummary() {
       let valid=0,completed=0;
@@ -2249,6 +2340,7 @@
       const original=state.events.find(x=>x.id===state.irisId);
       const attendees=[...state.irisDraft].filter(key=>state.workerIndex.has(key)&&workerEligible(state.workerIndex.get(key),'','iris'));
       const progress=$('irisProgress').value;
+      if(original?.status==='completed'||!['scheduled','ongoing','cancelled'].includes(progress))return alert('완료 확정은 전용 버튼에서 진행하세요.');
       const item=normalizeEvent({
         ...(original||{}),id:original?.id||makeId(),kind:'iris',title:'홍채등록',date,
         irisProgress:progress,status:progress==='completed'?'completed':progress==='cancelled'?'cancelled':'scheduled',
@@ -2261,7 +2353,7 @@
     async function deleteIris() {
       if(!requireEditEducation()||!state.irisId)return;
       const item=state.events.find(x=>x.id===state.irisId);
-      if(!item||!confirm(`'${item.title}' 홍채등록 일정을 삭제하시겠습니까?`))return;
+      if(!item||item.status==='completed'||!confirm(`'${item.title}' 홍채등록 일정을 삭제하시겠습니까?`))return;
       state.events=state.events.filter(x=>x.id!==item.id);markDirty();closeIris();renderEverything();await saveSchedule(true);
     }
     function validateEvent(e) {
@@ -2846,7 +2938,7 @@
 <script src="./education-workflow.js?v=20261127-no-msds1"></script>
 <script src="./education-attendee-view.js?v=20261126-partial1"></script>
 <script src="./education-monthly-quickview.js?v=20261123-pendingfirst1"></script>
-<script src="./education-dashboard-lookup.js?v=20261127-irislookup1"></script>
+<script src="./education-dashboard-lookup.js?v=20261127-irisconfirm1"></script>
 <script src="./mobile-back.js?v=20261121" defer></script>
 </body>
 </html>
