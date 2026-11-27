@@ -239,15 +239,14 @@ function syncSmartChecks(){
  q("sheSmartList").querySelectorAll(".she-smart-check").forEach(cb=>{cb.checked=selected.has(cb.dataset.uid);});
 }
 function updateSmartSelection(){
- const master=q("sheSmartSelectAll"),bar=q("sheSmartSelectionBar"),clear=q("sheSmartClearSelection");
- if(!master||!bar||!clear)return;
+ const master=q("sheSmartSelectAll"),bar=q("sheSmartSelectionBar");
+ if(!master||!bar)return;
  const allowed=allowedToTransfer();
  bar.hidden=!allowed;
  const result=smartSelectionState(selected,currentResults);
  master.checked=result.checked;master.indeterminate=result.partial;
  master.disabled=!allowed||result.total===0;
  const total=[...selected].filter(uid=>rosterView.byId.has(uid)).length;
- clear.disabled=!allowed||total===0;
  q("sheSmartSelectedCount").textContent="조회 선택 "+result.count+"명 / 전체 선택 "+total+"명";
 }
 function currentSmartResults(){
@@ -263,19 +262,14 @@ function initSmartSelection(){
  master.setAttribute("aria-label","현재 검색 결과 전체 선택 (아직 표시되지 않은 인원 포함)");
  label.append(master,node("span","","조회 결과 전체 선택"));
  const count=node("span","she-ux-muted");count.id="sheSmartSelectedCount";count.setAttribute("aria-live","polite");
- const clear=node("button","she-smart-action","선택 해제");clear.type="button";clear.id="sheSmartClearSelection";
- clear.title="다른 검색 조건에서 선택한 인원까지 모두 해제";
- const hint=node("span","roster-smart-select-hint","미표시 인원 포함 · 교육 전송은 재직자 150명 이하");
- bar.append(label,count,clear,hint);summary.after(bar);
+ const hint=node("span","roster-smart-select-hint","미표시 인원 포함 · 체크 해제 시 전체 선택 해제 · 교육 전송은 재직자 150명 이하");
+ bar.append(label,count,hint);summary.after(bar);
  master.addEventListener("change",()=>{
   if(!allowedToTransfer()){updateSmartSelection();return;}
   currentResults=currentSmartResults();
-  toggleSmartResults(selected,currentResults,master.checked);
+  if(master.checked)toggleSmartResults(selected,currentResults,true);
+  else selected.clear();
   syncSmartChecks();updateTransfer();
- });
- clear.addEventListener("click",()=>{
-  if(!allowedToTransfer())return;
-  selected.clear();syncSmartChecks();updateTransfer();
  });
 }
 function updateTransfer(){
