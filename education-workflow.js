@@ -118,16 +118,26 @@ function applyHandoff(){
  if(!canEdit()||payload.owner!==state.user?.id ||
   !Number.isFinite(payload.issued_at)||Date.now()-payload.issued_at>5*60*1000 ||
   !Array.isArray(payload.keys)||payload.keys.length>150)return;
+ const kind=payload.kind==="iris"?"iris":"education";
  const matched=[...new Set(payload.keys)].filter(key=>typeof key==="string"&&
-  state.workerIndex?.has(key)&&workerEligible(state.workerIndex.get(key),""));
- if(!matched.length)return notify("전달받은 인원이 현재 연명부와 일치하지 않습니다.");
- openEventModal(null,today());
- state.draftAttendees=new Set(matched);
- renderAttendeeOptions();
- const hint=$id("sheRosterHandoffHint");
- hint.hidden=false;
- hint.textContent="연명부에서 선택한 "+matched.length+"명을 불러왔습니다. 교육 항목·일정·실제 대상자를 확인한 뒤 저장하세요.";
- if(matched.length!==payload.keys.length)notify("일부 인원은 퇴사 또는 연명부 변경으로 제외되었습니다.");
+  state.workerIndex?.has(key)&&workerEligible(state.workerIndex.get(key),"",kind));
+ if(!matched.length)return notify(kind==="iris"?"홍채등록 가능 인원이 없습니다. 필수 5종 이수, 물산입사일 및 등록 가능 상태를 확인하세요.":"전달받은 인원이 현재 연명부와 일치하지 않습니다.");
+ if(kind==="iris"){
+  openIris(null,today());
+  if($id("irisModal").hidden)return;
+  state.irisDraft=new Set(matched);
+  renderIrisAttendees();
+  $id("irisHint").textContent="연명부 선택 "+matched.length+"명 불러옴"+(matched.length!==payload.keys.length?" · 등록 불가 "+(payload.keys.length-matched.length)+"명 제외":"")+" · 실제 홍채 대상자를 확인한 후 저장하세요.";
+ }else{
+  openEventModal(null,today());
+  if($id("eventModal").hidden)return;
+  state.draftAttendees=new Set(matched);
+  renderAttendeeOptions();
+  const hint=$id("sheRosterHandoffHint");
+  hint.hidden=false;
+  hint.textContent="연명부에서 선택한 "+matched.length+"명을 불러왔습니다. 교육 항목·일정·실제 대상자를 확인한 뒤 저장하세요.";
+ }
+ if(matched.length!==payload.keys.length)notify("등록 가능 조건에 맞지 않거나 연명부가 변경된 "+(payload.keys.length-matched.length)+"명은 제외되었습니다.");
 }
 function init(){
  $id("sheEduAutoSelect").addEventListener("click",suggestCourseAttendees);
