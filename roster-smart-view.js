@@ -5,6 +5,7 @@ const host=document.getElementById("sheSmartRoster");
 if(!host)return;
 const q=id=>document.getElementById(id);
 const transferKey="she_education_selected_workers_v1";
+const irisTransferKey="she_iris_selected_workers_v1";
 const selected=new Set();
 const SMART_BATCH_SIZE=40;
 let mode="",quick="active",openUid=null,pending=false,lastAccount=null;
@@ -296,10 +297,13 @@ function transfer(kind="education"){
     : rec.uid?"uid:"+rec.uid:null).filter(Boolean);
  if(!keys.length)return alert("근로번호 또는 고유 식별값이 있는 재직자를 선택해 주세요.");
  if(keys.length>150)return alert("한 번에 150명 이하를 선택해 주세요.");
- sessionStorage.setItem(transferKey,JSON.stringify({
-  owner:rosterState.user.id,issued_at:Date.now(),kind:kind==="iris"?"iris":"education",keys:[...new Set(keys)]
+ const route=kind==="iris"?"iris":"education";
+ sessionStorage.removeItem(transferKey);
+ sessionStorage.removeItem(irisTransferKey);
+ sessionStorage.setItem(route==="iris"?irisTransferKey:transferKey,JSON.stringify({
+  owner:rosterState.user.id,issued_at:Date.now(),kind:route,keys:[...new Set(keys)]
  }));
- location.href="dashboard.html?from=roster";
+ location.href="dashboard.html?from=roster&register="+route;
 }
 function schedule(){if(pending)return;pending=true;requestAnimationFrame(()=>{pending=false;render();});}
 function init(){
