@@ -162,6 +162,7 @@ function render(){
  queueSmartScroll();
 
  q("sheSmartTransfer").hidden=!allowedToTransfer();
+ if(q("sheSmartIrisTransfer"))q("sheSmartIrisTransfer").hidden=!allowedToTransfer();
  updateTransfer();
  if(openUid&&rosterView.byId.has(openUid))detail(openUid);
 }
@@ -282,10 +283,13 @@ function updateTransfer(){
  pruneSmartSelection();
  updateSmartSelection();
  const eligible=[...selected].filter(uid=>rosterView.byId.has(uid));
- q("sheSmartTransfer").textContent="선택 "+eligible.length+"명 교육일정으로 보내기";
+ q("sheSmartTransfer").textContent="교육일정 등록 ("+eligible.length+"명)";
  q("sheSmartTransfer").disabled=eligible.length===0||!allowedToTransfer();
+ const iris=q("sheSmartIrisTransfer");
+ if(iris){iris.textContent="홍채일정 등록 ("+eligible.length+"명)";iris.disabled=eligible.length===0||!allowedToTransfer();}
+
 }
-function transfer(){
+function transfer(kind="education"){
  if(!allowedToTransfer()){alert("교육일정 수정 권한이 필요합니다.");return;}
  const keys=[...selected].map(uid=>rosterView.byId.get(uid)).filter(rec=>rec&&!recordState(rec).resigned)
   .map(rec=>String(rec.workerNo||"").trim()? "worker:"+String(rec.workerNo).trim()
@@ -293,7 +297,7 @@ function transfer(){
  if(!keys.length)return alert("근로번호 또는 고유 식별값이 있는 재직자를 선택해 주세요.");
  if(keys.length>150)return alert("한 번에 150명 이하를 선택해 주세요.");
  sessionStorage.setItem(transferKey,JSON.stringify({
-  owner:rosterState.user.id,issued_at:Date.now(),keys:[...new Set(keys)]
+  owner:rosterState.user.id,issued_at:Date.now(),kind:kind==="iris"?"iris":"education",keys:[...new Set(keys)]
  }));
  location.href="dashboard.html?from=roster";
 }
@@ -312,7 +316,8 @@ function init(){
  q("sheSmartList").addEventListener("scroll",queueSmartScroll,{passive:true});
  q("sheSmartMore")?.addEventListener("click",()=>{if(!resetScroll){appendSmartBatch();queueSmartScroll();}});
  window.addEventListener("resize",queueSmartScroll,{passive:true});
- q("sheSmartTransfer").addEventListener("click",transfer);
+ q("sheSmartTransfer").addEventListener("click",()=>transfer("education"));
+ q("sheSmartIrisTransfer")?.addEventListener("click",()=>transfer("iris"));
  document.addEventListener("she:roster-view-updated",()=>{
   if(!mode&&rosterState.ready){
    const saved=sessionStorage.getItem("she_roster_view_"+(rosterState.user?.id||""));
