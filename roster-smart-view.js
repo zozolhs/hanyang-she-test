@@ -53,6 +53,7 @@ function matches(rec,term,company){
  if(term&&![rec.name,rec.workerNo,rec.company,rec.job,rec.process,rec.phoneModel].join(" ").normalize("NFKC").toLowerCase().includes(term))return false;
  if(quick==="active"&&st.resigned)return false;
  if(quick==="resigned"&&!st.resigned)return false;
+ if(quick==="iris"&&String(rec.samsungStartDate??"").trim())return false;
  if(quick==="health"&&!healthLabel(rec))return false;
  if(quick==="expired"&&(!st.expired||st.resigned))return false;
  if(quick==="soon"&&(!st.soon||st.resigned))return false;
