@@ -1438,9 +1438,7 @@
       $('dayAgendaModal').addEventListener('click',ev=>{if(ev.target===$('dayAgendaModal'))closeDayAgenda();});
       $('closeEventBtn').addEventListener('click',closeEventModal);
       $('cancelEventBtn').addEventListener('click',closeEventModal);
-      $('eventModal').addEventListener('click',event => {
-        if (event.target === $('eventModal')) closeEventModal();
-      });
+      // Registration forms are closed explicitly, not by accidental backdrop clicks.
       $('eventForm').addEventListener('submit',submitEventForm);
       $('deleteEventBtn').addEventListener('click',deleteEvent);
       $('attendeeSearch').addEventListener('input',()=>debounceParticipant('education'));
@@ -1459,10 +1457,10 @@
         if (event.key !== 'Escape') return;
         if (!$('dayAgendaModal').hidden) return closeDayAgenda();
         if (!$('batchModal').hidden) return closeBatch();
-        if (!$('irisModal').hidden) return closeIris();
+        if (!$('irisModal').hidden) { event.preventDefault(); return; }
         if (!$('confirmModal').hidden) return closeConfirm();
         if (!$('reportModal').hidden) $('reportModal').hidden = true;
-        else if (!$('eventModal').hidden) closeEventModal();
+        else if (!$('eventModal').hidden) event.preventDefault();
       });
     }
     async function initialize() {
