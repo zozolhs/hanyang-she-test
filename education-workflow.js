@@ -60,6 +60,7 @@ function suggestCourseAttendees(){
  if(!canEdit()||!state.rosterReady)return;
  const course=$id("eventCourse").value;
  if(!course)return alert("연명부 교육 항목을 먼저 선택해 주세요.");
+ if(course==="eduMsds")return alert("MSDS는 연명부 교육이력과 연동하지 않습니다. 수강자를 직접 선택해 주세요.");
  const todayDate=strictDate(today());
  const todayPlus7=new Date(todayDate);todayPlus7.setDate(todayPlus7.getDate()+7);
  let eligible=0;
