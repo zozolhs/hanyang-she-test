@@ -14,7 +14,7 @@
   <title>한양이엔지 EHS 플랫폼 | EDUCATION 교육관리</title>
   <script>document.documentElement.classList.add("edu-locked");</script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="./she-v24-index.js?v=20261127-irisconfirm1"></script>
+  <script src="./she-v24-index.js?v=20261127-delete2"></script>
   <!-- XLSX loads only when an attendance Excel file is selected. -->
   <style>
     :root {
@@ -747,7 +747,7 @@
       return state.authorized && window.SHESEC.canWrite(state.user,'education');
     }
     function canDeleteCompletedEducation(e) {
-      return !!(state.authorized && state.user?.role==='super_admin' && e?.kind==='education' && e?.status==='completed');
+      return !!(state.authorized && state.user?.role==='super_admin' && ['education','iris'].includes(e?.kind) && e?.status==='completed');
     }
     function requireEditEducation() {
       if(!requireAccess())return false;
@@ -2042,7 +2042,9 @@
       if(state.pendingCompletedDelete||state.saving||state.pendingConfirm)return;
       if(state.dirty||state.savePaused||!state.scheduleTimestamp)return alert('미저장 변경사항 또는 저장 충돌이 있습니다. 저장 상태를 확인한 뒤 다시 시도하세요.');
       if(state.reports.some(r=>r.eventIds.includes(id)))return alert('결과 보고서에 연결된 일정은 삭제할 수 없습니다.');
-      if(!confirm(`'${e.title}' (${e.date}) 완료 교육을 삭제하시겠습니까?\n\n교육 일정 및 수강자 이력에서만 삭제됩니다.\n이미 연명부에 반영된 교육시간·교육일자는 취소되지 않습니다.\n해당 교육을 사용하는 월별 통계에서는 제외되며, 삭제 전 원본은 서버에 백업됩니다.`))return;
+      const iris=e.kind==='iris';
+      const notice=iris?"홍채등록 일정 및 해당 일정 이력만 삭제됩니다. 이미 연명부에 반영된 물산입사일 및 보건 사후관리 건은 유지됩니다.":"교육 일정 및 수강자 이력에서만 삭제됩니다. 이미 연명부에 반영된 교육시간·교육일자는 취소되지 않습니다. 해당 교육을 사용하는 월별 통계에서는 제외됩니다.";
+      if(!confirm("'"+e.title+"' ("+e.date+") 완료 일정을 삭제하시겠습니까?\n\n"+notice+"\n삭제 전 일정 원본은 서버에 백업됩니다."))return;
       const expected=state.scheduleTimestamp,revision=state.revision,actor=state.user.id;
       state.pendingCompletedDelete=true;state.saving=true;
       try {
@@ -2070,7 +2072,7 @@
           updateStatus('saveStatus','⚠ 교육 삭제 완료 · 최신 일정 재조회 필요','error');
           return alert('삭제는 완료됐습니다. 최신 일정을 다시 확인하기 위해 페이지를 새로고침하세요.');
         }
-        notify('완료 교육 삭제 완료 · 연명부 교육 이수시간 유지');
+        notify(iris?'홍채등록 일정 삭제 완료 · 물산입사일 및 보건 이력 유지':'완료 교육 삭제 완료 · 연명부 교육 이수시간 유지');
       } catch(error){
         alert('완료 교육 삭제 실패 또는 결과 미확인: '+(error.message||String(error)));
       } finally {state.pendingCompletedDelete=false;state.saving=false;}
@@ -2264,6 +2266,7 @@
       }
       const actions=add(dialog,'div','');actions.style.cssText='display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:16px';
       btn(actions,'닫기',()=>{if(!busy)dialog.close();});
+      if(viewOnly&&canDeleteCompletedEducation(event))btn(actions,'일정 삭제',async()=>{if(busy)return;await deleteCompletedEvent(event.id);if(!state.events.some(e=>e.id===event.id)&&dialog.open)dialog.close();},'btn btn-danger');
       if(!viewOnly){
         commit=btn(actions,'홍채등록 완료 확정',async()=>{
           if(busy||!requireEditEducation()||state.dirty||state.saving||state.savePaused||state.pendingConfirm)return;
