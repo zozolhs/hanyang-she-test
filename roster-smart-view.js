@@ -129,6 +129,7 @@ function render(){
  }
  const account=rosterState.user?.id||null;
  if(lastAccount!==account){selected.clear();lastAccount=account;resetScroll=true;hideDetail();}
+ pruneSmartSelection();
  const all=rosterView.records||[];
  const companies=[...new Set(all.map(r=>r.company).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"ko"));
  const companyInput=q("sheSmartCompany"),prev=companyInput.value;
@@ -164,17 +165,20 @@ function render(){
  updateTransfer();
  if(openUid&&rosterView.byId.has(openUid))detail(openUid);
 }
+function smartSelectable(rec){return Boolean(rec&&!recordState(rec).resigned);}
+function pruneSmartSelection(){for(const uid of selected){if(!smartSelectable(rosterView.byId.get(uid)))selected.delete(uid);}}
 function smartPersonCard(rec){
   const item=node("article","she-smart-person");
   if(String(rec.resignDate||"").trim()) item.classList.add("she-roster-resigned");
   const [tag,kind]=status(rec);
   if(allowedToTransfer()){
    const checkbox=node("input","she-smart-check");
-   checkbox.type="checkbox";checkbox.checked=selected.has(rec.uid);
+   checkbox.type="checkbox";checkbox.disabled=!smartSelectable(rec);checkbox.checked=!checkbox.disabled&&selected.has(rec.uid);
    checkbox.dataset.uid=rec.uid;
-   checkbox.setAttribute("aria-label",(rec.name||"근로자")+" 교육 대상 선택");
+   checkbox.setAttribute("aria-label",(rec.name||"근로자")+(checkbox.disabled?" 퇴사자 선택 불가":" 교육 대상 선택"));
+   if(checkbox.disabled)checkbox.title="퇴사자는 교육 대상자로 선택할 수 없습니다.";
    checkbox.addEventListener("change",()=>{
-    if(checkbox.checked)selected.add(rec.uid);else selected.delete(rec.uid);
+    if(checkbox.checked&&allowedToTransfer()&&smartSelectable(rosterView.byId.get(rec.uid)))selected.add(rec.uid);else{selected.delete(rec.uid);checkbox.checked=false;}
     updateTransfer();
    });
    const hit=node("label","roster-check-hit");
@@ -230,14 +234,15 @@ function queueSmartScroll(){
  });
 }
 function toggleSmartResults(selection,records,checked){
- for(const rec of records){if(checked)selection.add(rec.uid);else selection.delete(rec.uid);}
+ for(const rec of records){if(checked&&smartSelectable(rec))selection.add(rec.uid);else selection.delete(rec.uid);}
 }
 function smartSelectionState(selection,records){
- const total=records.length,count=records.reduce((n,rec)=>n+Number(selection.has(rec.uid)),0);
+ const eligible=records.filter(smartSelectable);
+ const total=eligible.length,count=eligible.reduce((n,rec)=>n+Number(selection.has(rec.uid)),0);
  return {total,count,checked:total>0&&count===total,partial:count>0&&count<total};
 }
 function syncSmartChecks(){
- q("sheSmartList").querySelectorAll(".she-smart-check").forEach(cb=>{cb.checked=selected.has(cb.dataset.uid);});
+ q("sheSmartList").querySelectorAll(".she-smart-check").forEach(cb=>{cb.disabled=!smartSelectable(rosterView.byId.get(cb.dataset.uid));cb.checked=!cb.disabled&&selected.has(cb.dataset.uid);});
 }
 function updateSmartSelection(){
  const master=q("sheSmartSelectAll"),bar=q("sheSmartSelectionBar");
@@ -263,7 +268,7 @@ function initSmartSelection(){
  master.setAttribute("aria-label","현재 검색 결과 전체 선택 (아직 표시되지 않은 인원 포함)");
  label.append(master,node("span","","조회 결과 전체 선택"));
  const count=node("span","she-ux-muted");count.id="sheSmartSelectedCount";count.setAttribute("aria-live","polite");
- const hint=node("span","roster-smart-select-hint","미표시 인원 포함 · 체크 해제 시 전체 선택 해제 · 교육 전송은 재직자 150명 이하");
+ const hint=node("span","roster-smart-select-hint","미표시 재직자 포함 · 퇴사자 선택 불가 · 교육 전송은 재직자 150명 이하");
  bar.append(label,count,hint);summary.after(bar);
  master.addEventListener("change",()=>{
   if(!allowedToTransfer()){updateSmartSelection();return;}
@@ -274,6 +279,7 @@ function initSmartSelection(){
  });
 }
 function updateTransfer(){
+ pruneSmartSelection();
  updateSmartSelection();
  const eligible=[...selected].filter(uid=>rosterView.byId.has(uid));
  q("sheSmartTransfer").textContent="선택 "+eligible.length+"명 교육일정으로 보내기";
