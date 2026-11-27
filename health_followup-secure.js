@@ -17,7 +17,7 @@ const birthText=w=>{const v=String(w?.birth??'').trim();return /^[0-9. /-]{6,12}
 const matchesCandidate=(w,term)=>!term||[w.name,w.no,w.company,w.job,w.birth].some(v=>normalize(v).includes(term))||(/^[0-9. /-]+$/.test(term)&&term.replace(/[^0-9]/g,'').length>0&&String(w.birth||'').replace(/[^0-9]/g,'').includes(term.replace(/[^0-9]/g,'')));
 
 function el(tag,text,cls){const n=document.createElement(tag);if(text!==undefined)n.textContent=String(text);if(cls)n.className=cls;return n;}
-let authorized=false,account=null,generation=0,cases=[],workers=new Map(),offset=0,total=0,selected=null,historyOffset=0,historyTotal=0,formMode='',busy=false,dirty=false,loading=false,verifying=false,historySeq=0,listSeq=0,searchTimer=null,workersReady=false,scopeStats={scopeTotal:0,due:0,overdue:0,longDelay:0};
+let authorized=false,account=null,canDelete=false,generation=0,cases=[],workers=new Map(),offset=0,total=0,selected=null,historyOffset=0,historyTotal=0,formMode='',busy=false,dirty=false,loading=false,verifying=false,historySeq=0,listSeq=0,searchTimer=null,workersReady=false,scopeStats={scopeTotal:0,due:0,overdue:0,longDelay:0};
 function message(text,kind=''){const box=$('message');box.textContent=text;box.className='msg '+kind;box.hidden=!text;}
 function closeDetail(force=false){
  if(!force&&(busy||dirty&&!confirm('작성 중인 내용을 닫으시겠습니까?')))return false;
@@ -25,7 +25,7 @@ function closeDetail(force=false){
  $('personSummary').replaceChildren();$('historyRows').replaceChildren();$('detailBody').hidden=true;$('detailEmpty').hidden=false;$('closeDetail').hidden=true;$('detailTitle').textContent='개인별 관리 이력';return true;
 }
 function lock(reason){
- authorized=false;account=null;generation++;listSeq++;clearTimeout(searchTimer);loading=false;dirty=false;cases=[];workers.clear();workersReady=false;offset=0;total=0;scopeStats={scopeTotal:0,due:0,overdue:0,longDelay:0};
+ authorized=false;account=null;canDelete=false;generation++;listSeq++;clearTimeout(searchTimer);loading=false;dirty=false;cases=[];workers.clear();workersReady=false;offset=0;total=0;scopeStats={scopeTotal:0,due:0,overdue:0,longDelay:0};
  $('caseRows').replaceChildren();$('worker').replaceChildren();$('search').value='';$('candidateSearch').value='';closeDetail(true);
  $('app').hidden=true;$('gate').hidden=false;$('gateText').textContent=reason;message('');
 }
@@ -37,7 +37,7 @@ async function verify(){
   const r=await window.SHESEC.guard('health',true);
   if(!r.ok||!window.SHESEC.canWrite(r.profile,'health')){lock('승인된 보건 수정 담당자 또는 최고관리자만 사후관리 상세정보를 볼 수 있습니다.');return false;}
   if(account&&account!==r.profile.id)lock('계정 변경으로 기존 화면을 정리했습니다.');
-  account=r.profile.id;authorized=true;$('gate').hidden=true;$('app').hidden=false;return true;
+  account=r.profile.id;canDelete=r.profile.role==='super_admin';authorized=true;$('gate').hidden=true;$('app').hidden=false;return true;
  }catch(e){lock(e.message||'보건 권한 확인 실패');return false;}
  finally{verifying=false;}
 }
@@ -70,10 +70,29 @@ function renderList(){
   const name=el('td');name.append(el('strong',c.worker_name+' · '+birthText(workers.get(c.worker_uid))),el('div',c.company+' · '+(c.worker_no||'근로번호 없음'),'hint'));tr.append(name);
   tr.append(el('td',REASON[c.reason]||'기타'),el('td',days(c)+'일',long(c)?'overdue':''),el('td',c.next_action||'—',overdue(c)?'overdue':''));
   const st=el('td');st.append(el('span',STATUS[c.status]||'확인 필요','tag '+c.status));tr.append(st);
-  const cell=el('td'),b=el('button','이력 보기');b.type='button';b.addEventListener('click',()=>openCase(c));cell.append(b);tr.append(cell);frag.append(tr);
+  const cell=el('td'),b=el('button','이력 보기');b.type='button';b.addEventListener('click',()=>openCase(c));cell.append(b);
+  if(canDelete){const remove=el('button','삭제');remove.type='button';remove.style.color='#b91c1c';remove.style.marginLeft='4px';remove.addEventListener('click',()=>deleteCase(c));cell.append(remove);}
+  tr.append(cell);frag.append(tr);
  }
  if(!filtered.length){const tr=el('tr'),td=el('td','해당 조건의 관리 건이 없습니다.','empty');td.colSpan=6;tr.append(td);frag.append(tr);}
  $('caseRows').replaceChildren(frag);updatePager();
+}
+async function deleteCase(c){
+ if(!authorized||!canDelete||busy||loading)return;
+ if(dirty&&!confirm('작성 중인 내용을 버리고 삭제를 진행하시겠습니까?'))return;
+ if(!confirm(c.worker_name+'님의 사후관리 건과 해당 조치 이력을 삭제하시겠습니까?\n\n종결 여부와 관계없이 영구 삭제됩니다. 연명부와 홍채등록 일정은 변경되지 않습니다.\n관리 중인 건을 삭제하면 입사 보류 상태도 해제될 수 있습니다.'))return;
+ const epoch=generation,actor=account;busy=true;
+ try{
+  if(!await verify()||!canDelete||epoch!==generation||actor!==account)return;
+  const result=await api().remove({case_id:c.id,version:Number(c.version),confirm_delete:true});
+  if(result?.status!=='ok'||result.case_id!==c.id)throw Error('삭제 결과를 확인하지 못했습니다.');
+  if(epoch!==generation||!authorized)return;
+  closeDetail(true);message('사후관리 건을 삭제했습니다.','success');await loadPage({candidates:true});
+ }catch(e){
+  if(epoch!==generation)return;
+  if(e.status===401||e.status===403)lock('삭제 권한이 변경되었습니다.');
+  else message(e.message||'삭제 실패','error');
+ }finally{busy=false;}
 }
 function renderCandidates(){
  const term=normalize($('candidateSearch').value),previous=$('worker').value;
