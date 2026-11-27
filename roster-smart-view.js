@@ -6,8 +6,9 @@ if(!host)return;
 const q=id=>document.getElementById(id);
 const transferKey="she_education_selected_workers_v1";
 const selected=new Set();
-let mode="",quick="active",page=0,openUid=null,pending=false,lastAccount=null;
-let currentResults=[];
+const SMART_BATCH_SIZE=40;
+let mode="",quick="active",openUid=null,pending=false,lastAccount=null;
+let currentResults=[],renderedCount=0,resetScroll=true,scrollPending=false;
 const eduFields=[
  ["eduCommon","공통교육"],["edu13ho","13호(운반)"],["edu38ho","38호(화재)"],
  ["edu4ho","4호(인화)"],["edu35ho","35호(허가)"],["eduClosed","34호(밀폐)"],
@@ -123,10 +124,10 @@ function detail(uid){
 function render(){
  if(mode!=="smart"||!rosterState.ready||!rosterState.authorized)return;
  if(quick==="health"&&!healthAvailable()){
-  quick="active";page=0;document.querySelectorAll("[data-she-roster-quick]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.sheRosterQuick==="active")));
+  quick="active";resetScroll=true;document.querySelectorAll("[data-she-roster-quick]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.sheRosterQuick==="active")));
  }
  const account=rosterState.user?.id||null;
- if(lastAccount!==account){selected.clear();lastAccount=account;}
+ if(lastAccount!==account){selected.clear();lastAccount=account;resetScroll=true;hideDetail();}
  const all=rosterView.records||[];
  const companies=[...new Set(all.map(r=>r.company).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"ko"));
  const companyInput=q("sheSmartCompany"),prev=companyInput.value;
@@ -145,13 +146,24 @@ function render(){
   if(st.soon)counts.soon++;
   if(!must.every(k=>parseEducation(rec[k]).completed))counts.incomplete++;
  }
- const root=q("sheSmartList");root.replaceChildren();
+ const root=q("sheSmartList"),previousScroll=root.scrollTop,previousCount=renderedCount;
+ root.replaceChildren();
  const summary=q("sheSmartSummary");
  summary.textContent="조회 "+result.length.toLocaleString("ko-KR")+"명 / 전체 "+all.length.toLocaleString("ko-KR")+"명";
  q("sheSmartCounters").textContent="재직 "+counts.active+"명 · 교육 만료 "+counts.expired+"명 · 도래 예정 "+counts.soon+"명 · 필수교육 미이수 "+counts.incomplete+"명";
- const max=Math.max(0,Math.ceil(result.length/40)-1);
- page=Math.min(page,max);
- for(const rec of result.slice(page*40,(page+1)*40)){
+ const target=Math.min(result.length,resetScroll?SMART_BATCH_SIZE:Math.max(SMART_BATCH_SIZE,previousCount));
+ renderedCount=0;
+ appendSmartBatch(target);
+ if(!result.length)root.append(node("div","she-smart-empty","해당 조건에 맞는 근로자가 없습니다."));
+ root.scrollTop=resetScroll?0:previousScroll;
+ resetScroll=false;
+ queueSmartScroll();
+
+ q("sheSmartTransfer").hidden=!allowedToTransfer();
+ updateTransfer();
+ if(openUid&&rosterView.byId.has(openUid))detail(openUid);
+}
+function smartPersonCard(rec){
   const item=node("article","she-smart-person");
   if(String(rec.resignDate||"").trim()) item.classList.add("she-roster-resigned");
   const [tag,kind]=status(rec);
@@ -181,15 +193,40 @@ function render(){
   const health=healthLabel(rec);
   if(health){const badge=node("span","roster-health-badge",health);badge.dataset.state=health==="입사 가능 확인"?"cleared":"hold";main.insertBefore(badge,main.lastElementChild);}
   main.addEventListener("click",()=>detail(rec.uid));
-  item.append(main,node("span","she-smart-state "+kind,tag));root.append(item);
+  item.append(main,node("span","she-smart-state "+kind,tag));return item;
+}
+function updateSmartScrollStatus(){
+ const status=q("sheSmartPage"),more=q("sheSmartMore");
+ const remaining=renderedCount<currentResults.length;
+ status.textContent=renderedCount.toLocaleString("ko-KR")+" / "+currentResults.length.toLocaleString("ko-KR")+"명 표시"+
+  (remaining?" · 아래로 스크롤하면 계속 표시":" · 전체 표시 완료");
+ if(more)more.hidden=!remaining;
+ for(const id of ["sheSmartPrev","sheSmartNext"]){const old=q(id);if(old)old.hidden=true;}
+}
+function appendSmartBatch(count=SMART_BATCH_SIZE){
+ if(mode!=="smart"||!rosterState.ready||!rosterState.authorized)return;
+ const root=q("sheSmartList");
+ const end=Math.min(currentResults.length,renderedCount+count);
+ if(end>renderedCount){
+  const frag=document.createDocumentFragment();
+  for(let i=renderedCount;i<end;i++)frag.append(smartPersonCard(currentResults[i]));
+  root.append(frag);renderedCount=end;
  }
- if(!result.length)root.append(node("div","she-smart-empty","해당 조건에 맞는 근로자가 없습니다."));
- q("sheSmartPage").textContent=(page+1)+" / "+(max+1)+" 페이지";
- q("sheSmartPrev").disabled=page===0;
- q("sheSmartNext").disabled=page===max;
- q("sheSmartTransfer").hidden=!allowedToTransfer();
- updateTransfer();
- if(openUid&&rosterView.byId.has(openUid))detail(openUid);
+ updateSmartScrollStatus();
+}
+function queueSmartScroll(){
+ if(scrollPending)return;
+ scrollPending=true;
+ requestAnimationFrame(()=>{
+  scrollPending=false;
+  if(mode!=="smart"||!rosterState.ready||!rosterState.authorized||resetScroll||renderedCount>=currentResults.length)return;
+  const root=q("sheSmartList");
+  if(!root.clientHeight)return;
+  if(root.scrollHeight-root.scrollTop-root.clientHeight<=320){
+   appendSmartBatch();
+   if(renderedCount<currentResults.length&&root.scrollHeight-root.scrollTop-root.clientHeight<=320)queueSmartScroll();
+  }
+ });
 }
 function toggleSmartResults(selection,records,checked){
  for(const rec of records){if(checked)selection.add(rec.uid);else selection.delete(rec.uid);}
@@ -223,12 +260,12 @@ function initSmartSelection(){
  const bar=node("div","roster-smart-selection");bar.id="sheSmartSelectionBar";bar.hidden=true;
  const label=node("label","roster-smart-select-all");
  const master=node("input","");master.id="sheSmartSelectAll";master.type="checkbox";
- master.setAttribute("aria-label","현재 검색 결과 전체 선택 (모든 페이지)");
+ master.setAttribute("aria-label","현재 검색 결과 전체 선택 (아직 표시되지 않은 인원 포함)");
  label.append(master,node("span","","조회 결과 전체 선택"));
  const count=node("span","she-ux-muted");count.id="sheSmartSelectedCount";count.setAttribute("aria-live","polite");
  const clear=node("button","she-smart-action","선택 해제");clear.type="button";clear.id="sheSmartClearSelection";
- clear.title="다른 검색 조건과 페이지에서 선택한 인원까지 모두 해제";
- const hint=node("span","roster-smart-select-hint","모든 페이지 포함 · 교육 전송은 재직자 150명 이하");
+ clear.title="다른 검색 조건에서 선택한 인원까지 모두 해제";
+ const hint=node("span","roster-smart-select-hint","미표시 인원 포함 · 교육 전송은 재직자 150명 이하");
  bar.append(label,count,clear,hint);summary.after(bar);
  master.addEventListener("change",()=>{
   if(!allowedToTransfer()){updateSmartSelection();return;}
@@ -264,15 +301,16 @@ function init(){
  initSmartSelection();
  q("sheSmartMode").addEventListener("click",()=>setMode("smart"));
  q("sheFullMode").addEventListener("click",()=>setMode("full"));
- q("sheSmartSearch").addEventListener("input",()=>{page=0;schedule();});
- q("sheSmartCompany").addEventListener("change",()=>{page=0;schedule();});
+ q("sheSmartSearch").addEventListener("input",()=>{resetScroll=true;schedule();});
+ q("sheSmartCompany").addEventListener("change",()=>{resetScroll=true;schedule();});
  document.querySelectorAll("[data-she-roster-quick]").forEach(button=>button.addEventListener("click",()=>{
-  quick=button.dataset.sheRosterQuick;page=0;
+  quick=button.dataset.sheRosterQuick;resetScroll=true;
   document.querySelectorAll("[data-she-roster-quick]").forEach(b=>b.setAttribute("aria-pressed",String(b===button)));
   schedule();
  }));
- q("sheSmartPrev").addEventListener("click",()=>{page=Math.max(0,page-1);schedule();});
- q("sheSmartNext").addEventListener("click",()=>{page++;schedule();});
+ q("sheSmartList").addEventListener("scroll",queueSmartScroll,{passive:true});
+ q("sheSmartMore")?.addEventListener("click",()=>{if(!resetScroll){appendSmartBatch();queueSmartScroll();}});
+ window.addEventListener("resize",queueSmartScroll,{passive:true});
  q("sheSmartTransfer").addEventListener("click",transfer);
  document.addEventListener("she:roster-view-updated",()=>{
   if(!mode&&rosterState.ready){
